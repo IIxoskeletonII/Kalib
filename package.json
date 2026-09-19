@@ -2,16 +2,16 @@
   "name": "kalib",
   "private": true,
   "version": "0.0.1",
-  "description": "Kalib — adaptive macro tracker (local-first PWA)",
+  "description": "Kalib \u2014 adaptive macro tracker (local-first PWA)",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview --host",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src scripts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json",
+    "lint": "eslint src scripts worker",
     "format": "prettier --write .",
     "seed:usda": "node --max-old-space-size=4096 --import tsx scripts/seed-usda.ts",
     "deploy": "npm run build && wrangler deploy",
@@ -19,14 +19,17 @@
     "shot": "node --import tsx scripts/shot.ts"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
     "dexie": "^4.4.6",
     "dexie-react-hooks": "^4.4.0",
+    "lucide-react": "^1.47.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router": "^7.18.4",
     "uplot": "^1.6.32"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260919.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.2",
     "@types/react": "^19.3.0",

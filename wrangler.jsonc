@@ -1,11 +1,15 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "kalib",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-09-18",
-  // Static hosting on Workers (the successor to Cloudflare Pages). No server code in v0;
-  // the v3 vision proxy will be added as a fetch handler in this same Worker.
+  // Static PWA from dist/ plus a small API (Open Food Facts proxy). /api/* runs the Worker
+  // first; everything else is served as assets with SPA fallback.
   "assets": {
     "directory": "dist",
-    "not_found_handling": "single-page-application"
-  }
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": { "enabled": true }
 }

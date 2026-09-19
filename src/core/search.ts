@@ -26,7 +26,7 @@ export function tokenize(s: string): string[] {
   return s
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .split(/[^a-z0-9]+/)
     .filter((t) => t.length > 0);
 }

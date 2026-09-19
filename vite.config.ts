@@ -54,10 +54,12 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  // In dev, /api/* is served by the deployed Worker; production serves both from one Worker.
+  server: { proxy: { '/api': { target: 'https://kalib.kalib.workers.dev', changeOrigin: true } } },
   build: { target: 'es2022', sourcemap: false },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'scripts/**/*.test.ts', 'worker/**/*.test.ts'],
     setupFiles: ['src/test/setup.ts'],
   },
 });
