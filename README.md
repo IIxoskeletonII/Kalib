@@ -66,13 +66,15 @@ for label completeness and popularity (see `worker/off.ts`). Picked products are
 
 ## Cloud sync (optional)
 
-Sign-in is a magic link (Supabase Auth); sync is last-write-wins by `updated_at` with soft
-deletes, over the same rows the device keeps. Without the two environment variables the build
-runs local-only and Settings says so.
+Sign-in is email + password (Supabase Auth, no SMTP needed); sync is last-write-wins by
+`updated_at` with soft deletes, over the same rows the device keeps. Each account only ever sees
+its own rows (RLS), and a phone binds to the first account it syncs with. Without the two
+environment variables the build runs local-only and Settings says so.
 
 1. Create a free Supabase project, open the SQL editor and run `supabase/migrations/0001_init.sql`.
-2. Authentication → URL configuration: set the Site URL to the app's URL and add it to Redirect URLs.
-3. Copy `.env.example` to `.env.local` with the project URL and anon key, then `npm run deploy`.
+2. Authentication → Providers → Email: turn **Confirm email** off (accounts sign in immediately).
+3. Authentication → URL configuration: Site URL = the app's URL; add it to Redirect URLs (password reset).
+4. Copy `.env.example` to `.env.local` with the project URL and publishable key, then `npm run deploy`.
 
 ## Deploy
 

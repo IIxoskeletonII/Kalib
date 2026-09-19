@@ -35,7 +35,7 @@ import {
   type BackupSummary,
 } from '@/services/backup';
 import { exportCsv } from '@/services/exportData';
-import { resetThisPhone, syncNow } from '@/services/sync/manager';
+import { clearRecovery, resetThisPhone, syncNow } from '@/services/sync/manager';
 import { syncConfigured } from '@/services/sync/config';
 import { MODE_SCHEDULE_KEY, refreshTargetForDate, setModeSchedule } from '@/services/targets';
 
@@ -58,7 +58,8 @@ export default function Settings() {
   const [restoring, setRestoring] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-  const { status: sync, session } = useSync();
+  const { status: sync, session, recovery } = useSync();
+  const [newPassword, setNewPassword] = useState('');
   const schedule = useSetting<ModeSwitch[]>(MODE_SCHEDULE_KEY, []);
   const [addingSwitch, setAddingSwitch] = useState(false);
   const [switchDate, setSwitchDate] = useState('');
@@ -82,43 +83,44 @@ export default function Settings() {
     await refreshTargetForDate(today);
   };
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [authNote, setAuthNote] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const [codeSent, setCodeSent] = useState(false);
-  const [code, setCode] = useState('');
-  const [verifying, setVerifying] = useState(false);
+  const [authBusy, setAuthBusy] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const name = useSetting<string>('name', '');
 
-  const submitCode = async () => {
-    if (code.length < 6 || verifying) return;
-    setVerifying(true);
+  const submitAuth = async () => {
+    const e = email.trim();
+    if (!e || password.length < 8 || authBusy) return;
+    setAuthBusy(true);
     setAuthNote(null);
     try {
-      const { verifyCode } = await import('@/services/sync/supabase');
-      await verifyCode(email.trim(), code);
-      setCodeSent(false);
-      setCode('');
+      const m = await import('@/services/sync/supabase');
+      if (authMode === 'signup') await m.signUpWithPassword(e, password);
+      else await m.signInWithPassword(e, password);
+      setPassword('');
     } catch (err) {
-      setAuthNote(`That code did not work: ${(err as Error).message}`);
+      setAuthNote((err as Error).message);
     } finally {
-      setVerifying(false);
+      setAuthBusy(false);
     }
   };
 
-  const sendLink = async () => {
+  const forgot = async () => {
     const e = email.trim();
-    if (!e || sending) return;
-    setSending(true);
-    setAuthNote(null);
+    if (!e) {
+      setAuthNote('Enter your email first, then tap Forgot password.');
+      return;
+    }
     try {
-      const { sendMagicLink } = await import('@/services/sync/supabase');
-      await sendMagicLink(e);
-      setCodeSent(true);
+      const m = await import('@/services/sync/supabase');
+      await m.sendPasswordReset(e);
+      setAuthNote(
+        `Reset link sent to ${e}. It opens in Safari; set a new password there, then sign in here.`,
+      );
     } catch (err) {
-      setAuthNote(`Could not send the link: ${(err as Error).message}`);
-    } finally {
-      setSending(false);
+      setAuthNote((err as Error).message);
     }
   };
   const latestWeight = weighIns?.at(-1)?.weight_kg;
@@ -244,6 +246,37 @@ export default function Settings() {
                 </p>
               )}
               {sync.state === 'error' && <p className="text-[13px] text-danger">{sync.message}</p>}
+              {recovery && (
+                <div className="space-y-2 rounded-2xl bg-surface-2 p-3">
+                  <p className="text-[14px] font-semibold">Set a new password</p>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="New password (8+ characters)"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="h-12 w-full rounded-full bg-surface px-5 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+                  />
+                  <Button
+                    variant="primary"
+                    className="w-full"
+                    disabled={newPassword.length < 8}
+                    onClick={async () => {
+                      try {
+                        const m = await import('@/services/sync/supabase');
+                        await m.updatePassword(newPassword);
+                        setNewPassword('');
+                        clearRecovery();
+                        setNote('Password updated.');
+                      } catch (err) {
+                        setNote((err as Error).message);
+                      }
+                    }}
+                  >
+                    Save password
+                  </Button>
+                </div>
+              )}
               <div className="flex gap-2">
                 <Button
                   className="flex-1"
@@ -261,70 +294,58 @@ export default function Settings() {
           ) : (
             <div className="space-y-3">
               <p className="text-[14px] text-muted">
-                Sign in to keep a copy of your log in the cloud and use it on another phone. No
-                password: a code arrives by email.
+                {authMode === 'signup'
+                  ? 'Create an account to keep a copy of your log in the cloud and use it on another phone.'
+                  : 'Sign in to keep a copy of your log in the cloud and use it on another phone.'}
               </p>
-              {!codeSent ? (
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void sendLink();
-                    }}
-                    className="h-12 min-w-0 flex-1 rounded-full bg-surface-2 px-5 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
-                  />
-                  <Button variant="primary" onClick={sendLink} disabled={!email.trim() || sending}>
-                    {sending ? 'Sending…' : 'Send code'}
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-[14px]">
-                    Sent to <span className="font-semibold">{email.trim()}</span>. Enter the 6-digit
-                    code from the email:
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={8}
-                      placeholder="123456"
-                      value={code}
-                      onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void submitCode();
-                      }}
-                      className="h-12 min-w-0 flex-1 rounded-full bg-surface-2 px-5 text-[18px] tracking-[0.2em] outline-none placeholder:tracking-normal placeholder:text-muted focus:ring-2 focus:ring-accent tabular"
-                    />
-                    <Button
-                      variant="primary"
-                      onClick={submitCode}
-                      disabled={code.length < 6 || verifying}
-                    >
-                      {verifying ? 'Checking…' : 'Sign in'}
-                    </Button>
-                  </div>
-                  <p className="text-[13px] text-muted">
-                    Tapping the link in the email also works if it opens Kalib itself.{' '}
-                    <button
-                      type="button"
-                      className="font-semibold text-accent"
-                      onClick={() => {
-                        setCodeSent(false);
-                        setCode('');
-                      }}
-                    >
-                      Use a different email
-                    </button>
-                  </p>
-                </div>
-              )}
+              <input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-12 w-full rounded-full bg-surface-2 px-5 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+              />
+              <input
+                type="password"
+                autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
+                placeholder={
+                  authMode === 'signup' ? 'Choose a password (8+ characters)' : 'Password'
+                }
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void submitAuth();
+                }}
+                className="h-12 w-full rounded-full bg-surface-2 px-5 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+              />
+              <Button
+                variant="primary"
+                size="lg"
+                className="w-full"
+                onClick={submitAuth}
+                disabled={!email.trim() || password.length < 8 || authBusy}
+              >
+                {authBusy ? 'One moment…' : authMode === 'signup' ? 'Create account' : 'Sign in'}
+              </Button>
+              <div className="flex justify-between text-[13px]">
+                <button
+                  type="button"
+                  className="font-semibold text-accent"
+                  onClick={() => {
+                    setAuthMode(authMode === 'signup' ? 'signin' : 'signup');
+                    setAuthNote(null);
+                  }}
+                >
+                  {authMode === 'signup' ? 'I already have an account' : 'Create an account'}
+                </button>
+                {authMode === 'signin' && (
+                  <button type="button" className="text-muted" onClick={() => void forgot()}>
+                    Forgot password?
+                  </button>
+                )}
+              </div>
               {authNote && <p className="text-[13px] text-muted">{authNote}</p>}
             </div>
           )}

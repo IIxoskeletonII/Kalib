@@ -21,20 +21,44 @@ export async function getSession(): Promise<Session | null> {
   return (await supabase().auth.getSession()).data.session;
 }
 
-/** Emails a sign-in link and, when the email template includes {{ .Token }}, a 6-digit code. */
-export async function sendMagicLink(email: string): Promise<void> {
-  const { error } = await supabase().auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.origin, shouldCreateUser: true },
-  });
-  if (error) throw new Error(error.message);
+/** Creates the account and signs in immediately (requires "Confirm email" off in Supabase Auth). */
+export async function signUpWithPassword(email: string, password: string): Promise<void> {
+  const { data, error } = await supabase().auth.signUp({ email, password });
+  if (error) throw new Error(friendlyAuthError(error.message));
+  if (!data.session) {
+    throw new Error(
+      'Account created, but email confirmation is switched on in Supabase. Turn off "Confirm email" under Authentication → Providers → Email, then sign in.',
+    );
+  }
 }
 
-/** Signs in with the emailed code. Works inside the installed app even when the email was
- * opened in Safari, which has its own storage. */
-export async function verifyCode(email: string, code: string): Promise<void> {
-  const { error } = await supabase().auth.verifyOtp({ email, token: code.trim(), type: 'email' });
-  if (error) throw new Error(error.message);
+export async function signInWithPassword(email: string, password: string): Promise<void> {
+  const { error } = await supabase().auth.signInWithPassword({ email, password });
+  if (error) throw new Error(friendlyAuthError(error.message));
+}
+
+/** Sends the reset link through Supabase's built-in mailer (rate-limited, but no SMTP setup). */
+export async function sendPasswordReset(email: string): Promise<void> {
+  const { error } = await supabase().auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/settings`,
+  });
+  if (error) throw new Error(friendlyAuthError(error.message));
+}
+
+export async function updatePassword(password: string): Promise<void> {
+  const { error } = await supabase().auth.updateUser({ password });
+  if (error) throw new Error(friendlyAuthError(error.message));
+}
+
+function friendlyAuthError(message: string): string {
+  if (/invalid login credentials/i.test(message)) return 'Wrong email or password.';
+  if (/user already registered/i.test(message))
+    return 'That email already has an account — sign in instead.';
+  if (/password should be at least/i.test(message)) return 'Use at least 8 characters.';
+  if (/email not confirmed/i.test(message)) {
+    return 'Email confirmation is switched on in Supabase. Turn off "Confirm email" under Authentication → Providers → Email.';
+  }
+  return message;
 }
 
 export async function signOut(): Promise<void> {
