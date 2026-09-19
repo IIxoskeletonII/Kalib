@@ -1,20 +1,34 @@
-import { ChevronLeft, ChevronRight, Plus, Scale } from 'lucide-react';
+import {
+  Beef,
+  Cookie,
+  Droplets,
+  Leaf,
+  Moon,
+  Plus,
+  Scale,
+  Sparkles,
+  Sun,
+  Sunrise,
+  Wheat,
+  type LucideIcon,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AmountSheet, SLOT_LABEL } from '@/components/AmountSheet';
-import { MacroBar } from '@/components/MacroBar';
+import { MacroTile } from '@/components/MacroTile';
 import { Ring } from '@/components/Ring';
+import { Sparkline } from '@/components/Sparkline';
 import {
   Badge,
   Button,
+  Card,
   EmptyState,
-  Group,
-  IconButton,
   ListRow,
   SectionHeading,
   Skeleton,
   fmt,
 } from '@/components/ui';
+import { WeekStrip } from '@/components/WeekStrip';
 import { WeighInSheet } from '@/components/WeighInSheet';
 import {
   addDays,
@@ -35,8 +49,10 @@ import {
   useEntries,
   useFavourites,
   useFirstActivityDate,
+  useLoggedDates,
   useWeighIns,
 } from '@/hooks/useData';
+import { useCountUp } from '@/hooks/useCountUp';
 
 interface SheetState {
   food: Food;
@@ -45,6 +61,13 @@ interface SheetState {
   entryId?: string | undefined;
   method: 'search' | 'favourite';
 }
+
+const SLOT_ICON: Record<MealSlot, LucideIcon> = {
+  breakfast: Sunrise,
+  lunch: Sun,
+  dinner: Moon,
+  snack: Cookie,
+};
 
 export default function Today() {
   const [params, setParams] = useSearchParams();
@@ -59,6 +82,7 @@ export default function Today() {
   const favourites = useFavourites();
   const firstDate = useFirstActivityDate();
   const coach = useCoach(date);
+  const loggedDates = useLoggedDates(addDays(today, -6), today);
 
   const [weighOpen, setWeighOpen] = useState(false);
   const [sheet, setSheet] = useState<SheetState | null>(null);
@@ -67,10 +91,12 @@ export default function Today() {
   const trend = useMemo(() => computeTrend(weighIns ?? [], undefined, date), [weighIns, date]);
   const trendToday = trend.find((p) => p.date === date);
   const weekDelta = trendDelta(trend, 7);
+  const spark = trend.slice(-14).map((p) => p.trend);
   const todaysWeighIn = weighIns?.find((w) => w.date === date);
   const previousWeighIn = weighIns?.filter((w) => w.date < date).at(-1);
   const calibrationDay = firstDate ? diffDays(firstDate, date) + 1 : undefined;
   const remaining = target ? target.kcal - totals.kcal : 0;
+  const shownRemaining = useCountUp(Math.abs(remaining));
 
   const openFavourite = async (food_id: string, grams: number) => {
     const food = await getFood(food_id);
@@ -95,156 +121,153 @@ export default function Today() {
   }, [entries]);
 
   const loading = entries === undefined || target === undefined;
-  const fullDate = fromDateKey(date).toLocaleDateString(undefined, {
+  const dateLine = fromDateKey(date).toLocaleDateString(undefined, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   });
   const provisionalNote =
     target?.provisional && calibrationDay != null && calibrationDay <= CALIBRATION_DAYS
-      ? `Provisional targets, calibration day ${calibrationDay} of ${CALIBRATION_DAYS}`
+      ? `Provisional target, calibration day ${calibrationDay} of ${CALIBRATION_DAYS}`
       : target?.provisional
-        ? 'Provisional targets from formula'
-        : 'Measured targets';
+        ? 'Provisional target from formula'
+        : 'Measured target';
 
   return (
-    <div className="pb-28">
-      <header className="flex items-end justify-between pt-1 pb-5">
-        <div>
-          <h1 className="text-[30px] leading-none font-semibold tracking-[-0.02em]">
-            {formatDayLabel(date, today)}
-          </h1>
-          <p className="mt-1.5 text-[14px] text-muted">{fullDate}</p>
-        </div>
-        <div className="-mr-2 flex">
-          <IconButton
-            icon={ChevronLeft}
-            label="Previous day"
-            onClick={() => setDate(addDays(date, -1))}
-          />
-          <IconButton
-            icon={ChevronRight}
-            label="Next day"
-            onClick={() => setDate(addDays(date, 1))}
-            disabled={date >= today}
-          />
+    <div className="pb-32">
+      <header className="pt-2">
+        <p className="text-[14px] font-medium text-muted">{dateLine}</p>
+        <h1 className="mt-0.5 text-[34px] leading-none font-extrabold tracking-[-0.03em]">
+          {formatDayLabel(date, today)}
+        </h1>
+        <div className="mt-5">
+          <WeekStrip selected={date} today={today} onSelect={setDate} loggedDates={loggedDates} />
         </div>
       </header>
 
       {loading ? (
-        <div className="flex items-center gap-6 py-2">
-          <Skeleton className="h-[132px] w-[132px] rounded-full" />
-          <div className="flex-1 space-y-4">
-            <Skeleton className="h-3.5 w-full" />
-            <Skeleton className="h-3.5 w-5/6" />
-            <Skeleton className="h-3.5 w-full" />
-            <Skeleton className="h-3.5 w-4/6" />
-          </div>
+        <div className="card mt-6 flex flex-col items-center p-6">
+          <Skeleton className="h-[180px] w-[180px] rounded-full" />
+          <Skeleton className="mt-5 h-4 w-2/3" />
         </div>
       ) : target ? (
-        <section aria-label="Calories and macros">
-          <div className="flex items-center gap-6">
-            <Ring
-              value={totals.kcal}
-              target={target.kcal}
-              size={132}
-              stroke={8}
-              color="var(--accent)"
-            >
-              <span className="display text-[30px]">{fmt(Math.abs(remaining))}</span>
-              <span className="mt-1 text-[13px] text-muted">
-                {remaining >= 0 ? 'kcal left' : 'kcal over'}
-              </span>
-            </Ring>
-            <div className="min-w-0 flex-1 space-y-3.5">
-              <MacroBar
-                label="Protein"
-                value={totals.protein_g}
-                target={target.protein_g}
-                unit="g"
-                color="protein"
-                compact
-              />
-              <MacroBar
-                label="Fiber"
-                value={totals.fiber_g}
-                target={target.fiber_g}
-                unit="g"
-                color="fiber"
-                compact
-              />
-              <MacroBar
-                label="Carbs"
-                value={totals.carb_g}
-                target={target.carb_g}
-                unit="g"
-                color="carb"
-                compact
-              />
-              <MacroBar
-                label="Fat"
-                value={totals.fat_g}
-                target={target.fat_g}
-                unit="g"
-                color="fat"
-                compact
-              />
+        <>
+          <Card className="mt-6 px-6 pt-6 pb-5">
+            <div className="flex flex-col items-center">
+              <Ring value={totals.kcal} target={target.kcal}>
+                <span className="display">{fmt(shownRemaining)}</span>
+                <span className="mt-1.5 text-[13px] font-semibold text-muted">
+                  {remaining >= 0 ? 'kcal left' : 'kcal over'}
+                </span>
+              </Ring>
             </div>
+            <div className="mt-5 grid grid-cols-2 gap-3 border-t border-line pt-4 tabular">
+              <Stat label="Eaten" value={fmt(totals.kcal)} unit="kcal" />
+              <Stat label="Target" value={fmt(target.kcal)} unit="kcal" align="right" />
+            </div>
+            <p className="mt-3 text-center text-[12px] text-muted">{provisionalNote}</p>
+          </Card>
+
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <MacroTile
+              kind="protein"
+              label="Protein"
+              icon={Beef}
+              value={totals.protein_g}
+              target={target.protein_g}
+            />
+            <MacroTile
+              kind="fiber"
+              label="Fiber"
+              icon={Leaf}
+              value={totals.fiber_g}
+              target={target.fiber_g}
+            />
+            <MacroTile
+              kind="carb"
+              label="Carbs"
+              icon={Wheat}
+              value={totals.carb_g}
+              target={target.carb_g}
+            />
+            <MacroTile
+              kind="fat"
+              label="Fat"
+              icon={Droplets}
+              value={totals.fat_g}
+              target={target.fat_g}
+            />
           </div>
-          <p className="mt-4 text-[13px] text-muted tabular">
-            {fmt(totals.kcal)} of {fmt(target.kcal)} kcal eaten. {provisionalNote}.
-          </p>
-        </section>
+        </>
       ) : (
-        <EmptyState
-          icon={Scale}
-          title="No targets yet"
-          body="Log a weigh-in and your provisional targets appear here."
-          action={
-            <Button variant="primary" icon={Scale} onClick={() => setWeighOpen(true)}>
-              Log weigh-in
-            </Button>
-          }
-        />
+        <Card className="mt-6">
+          <EmptyState
+            icon={Scale}
+            title="No target yet"
+            body="Log a weigh-in and your provisional target appears here."
+            action={
+              <Button variant="primary" icon={Scale} onClick={() => setWeighOpen(true)}>
+                Log weigh-in
+              </Button>
+            }
+          />
+        </Card>
       )}
 
-      <div className="mt-6">
-        <Group onClick={() => setWeighOpen(true)}>
-          <ListRow
-            title={
-              todaysWeighIn ? (
-                <span className="tabular">{todaysWeighIn.weight_kg.toFixed(1)} kg</span>
-              ) : (
-                'Weigh in'
-              )
-            }
-            subtitle={
-              trendToday
-                ? `Trend ${trendToday.trend.toFixed(1)} kg${
-                    weekDelta != null
-                      ? `, ${weekDelta > 0 ? '+' : ''}${weekDelta.toFixed(2)} kg over 7 days`
-                      : ''
-                  }`
-                : 'Daily weigh-ins drive the calibration'
-            }
-            icon={Scale}
-            chevron
-          />
-        </Group>
-      </div>
+      <Card
+        className="mt-3 flex items-center justify-between gap-4 px-5 py-4"
+        onClick={() => setWeighOpen(true)}
+      >
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-[14px] font-semibold text-ink-2">
+            <Scale size={16} strokeWidth={2.2} aria-hidden className="text-accent" />
+            Weight
+          </div>
+          <div className="mt-1.5 tabular">
+            {todaysWeighIn ? (
+              <span className="text-[26px] font-bold tracking-[-0.02em]">
+                {todaysWeighIn.weight_kg.toFixed(1)}
+                <span className="ml-1 text-[15px] font-medium text-muted">kg</span>
+              </span>
+            ) : (
+              <span className="text-[17px] font-medium text-ink-2">Tap to weigh in</span>
+            )}
+          </div>
+          {trendToday && (
+            <p className="mt-0.5 text-[13px] text-muted tabular">
+              Trend {trendToday.trend.toFixed(1)} kg
+              {weekDelta != null && (
+                <>
+                  {' · '}
+                  <span className={weekDelta <= 0 ? 'text-fiber' : 'text-fat'}>
+                    {weekDelta > 0 ? '+' : ''}
+                    {weekDelta.toFixed(1)} kg / wk
+                  </span>
+                </>
+              )}
+            </p>
+          )}
+        </div>
+        {spark.length >= 2 && <Sparkline values={spark} />}
+      </Card>
 
       {coach?.kind === 'gap' && (
         <section className="mt-7" aria-label="Coach">
-          <h2 className="text-[17px] font-semibold">{coach.result.gap.label} is running low</h2>
-          <p className="mt-1 text-[14px] leading-snug text-muted tabular">
-            Averaging {fmt(coach.result.gap.average, coach.result.gap.unit === 'g' ? 0 : 1)}{' '}
-            {coach.result.gap.unit} of{' '}
-            {fmt(coach.result.gap.target, coach.result.gap.unit === 'g' ? 0 : 1)}{' '}
-            {coach.result.gap.unit} over the last {coach.result.gap.days} logged days.
-            {coach.result.recommendations.length > 0 ? ' Any of these helps:' : ''}
-          </p>
-          {coach.result.recommendations.length > 0 && (
-            <Group className="mt-3 divide-y divide-line">
+          <SectionHeading>
+            <span className="inline-flex items-center gap-2">
+              <Sparkles size={16} className="text-accent" aria-hidden />
+              {coach.result.gap.label} is running low
+            </span>
+          </SectionHeading>
+          <Card>
+            <p className="px-4 pt-4 pb-1 text-[14px] leading-snug text-muted tabular">
+              Averaging {fmt(coach.result.gap.average, coach.result.gap.unit === 'g' ? 0 : 1)}{' '}
+              {coach.result.gap.unit} of{' '}
+              {fmt(coach.result.gap.target, coach.result.gap.unit === 'g' ? 0 : 1)}{' '}
+              {coach.result.gap.unit} over the last {coach.result.gap.days} logged days.
+              {coach.result.recommendations.length > 0 ? ' Any of these helps:' : ''}
+            </p>
+            <div className="divide-y divide-line">
               {coach.result.recommendations.map((r) => (
                 <ListRow
                   key={r.food.id}
@@ -263,13 +286,13 @@ export default function Today() {
                   valueSub={coach.result.gap.label.toLowerCase()}
                 />
               ))}
-            </Group>
-          )}
+            </div>
+          </Card>
         </section>
       )}
 
       {coach?.kind === 'closed' && (
-        <p className="mt-7 rounded-2xl bg-surface px-4 py-3 text-[14px] text-ink-2">
+        <p className="card mt-7 px-4 py-3 text-[14px] text-ink-2">
           {coach.nutrientLabel} is on target this week.
         </p>
       )}
@@ -277,17 +300,19 @@ export default function Today() {
       {favourites && favourites.length > 0 && (
         <section className="mt-7">
           <SectionHeading>Log again</SectionHeading>
-          <div className="rail -mx-4 flex gap-2 overflow-x-auto px-4">
+          <div className="rail -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
             {favourites.map((f) => (
               <button
                 key={f.food_id}
                 type="button"
                 onClick={() => openFavourite(f.food_id, f.last_grams)}
-                className="flex w-[148px] shrink-0 flex-col justify-between rounded-2xl bg-surface p-3.5 text-left transition-[background-color] duration-150 active:bg-surface-2"
+                className="card flex w-[156px] shrink-0 snap-start flex-col justify-between p-4 text-left transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-[0.97]"
               >
-                <span className="line-clamp-2 text-[14px] leading-snug">{shortName(f.name)}</span>
-                <span className="mt-2 text-[13px] text-muted tabular">
-                  {fmt(f.last_grams)} g, {fmt(f.last_kcal)} kcal
+                <span className="line-clamp-2 text-[15px] font-semibold leading-snug">
+                  {shortName(f.name)}
+                </span>
+                <span className="mt-3 text-[13px] text-muted tabular">
+                  {fmt(f.last_grams)} g · {fmt(f.last_kcal)} kcal
                 </span>
               </button>
             ))}
@@ -299,21 +324,25 @@ export default function Today() {
         const list = bySlot.get(slot)!;
         if (list.length === 0) return null;
         const kcal = list.reduce((a, e) => a + e.kcal, 0);
+        const Icon = SLOT_ICON[slot];
         return (
           <section key={slot} className="mt-7">
             <SectionHeading trailing={`${fmt(kcal)} kcal`}>{SLOT_LABEL[slot]}</SectionHeading>
-            <Group className="divide-y divide-line">
+            <Card className="divide-y divide-line">
               {list.map((e) => (
                 <ListRow
                   key={e.id}
                   onClick={() => openEntry(e)}
+                  icon={Icon}
+                  iconTone="kcal"
                   title={e.name}
                   badge={e.confidence !== 'high' ? <Badge tone="kcal">estimate</Badge> : undefined}
                   subtitle={entryMeta(e)}
                   value={fmt(e.kcal)}
+                  valueSub="kcal"
                 />
               ))}
-            </Group>
+            </Card>
           </section>
         );
       })}
@@ -326,21 +355,13 @@ export default function Today() {
           action={
             <Link
               to={`/log?d=${date}`}
-              className="inline-flex h-12 items-center gap-2 rounded-xl bg-surface-2 px-5 font-medium active:bg-surface-3"
+              className="inline-flex h-12 items-center gap-2 rounded-full bg-surface-2 px-6 font-semibold active:bg-surface-3"
             >
               Log food
             </Link>
           }
         />
       )}
-
-      <Link
-        to={`/log?d=${date}`}
-        aria-label="Log food"
-        className="fixed right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-on-accent shadow-fab transition-transform duration-150 active:scale-95"
-      >
-        <Plus size={26} strokeWidth={2.25} aria-hidden />
-      </Link>
 
       <WeighInSheet
         open={weighOpen}
@@ -363,16 +384,38 @@ export default function Today() {
   );
 }
 
-/** "150 g, 34 g protein, 3 g fiber" — the two macros the plan is built on; the rest are on the sheet. */
+function Stat({
+  label,
+  value,
+  unit,
+  align = 'left',
+}: {
+  label: string;
+  value: string;
+  unit: string;
+  align?: 'left' | 'right';
+}) {
+  return (
+    <div className={align === 'right' ? 'text-right' : ''}>
+      <div className="text-[12px] font-semibold text-muted">{label}</div>
+      <div className="mt-0.5 text-[18px] font-bold tracking-[-0.01em]">
+        {value}
+        <span className="ml-1 text-[12px] font-medium text-muted">{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+/** "150 g · 34 g protein · 3 g fiber" — the two macros the plan is built on; the rest are on the sheet. */
 function entryMeta(e: LogEntry): string {
   const parts: string[] = [];
   if (e.grams > 0) parts.push(`${fmt(e.grams)} g`);
   parts.push(`${fmt(e.protein_g)} g protein`);
   if (e.fiber_g >= 1) parts.push(`${fmt(e.fiber_g)} g fiber`);
-  return parts.join(', ');
+  return parts.join(' · ');
 }
 
-/** USDA names are long; the tile shows the first two comma segments. */
+/** USDA names are long; tiles show the first two comma segments. */
 function shortName(name: string): string {
   return name.split(',').slice(0, 2).join(',').trim();
 }

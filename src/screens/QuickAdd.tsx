@@ -98,7 +98,7 @@ export default function QuickAdd() {
         value={name}
         onChange={(e) => setName(e.target.value)}
         autoComplete="off"
-        className="h-12 w-full rounded-xl bg-surface px-4 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+        className="h-12 w-full rounded-full bg-surface px-5 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
       />
 
       <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Field">
@@ -111,8 +111,8 @@ export default function QuickAdd() {
               role="radio"
               aria-checked={active}
               onClick={() => setFocus(f.key)}
-              className={`rounded-xl px-1 py-2.5 text-center transition-[background-color,box-shadow] duration-150 ${
-                active ? 'bg-surface ring-2 ring-accent' : 'bg-surface active:bg-surface-2'
+              className={`card px-1 py-2.5 text-center transition-[box-shadow] duration-150 ${
+                active ? 'ring-2 ring-accent' : 'active:bg-surface-2'
               }`}
             >
               <div className={`text-[11px] font-medium ${f.color}`}>{f.label}</div>

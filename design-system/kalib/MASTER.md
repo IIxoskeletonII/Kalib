@@ -11,55 +11,59 @@ generic tells. They are gone.
 
 ## Mode and direction
 
-**Operate.** The visitor is in a task (logging, weighing). Familiarity is a feature: grouped
-inset lists, a large title, a tab bar, sheets for focused tasks. Brand lives in precise
-details — one family, one accent, tabular numerals — not in decoration.
+**Operate**, with the owner's brief pinned on top (19 Sep, pass 3): *"incredibly aesthetic,
+minimalist, professional, buttery smooth"* — the Dribbble health-app register. The brief wins
+over the rulebooks' defaults where they conflict: soft elevated cards, a gradient ring with a
+glow, tinted icon discs, a raised centre action button, count-up numbers and eased fills are
+all deliberate here. What stays from the rulebooks: one typeface, one accent, no eyebrow caps,
+no decoration that carries no information, ≥ 4.5:1 text, 44 pt targets, reduced-motion.
 
-Direction: **a calibrated instrument**. Graphite dark / warm paper light. The calorie ring is
-the single memorable element; everything else recedes into typography and hairlines.
+Direction: **soft precision**. Deep neutral dark (#0C0D10) or warm off-white (#F6F6F4); white
+cards with a soft 30 px shadow; mint→sky gradient on the ring; pastel macro identities.
 
 ## Tokens (`src/index.css`)
 
 | Token | Dark | Light | Use |
 |---|---|---|---|
-| `bg` | #121417 | #F5F4F0 | page |
-| `surface` | #1A1D21 | #FFFFFF | grouped lists, sheets |
-| `surface-2` | #23272C | #ECEBE6 | controls, keys, tracks |
-| `surface-3` | #2D3238 | #DFDED8 | pressed |
-| `line` | rgba(255,255,255,.08) | rgba(20,22,18,.09) | hairlines |
-| `ink` / `ink-2` / `muted` | #F2F3F4 / #C3C8CE / #8D949C | #1A1C1E / #3F4449 / #5C6762 | text roles |
-| `accent` / `on-accent` | #3AD3C0 / #08211D | #0B7568 / #FFFFFF | primary action, ring, active tab |
-| `kcal` `protein` `fiber` `carb` `fat` | #E9A63F #5AA9EE #5CCB84 #A993EE #EE7F8F | #8F5708 #1861A0 #1F7038 #6F4FC7 #BB2F4A | macro identity only |
-| `danger` | #F0736E | #B5322C | destructive |
+| `bg` | #0C0D10 | #F6F6F4 | page |
+| `surface` | #16181D | #FFFFFF | cards, sheets |
+| `surface-2` | #1F2229 | #EEEEEA | controls, keys, tracks |
+| `surface-3` | #2A2E37 | #E2E2DD | pressed |
+| `line` | rgba(255,255,255,.07) | rgba(21,22,25,.08) | hairlines |
+| `ink` / `ink-2` / `muted` | #F5F6F8 / #C9CDD4 / #8F95A0 | #151619 / #3D4147 / #5D6470 | text roles |
+| `primary` / `on-primary` | #F5F6F8 / #0C0D10 | #151619 / #FFFFFF | primary buttons, selected day, centre action |
+| `accent` → `accent-2` | #5EEAD4 → #38BDF8 | #0B7D6F → #1E63A8 | ring gradient, active states, sparkline |
+| `kcal` `protein` `fiber` `carb` `fat` | #F5B74A #7DB9FF #7EE0A4 #C4A7FF #FF9AA8 | #8F5A06 #1E63A8 #22753E #6B45C4 #C22D49 | macro identity only |
+| `danger` | #FF7B74 | #B8312B | destructive |
 
 Every text pair ≥ 4.7:1 (verified). Theme follows the system; Settings can pin dark or
 light; `theme-color` follows `--bg` at runtime.
 
 ## Typography
 
-**Instrument Sans** (variable 400–700, self-hosted latin subset, `tnum`). One family. Roles:
+**Plus Jakarta Sans** (variable 200–800, self-hosted latin subset, `tnum`). One family. Roles:
 
-- Large title 30/1 600, tracking −0.02em (screen titles)
-- Display 48/1 500, tracking −0.025em — the hero number only (ring 30–32px)
-- Title 20/1.2 600 (sheet titles) · Heading 15 600 (section headings, sentence case)
-- Body 16/1.45 400 · Secondary 14 · Meta 13 muted · never below 12
+- Large title 34/1 800, tracking −0.03em, with a 14 muted line above (date / context)
+- Display 48/1 700, tracking −0.03em — the hero number only
+- Tile value 24 700 · Sheet title 22 700 · Section heading 17 700
+- Body 16/1.45 400–500 · Secondary 14 · Meta 13 muted · never below 11 (week strip initials)
 
 Numbers are always `tabular-nums`. Units get a thin space (`150 g`). No caps, no tracking on
 labels, no eyebrows above headings, no middle dots in meta — commas and full words.
 
 ## Spacing, shape, depth
 
-4-pt scale. Page gutter 16, section gap 28, group padding 16. Radii: grouped list / tile 16,
-control 12, key 12, chip full, sheet top 22, FAB full. Depth: none except the FAB shadow and
-the sheet backdrop. Grouping by proximity and hairlines before containers; the calorie block
-sits directly on the page.
+4-pt scale. Page gutter 16, section gap 28, card padding 16–24. Radii: card 24, key 12, every
+control and chip a pill, sheet top 32. Depth: `.card` = one soft shadow (`--card-shadow`), FAB
+and sheet shadows; nothing else. Icons sit in 32–40 px tinted discs (`bg-<tone>/15`).
 
 ## Touch, states, motion
 
-Targets ≥ 44 pt; keys 60 pt. Press = surface step (+ scale .95–.98 on buttons). Visible
-`focus-visible` ring. Disabled = 40 % opacity. Motion only answers an action: sheet 220 ms
-ease-out, ring / bar 500 ms; nothing animates on load; reduced-motion zeroes all durations.
-Skeletons for loading, never spinners.
+Targets ≥ 44 pt; keys 60 pt. Press = scale .97 + surface step. Visible `focus-visible` ring.
+Disabled = 40 % opacity. Motion: `--ease-out-soft` (0.22,1,0.36,1) for arrivals, `--ease-spring`
+(0.32,0.72,0,1) for sheets (320 ms). The ring fills from empty on mount and eases on change
+(900 ms); the hero number counts up (700 ms); screens rise in 220 ms; bars ease 700 ms.
+Reduced-motion zeroes all of it. Skeletons for loading, never spinners.
 
 ## Icons
 

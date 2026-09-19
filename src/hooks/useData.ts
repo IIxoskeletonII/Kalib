@@ -61,6 +61,17 @@ export function useFavourites(limit = 8) {
   );
 }
 
+/** Days in [from, to] that have at least one live entry. */
+export function useLoggedDates(from: string, to: string): ReadonlySet<string> | undefined {
+  const entries = useLiveQuery(() => listEntriesSince(from), [from]);
+  return useMemo(() => {
+    if (!entries) return undefined;
+    const s = new Set<string>();
+    for (const e of entries) if (e.date <= to) s.add(e.date);
+    return s;
+  }, [entries, to]);
+}
+
 export function useSetting<T>(key: string, fallback: T): T {
   const v = useLiveQuery(() => getSetting<T>(key), [key]);
   return v === undefined ? fallback : v;

@@ -2,7 +2,7 @@
   "name": "kalib",
   "private": true,
   "version": "0.3.0",
-  "description": "Kalib \u2014 adaptive macro tracker (local-first PWA)",
+  "description": "Kalib — adaptive macro tracker (local-first PWA)",
   "type": "module",
   "scripts": {
     "dev": "vite --host",

@@ -131,7 +131,7 @@ export default function LogFood() {
             onKeyDown={(e) => {
               if (e.key === 'Enter') void runOnline();
             }}
-            className="h-12 w-full rounded-xl bg-surface pr-11 pl-11 text-[16px] text-ink outline-none placeholder:text-muted focus:ring-2 focus:ring-accent [&::-webkit-search-cancel-button]:hidden"
+            className="h-12 w-full rounded-full bg-surface pr-11 pl-12 text-[16px] text-ink outline-none placeholder:text-muted focus:ring-2 focus:ring-accent [&::-webkit-search-cancel-button]:hidden"
           />
           {query && (
             <button
@@ -229,7 +229,7 @@ export default function LogFood() {
               </div>
             )}
             {onlineState.state === 'error' && (
-              <div className="flex items-start gap-3 rounded-2xl bg-surface p-4 text-[14px]">
+              <div className="card flex items-start gap-3 p-4 text-[14px]">
                 <WifiOff size={18} className="mt-0.5 shrink-0 text-muted" aria-hidden />
                 <div className="flex-1">
                   <p>{onlineState.message}</p>

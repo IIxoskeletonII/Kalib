@@ -60,7 +60,19 @@ export function TrendChart({ points, showRaw }: { points: TrendPoint[]; showRaw:
           ],
           series: [
             {},
-            { stroke: accent, width: 2.5, spanGaps: true, points: { show: false } },
+            {
+              stroke: accent,
+              width: 2.5,
+              spanGaps: true,
+              points: { show: false },
+              // Soft gradient under the line — reads as "area", not decoration.
+              fill: (u) => {
+                const g = u.ctx.createLinearGradient(0, u.bbox.top, 0, u.bbox.top + u.bbox.height);
+                g.addColorStop(0, `${accent}55`);
+                g.addColorStop(1, `${accent}00`);
+                return g;
+              },
+            },
             {
               show: showRaw,
               stroke: 'transparent',

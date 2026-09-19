@@ -1,82 +1,97 @@
 @import 'tailwindcss';
 
-/* Instrument Sans (variable 400–700, tabular figures), latin subset, self-hosted so first paint
-   never waits on a third party. One family carries the whole interface. */
+/* Plus Jakarta Sans (variable 200–800, tabular figures), latin subset, self-hosted so first
+   paint never waits on a third party. One family carries the whole interface. */
 @font-face {
-  font-family: 'Instrument Sans';
+  font-family: 'Plus Jakarta Sans';
   font-style: normal;
   font-display: swap;
-  font-weight: 400 700;
-  src: url('/fonts/instrument-sans-latin-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  src: url('/fonts/plus-jakarta-sans-latin-wght-normal.woff2') format('woff2');
   unicode-range:
     U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
     U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Tokens — design-system/kalib/MASTER.md. Graphite dark by default; paper light follows the
-   system unless data-theme pins one. Tailwind utilities read the --color-* aliases below. */
+/* Tokens — design-system/kalib/MASTER.md. Deep neutral dark by default; soft light follows
+   the system unless data-theme pins one. Tailwind utilities read the --color-* aliases below. */
 :root {
-  --bg: #121417;
-  --surface: #1a1d21;
-  --surface-2: #23272c;
-  --surface-3: #2d3238;
-  --line: rgba(255, 255, 255, 0.08);
-  --ink: #f2f3f4;
-  --ink-2: #c3c8ce;
-  --muted: #8d949c;
-  --accent: #3ad3c0;
-  --on-accent: #08211d;
-  --kcal: #e9a63f;
-  --protein: #5aa9ee;
-  --fiber: #5ccb84;
-  --carb: #a993ee;
-  --fat: #ee7f8f;
-  --danger: #f0736e;
-  --shadow-fab: 0 6px 20px rgba(0, 0, 0, 0.4);
+  --bg: #0c0d10;
+  --surface: #16181d;
+  --surface-2: #1f2229;
+  --surface-3: #2a2e37;
+  --line: rgba(255, 255, 255, 0.07);
+  --ink: #f5f6f8;
+  --ink-2: #c9cdd4;
+  --muted: #8f95a0;
+  --accent: #5eead4;
+  --accent-2: #38bdf8;
+  --on-accent: #062a24;
+  --primary: #f5f6f8;
+  --on-primary: #0c0d10;
+  --kcal: #f5b74a;
+  --protein: #7db9ff;
+  --fiber: #7ee0a4;
+  --carb: #c4a7ff;
+  --fat: #ff9aa8;
+  --danger: #ff7b74;
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 30px rgba(0, 0, 0, 0.35);
+  --fab-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  --glow: drop-shadow(0 0 10px rgba(94, 234, 212, 0.35));
   color-scheme: dark;
 }
 
 :root:not([data-theme='dark']):not([data-theme='light']) {
   @media (prefers-color-scheme: light) {
-    --bg: #f5f4f0;
+    --bg: #f6f6f4;
     --surface: #ffffff;
-    --surface-2: #ecebe6;
-    --surface-3: #dfded8;
-    --line: rgba(20, 22, 18, 0.09);
-    --ink: #1a1c1e;
-    --ink-2: #3f4449;
-    --muted: #5c6762;
-    --accent: #0b7568;
+    --surface-2: #eeeeea;
+    --surface-3: #e2e2dd;
+    --line: rgba(21, 22, 25, 0.08);
+    --ink: #151619;
+    --ink-2: #3d4147;
+    --muted: #5d6470;
+    --accent: #0b7d6f;
+    --accent-2: #1e63a8;
     --on-accent: #ffffff;
-    --kcal: #8f5708;
-    --protein: #1861a0;
-    --fiber: #1f7038;
-    --carb: #6f4fc7;
-    --fat: #bb2f4a;
-    --danger: #b5322c;
-    --shadow-fab: 0 6px 20px rgba(26, 28, 30, 0.18);
+    --primary: #151619;
+    --on-primary: #ffffff;
+    --kcal: #8f5a06;
+    --protein: #1e63a8;
+    --fiber: #22753e;
+    --carb: #6b45c4;
+    --fat: #c22d49;
+    --danger: #b8312b;
+    --card-shadow: 0 1px 2px rgba(21, 22, 25, 0.04), 0 10px 30px rgba(21, 22, 25, 0.07);
+    --fab-shadow: 0 10px 28px rgba(21, 22, 25, 0.22);
+    --glow: none;
     color-scheme: light;
   }
 }
 
 :root[data-theme='light'] {
-  --bg: #f5f4f0;
+  --bg: #f6f6f4;
   --surface: #ffffff;
-  --surface-2: #ecebe6;
-  --surface-3: #dfded8;
-  --line: rgba(20, 22, 18, 0.09);
-  --ink: #1a1c1e;
-  --ink-2: #3f4449;
-  --muted: #5c6762;
-  --accent: #0b7568;
+  --surface-2: #eeeeea;
+  --surface-3: #e2e2dd;
+  --line: rgba(21, 22, 25, 0.08);
+  --ink: #151619;
+  --ink-2: #3d4147;
+  --muted: #5d6470;
+  --accent: #0b7d6f;
+  --accent-2: #1e63a8;
   --on-accent: #ffffff;
-  --kcal: #8f5708;
-  --protein: #1861a0;
-  --fiber: #1f7038;
-  --carb: #6f4fc7;
-  --fat: #bb2f4a;
-  --danger: #b5322c;
-  --shadow-fab: 0 6px 20px rgba(26, 28, 30, 0.18);
+  --primary: #151619;
+  --on-primary: #ffffff;
+  --kcal: #8f5a06;
+  --protein: #1e63a8;
+  --fiber: #22753e;
+  --carb: #6b45c4;
+  --fat: #c22d49;
+  --danger: #b8312b;
+  --card-shadow: 0 1px 2px rgba(21, 22, 25, 0.04), 0 10px 30px rgba(21, 22, 25, 0.07);
+  --fab-shadow: 0 10px 28px rgba(21, 22, 25, 0.22);
+  --glow: none;
   color-scheme: light;
 }
 
@@ -90,7 +105,10 @@
   --color-ink-2: var(--ink-2);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
   --color-on-accent: var(--on-accent);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
   --color-kcal: var(--kcal);
   --color-protein: var(--protein);
   --color-fiber: var(--fiber);
@@ -98,8 +116,11 @@
   --color-fat: var(--fat);
   --color-danger: var(--danger);
   --font-sans:
-    'Instrument Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --shadow-fab: var(--shadow-fab);
+    'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --shadow-card: var(--card-shadow);
+  --shadow-fab: var(--fab-shadow);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 html,
@@ -136,8 +157,8 @@ input {
 .display {
   font-size: 48px;
   line-height: 1;
-  font-weight: 500;
-  letter-spacing: -0.025em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -162,21 +183,29 @@ a {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 /* Horizontal rails scroll without a visible scrollbar. */
 .rail {
   scrollbar-width: none;
   -ms-overflow-style: none;
+  scroll-snap-type: x proximity;
 }
 .rail::-webkit-scrollbar {
   display: none;
 }
 
+/* Elevated surface: one shadow declaration, radius 24 (cards) — see MASTER.md. */
+.card {
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--card-shadow);
+}
+
 @keyframes sheet-in {
   from {
-    transform: translateY(20px);
+    transform: translateY(40px);
     opacity: 0;
   }
   to {
@@ -192,6 +221,16 @@ a {
     opacity: 1;
   }
 }
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 @keyframes shimmer {
   from {
     background-position: -200% 0;
@@ -201,12 +240,15 @@ a {
   }
 }
 
-/* Motion answers an action (a sheet opening); nothing animates on page load. */
+/* Motion answers an action (a sheet opening, a screen arriving). */
 .sheet-in {
-  animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: sheet-in 320ms var(--ease-spring) both;
 }
 .fade-in {
   animation: fade-in 180ms ease-out both;
+}
+.screen-in {
+  animation: rise-in 220ms var(--ease-out-soft) both;
 }
 .skeleton {
   background: linear-gradient(

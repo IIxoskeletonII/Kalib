@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { ProfileForm } from '@/components/ProfileForm';
-import { Button, Group, ListRow, Row, SectionHeading, Segmented, fmt } from '@/components/ui';
+import { Button, Card, ListRow, Row, SectionHeading, Segmented, fmt } from '@/components/ui';
 import { todayKey } from '@/core/dates';
 import { saveProfileSnapshot } from '@/db/repo/profiles';
 import { useDailyTarget, useProfile, useWeighIns } from '@/hooks/useData';
@@ -64,9 +64,12 @@ export default function Settings() {
   };
 
   return (
-    <div className="space-y-5 pb-24">
-      <header>
-        <h1 className="text-[30px] leading-none font-semibold tracking-[-0.02em]">Settings</h1>
+    <div className="space-y-7 pb-32">
+      <header className="pt-2">
+        <p className="text-[14px] font-medium text-muted">Profile, data and appearance</p>
+        <h1 className="mt-0.5 text-[34px] leading-none font-extrabold tracking-[-0.03em]">
+          Settings
+        </h1>
       </header>
 
       {target && (
@@ -74,7 +77,7 @@ export default function Settings() {
           <SectionHeading trailing={target.provisional ? 'provisional' : 'measured'}>
             Today's targets
           </SectionHeading>
-          <Group className="divide-y divide-line py-1">
+          <Card className="divide-y divide-line">
             <Row label="Calories" value={fmt(target.kcal)} sub="kcal" />
             <Row label="Protein" value={fmt(target.protein_g)} sub="g" />
             <Row label="Fiber" value={fmt(target.fiber_g)} sub="g" />
@@ -82,13 +85,13 @@ export default function Settings() {
             <Row label="Fat" value={fmt(target.fat_g)} sub="g" />
             <Row label="Water" value={fmt(target.water_ml / 1000, 1)} sub="L" />
             <Row label="Weekly budget" value={fmt(target.kcal * 7)} sub="kcal" />
-          </Group>
+          </Card>
         </section>
       )}
 
       <section>
         <SectionHeading>Profile</SectionHeading>
-        <Group className={editing ? 'p-4' : ''}>
+        <Card className={editing ? 'p-5' : ''}>
           {profile && !editing && (
             <ListRow
               icon={UserRound}
@@ -118,7 +121,7 @@ export default function Settings() {
               }}
             />
           )}
-        </Group>
+        </Card>
       </section>
 
       <section>
@@ -128,7 +131,7 @@ export default function Settings() {
 
       <section>
         <SectionHeading>Your data</SectionHeading>
-        <Group className="space-y-3 p-4">
+        <Card className="space-y-3 p-5">
           <p className="text-[14px] text-muted">
             Everything lives on this phone. Export now and then; there is no cloud copy yet.
           </p>
@@ -141,12 +144,12 @@ export default function Settings() {
             </Button>
           </div>
           {note && <p className="text-[13px] text-muted">{note}</p>}
-        </Group>
+        </Card>
       </section>
 
       <section>
         <SectionHeading>About</SectionHeading>
-        <Group className="space-y-2 p-4 text-[13px] leading-relaxed text-muted">
+        <Card className="space-y-2 p-5 text-[13px] leading-relaxed text-muted">
           <p className="flex items-start gap-2">
             <Database size={14} className="mt-0.5 shrink-0" aria-hidden />
             <span>
@@ -160,7 +163,7 @@ export default function Settings() {
             Check for updates
           </Button>
           {updateNote && <p>{updateNote}</p>}
-        </Group>
+        </Card>
       </section>
     </div>
   );

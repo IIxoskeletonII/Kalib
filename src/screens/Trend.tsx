@@ -1,7 +1,7 @@
 import { Scale, TrendingDown, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { TrendChart } from '@/components/TrendChart';
-import { Group, Chip, EmptyState, ListRow, Row, SectionHeading, Segmented } from '@/components/ui';
+import { Card, Chip, EmptyState, ListRow, Row, SectionHeading, Segmented } from '@/components/ui';
 import { WeighInSheet } from '@/components/WeighInSheet';
 import { addDays, fromDateKey, todayKey } from '@/core/dates';
 import { computeTrend, trendDelta } from '@/core/trend';
@@ -36,19 +36,17 @@ export default function Trend() {
   const weighedDays = all.filter((p) => p.weighed).length;
 
   return (
-    <div className="space-y-5 pb-24">
-      <header>
-        <h1 className="text-[30px] leading-none font-semibold tracking-[-0.02em]">Trend</h1>
-        <p className="mt-1.5 text-[14px] text-muted">
-          Smoothed weight. Single readings are mostly water.
-        </p>
+    <div className="pb-32">
+      <header className="pt-2">
+        <p className="text-[14px] font-medium text-muted">Smoothed weight</p>
+        <h1 className="mt-0.5 text-[34px] leading-none font-extrabold tracking-[-0.03em]">Trend</h1>
       </header>
 
       {latest ? (
-        <section>
+        <Card className="mt-6 p-5">
           <div className="flex items-end justify-between">
             <div>
-              <div className="text-[13px] text-muted">Trend weight</div>
+              <div className="text-[13px] font-semibold text-muted">Trend weight</div>
               <div className="display mt-1">
                 {latest.trend.toFixed(1)}
                 <span className="ml-1.5 text-[20px] font-medium text-muted">kg</span>
@@ -83,7 +81,7 @@ export default function Trend() {
               Raw
             </Chip>
           </div>
-        </section>
+        </Card>
       ) : (
         <div>
           <EmptyState
@@ -95,17 +93,17 @@ export default function Trend() {
       )}
 
       {latest && (
-        <Group className="divide-y divide-line py-1">
+        <Card className="mt-3 divide-y divide-line">
           {d28 != null && <Row label="Last 28 days" value={signed(d28)} sub="kg" />}
           {sinceStart != null && <Row label="Since start" value={signed(sinceStart)} sub="kg" />}
           <Row label="Days weighed" value={String(weighedDays)} sub={`of ${all.length}`} />
-        </Group>
+        </Card>
       )}
 
       {weighIns && weighIns.length > 0 && (
-        <section>
+        <section className="mt-7">
           <SectionHeading>Weigh-ins</SectionHeading>
-          <Group className="divide-y divide-line">
+          <Card className="divide-y divide-line">
             {[...weighIns]
               .reverse()
               .slice(0, 14)
@@ -121,7 +119,7 @@ export default function Trend() {
                   value={`${w.weight_kg.toFixed(1)} kg`}
                 />
               ))}
-          </Group>
+          </Card>
         </section>
       )}
 

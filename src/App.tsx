@@ -1,9 +1,17 @@
-import { CalendarDays, LineChart, Settings as SettingsIcon, type LucideIcon } from 'lucide-react';
+import {
+  CalendarDays,
+  LineChart,
+  Plus,
+  Settings as SettingsIcon,
+  Sparkles,
+  type LucideIcon,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router';
+import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router';
 import { ensureSeeded, type SeedProgress } from '@/db/seed';
 import { useProfile } from '@/hooks/useData';
 import { useTheme } from '@/hooks/useTheme';
+import Coach from '@/screens/Coach';
 import LogFood from '@/screens/LogFood';
 import Onboarding from '@/screens/Onboarding';
 import QuickAdd from '@/screens/QuickAdd';
@@ -36,25 +44,29 @@ export default function App() {
   if (profile && onboarding) return <Navigate to="/" replace />;
 
   const hideNav = /^\/(log|quick|onboarding)/.test(location.pathname);
+  const screenKey = location.pathname.split('/')[1] ?? '';
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col">
       <main className="flex-1 overflow-y-auto px-4 pt-3 safe-top">
-        <Routes>
-          <Route path="/" element={<Today />} />
-          <Route path="/log" element={<LogFood />} />
-          <Route path="/quick" element={<QuickAdd />} />
-          <Route path="/quick/:id" element={<QuickAdd />} />
-          <Route path="/trend" element={<Trend />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <div key={screenKey} className="screen-in h-full">
+          <Routes>
+            <Route path="/" element={<Today />} />
+            <Route path="/log" element={<LogFood />} />
+            <Route path="/quick" element={<QuickAdd />} />
+            <Route path="/quick/:id" element={<QuickAdd />} />
+            <Route path="/trend" element={<Trend />} />
+            <Route path="/coach" element={<Coach />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
       </main>
 
       {seed && (
         <div
-          className="pointer-events-none fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 mx-auto max-w-md px-4"
+          className="pointer-events-none fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 mx-auto max-w-md px-4"
           role="status"
         >
           <div className="fade-in flex items-center justify-center gap-2 rounded-full bg-surface-2 px-4 py-2 text-center text-[13px] text-ink-2 shadow-fab">
@@ -72,12 +84,24 @@ export default function App() {
 
       {!hideNav && (
         <nav
-          className="grid grid-cols-3 border-t border-line bg-bg/95 backdrop-blur safe-bottom"
+          className="relative border-t border-line bg-bg/90 backdrop-blur-md safe-bottom"
           aria-label="Primary"
         >
-          <Tab to="/" label="Today" icon={CalendarDays} />
-          <Tab to="/trend" label="Trend" icon={LineChart} />
-          <Tab to="/settings" label="Settings" icon={SettingsIcon} />
+          <div className="grid h-[68px] grid-cols-5 items-center">
+            <Tab to="/" label="Today" icon={CalendarDays} />
+            <Tab to="/trend" label="Trend" icon={LineChart} />
+            <div className="flex justify-center">
+              <Link
+                to="/log"
+                aria-label="Log food"
+                className="-mt-7 flex h-[60px] w-[60px] items-center justify-center rounded-full bg-primary text-on-primary shadow-fab transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-90"
+              >
+                <Plus size={28} strokeWidth={2.5} aria-hidden />
+              </Link>
+            </div>
+            <Tab to="/coach" label="Coach" icon={Sparkles} />
+            <Tab to="/settings" label="Settings" icon={SettingsIcon} />
+          </div>
         </nav>
       )}
     </div>
@@ -90,14 +114,18 @@ function Tab({ to, label, icon: Icon }: { to: string; label: string; icon: Lucid
       to={to}
       end={to === '/'}
       className={({ isActive }) =>
-        `flex h-15 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors duration-150 ${
-          isActive ? 'text-accent' : 'text-muted active:text-ink-2'
+        `flex h-full flex-col items-center justify-center gap-1 text-[11px] font-semibold transition-colors duration-200 ${
+          isActive ? 'text-ink' : 'text-muted active:text-ink-2'
         }`
       }
     >
       {({ isActive }) => (
         <>
-          <Icon size={24} strokeWidth={isActive ? 2.25 : 2} aria-hidden />
+          <span
+            className={`flex h-7 w-11 items-center justify-center rounded-full transition-colors duration-200 ${isActive ? 'bg-surface-2' : ''}`}
+          >
+            <Icon size={22} strokeWidth={isActive ? 2.4 : 2} aria-hidden />
+          </span>
           {label}
         </>
       )}
