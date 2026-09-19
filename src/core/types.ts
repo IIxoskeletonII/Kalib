@@ -88,6 +88,8 @@ export interface Food extends SyncMeta {
   name: string;
   brand?: string;
   barcode?: string;
+  /** Source's food group (USDA category) — used to keep coach suggestions to real dishes. */
+  category?: string;
   per_100g: Per100g;
   micros: Micros;
   /** 0–1: fraction of MICRO_KEYS present. */

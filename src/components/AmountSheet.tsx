@@ -113,7 +113,7 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
           </Badge>
           {p.food.brand && <span className="truncate text-[13px] text-muted">{p.food.brand}</span>}
         </div>
-        <h2 className="mt-1 line-clamp-2 text-[19px] font-semibold leading-snug">{p.food.name}</h2>
+        <h2 className="mt-1 line-clamp-2 text-[18px] font-semibold leading-snug">{p.food.name}</h2>
       </div>
 
       <div className="flex items-end justify-between gap-4">
@@ -127,10 +127,10 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
             <span className="ml-1 text-[14px] font-normal text-muted">kcal</span>
           </div>
           <div className="mt-2 flex justify-end gap-2 text-[12px] tabular">
-            <Macro c="text-protein" v={preview.protein_g} l="P" />
-            <Macro c="text-carb" v={preview.carb_g} l="C" />
-            <Macro c="text-fat" v={preview.fat_g} l="F" />
-            <Macro c="text-fiber" v={preview.fiber_g} l="Fib" />
+            <Macro c="text-protein" v={preview.protein_g} l="protein" />
+            <Macro c="text-carb" v={preview.carb_g} l="carbs" />
+            <Macro c="text-fat" v={preview.fat_g} l="fat" />
+            <Macro c="text-fiber" v={preview.fiber_g} l="fiber" />
           </div>
         </div>
       </div>
@@ -174,7 +174,7 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
 function Macro({ c, v, l }: { c: string; v: number; l: string }) {
   return (
     <span className="text-muted">
-      <span className={`font-semibold ${c}`}>{fmt(v)}</span> {l}
+      <span className={`font-medium ${c}`}>{fmt(v)}</span> {l}
     </span>
   );
 }

@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { deflateSync } from 'node:zlib';
 
 const OUT = join(import.meta.dirname, '..', 'public', 'icons');
-const BG = [0x0f, 0x17, 0x2a] as const;
-const FG = [0x22, 0xd3, 0xee] as const;
+const BG = [0x12, 0x14, 0x17] as const;
+const FG = [0x3a, 0xd3, 0xc0] as const;
 
 type Seg = [number, number, number, number];
 // K glyph in unit coordinates (x1, y1, x2, y2).
@@ -124,8 +124,8 @@ for (const [name, size, opts] of files) {
 }
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-<rect width="100" height="100" rx="22" fill="#0f172a"/>
-<g stroke="#22d3ee" stroke-width="13" stroke-linecap="round" fill="none">
+<rect width="100" height="100" rx="22" fill="#121417"/>
+<g stroke="#3ad3c0" stroke-width="13" stroke-linecap="round" fill="none">
 <line x1="33" y1="25" x2="33" y2="75"/><line x1="35" y1="51" x2="66" y2="25"/><line x1="40" y1="47" x2="68" y2="75"/>
 </g></svg>
 `;

@@ -6,6 +6,7 @@ export interface SeedFood {
   id: string;
   external_id: string;
   name: string;
+  category?: string;
   per_100g: Per100g;
   micros: Micros;
   micro_coverage: number;

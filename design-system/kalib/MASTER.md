@@ -1,87 +1,73 @@
 # Kalib design system — MASTER
 
 Source of truth for every screen. Page files in `pages/` override this; none exist yet.
-Derived with the `ui-ux-pro-max` rule set (accessibility, touch, motion, typography) and the
-product's own principles (SPEC §2): numbers are the hero, trends over instants, never show
-more precision than the data.
 
-## Direction: precision instrument
+Skills consulted (installed under `.claude/skills/`): Anthropic `frontend-design` (avoid
+templated defaults), `impeccable` (craft floor, Operate-mode rules), Vercel
+`web-design-guidelines` (a11y/UX audit), `ui-ux-pro-max` (touch, motion, contrast rules).
+Their verdict on the first pass, and what changed: tracked-caps eyebrow labels, middle-dot
+meta strings, the identical-rounded-card kit, the sparkline-as-decoration and Inter were all
+generic tells. They are gone.
 
-Calm, dark-first, data-forward. One accent (cyan, matching the app icon). Colour is used only
-where it carries meaning — the five macro identities and state (danger/success). Everything
-else is a neutral scale. No gradients, no decorative shadows; depth comes from surface steps.
+## Mode and direction
 
-## Tokens (`src/index.css`, `@theme` + `:root` / `[data-theme]`)
+**Operate.** The visitor is in a task (logging, weighing). Familiarity is a feature: grouped
+inset lists, a large title, a tab bar, sheets for focused tasks. Brand lives in precise
+details — one family, one accent, tabular numerals — not in decoration.
+
+Direction: **a calibrated instrument**. Graphite dark / warm paper light. The calorie ring is
+the single memorable element; everything else recedes into typography and hairlines.
+
+## Tokens (`src/index.css`)
 
 | Token | Dark | Light | Use |
 |---|---|---|---|
-| `bg` | #0A0E17 | #F4F6FA | page |
-| `surface` | #121826 | #FFFFFF | cards, sheets |
-| `surface-2` | #1A2234 | #EDF1F6 | chips, keys, bar tracks |
-| `surface-3` | #232D42 | #E2E8F0 | pressed states |
-| `line` | rgba(148,163,184,.14) | rgba(15,23,42,.08) | hairlines |
-| `ink` | #F8FAFC | #0F172A | primary text |
-| `ink-2` | #CBD5E1 | #334155 | secondary text |
-| `muted` | #8A94A6 | #5B6B82 | labels (≥ 5.0:1 on every surface) |
-| `accent` / `on-accent` | #22D3EE / #06222A | #0E7490 / #FFFFFF | primary actions, active states |
-| `kcal` | #F5A524 | #A16207 | calories |
-| `protein` | #38BDF8 | #0369A1 | protein |
-| `fiber` | #4ADE80 | #166534 | fiber |
-| `carb` | #A78BFA | #6D28D9 | carbs |
-| `fat` | #FB7185 | #BE123C | fat |
-| `danger` | #F87171 | #B91C1C | destructive |
+| `bg` | #121417 | #F5F4F0 | page |
+| `surface` | #1A1D21 | #FFFFFF | grouped lists, sheets |
+| `surface-2` | #23272C | #ECEBE6 | controls, keys, tracks |
+| `surface-3` | #2D3238 | #DFDED8 | pressed |
+| `line` | rgba(255,255,255,.08) | rgba(20,22,18,.09) | hairlines |
+| `ink` / `ink-2` / `muted` | #F2F3F4 / #C3C8CE / #8D949C | #1A1C1E / #3F4449 / #5C6762 | text roles |
+| `accent` / `on-accent` | #3AD3C0 / #08211D | #0B7568 / #FFFFFF | primary action, ring, active tab |
+| `kcal` `protein` `fiber` `carb` `fat` | #E9A63F #5AA9EE #5CCB84 #A993EE #EE7F8F | #8F5708 #1861A0 #1F7038 #6F4FC7 #BB2F4A | macro identity only |
+| `danger` | #F0736E | #B5322C | destructive |
 
-All pairs verified ≥ 4.4:1 (body text pairs ≥ 5:1). Theme follows `prefers-color-scheme`,
-overridable in Settings (`data-theme="dark|light"`), `theme-color` meta updated at runtime.
+Every text pair ≥ 4.7:1 (verified). Theme follows the system; Settings can pin dark or
+light; `theme-color` follows `--bg` at runtime.
 
 ## Typography
 
-Inter Variable, self-hosted latin subset (offline, no third-party request).
-`font-variant-numeric: tabular-nums` on every number. Scale (px / line-height / weight):
+**Instrument Sans** (variable 400–700, self-hosted latin subset, `tnum`). One family. Roles:
 
-- display 44/1 600, letter-spacing −0.02em — hero numbers only
-- title 22/1.2 600 — screen titles
-- headline 17/1.3 600 — card titles, food names
-- body 16/1.5 400 — default
-- label 13/1.3 500 — section labels, meta; never below 12
+- Large title 30/1 600, tracking −0.02em (screen titles)
+- Display 48/1 500, tracking −0.025em — the hero number only (ring 30–32px)
+- Title 20/1.2 600 (sheet titles) · Heading 15 600 (section headings, sentence case)
+- Body 16/1.45 400 · Secondary 14 · Meta 13 muted · never below 12
 
-## Spacing, shape, elevation
+Numbers are always `tabular-nums`. Units get a thin space (`150 g`). No caps, no tracking on
+labels, no eyebrows above headings, no middle dots in meta — commas and full words.
 
-4-pt scale: 4 / 8 / 12 / 16 / 20 / 24 / 32. Page gutter 16. Card padding 16–20.
-Radius: card 20, button 14, key 14, chip full, sheet top 28. No shadows except the FAB
-(0 8px 24px rgba(0,0,0,.35)) and sheets (backdrop only).
+## Spacing, shape, depth
 
-## Touch & feedback
+4-pt scale. Page gutter 16, section gap 28, group padding 16. Radii: grouped list / tile 16,
+control 12, key 12, chip full, sheet top 22, FAB full. Depth: none except the FAB shadow and
+the sheet backdrop. Grouping by proximity and hairlines before containers; the calorie block
+sits directly on the page.
 
-Every target ≥ 44 × 44. Press feedback ≤ 100 ms: `active:scale-[.97]` + surface step
-(`active:bg-surface-3`). Keys 64 px tall. Visible focus ring (`focus-visible:ring-2 ring-accent`)
-on every control. `touch-action: manipulation` everywhere.
+## Touch, states, motion
 
-## Motion
-
-150–250 ms, ease-out. Sheets slide up 240 ms + backdrop fade. Bars/rings transition width or
-dash-offset 400 ms. Nothing animates width/height. `prefers-reduced-motion`: all durations → 0.
+Targets ≥ 44 pt; keys 60 pt. Press = surface step (+ scale .95–.98 on buttons). Visible
+`focus-visible` ring. Disabled = 40 % opacity. Motion only answers an action: sheet 220 ms
+ease-out, ring / bar 500 ms; nothing animates on load; reduced-motion zeroes all durations.
+Skeletons for loading, never spinners.
 
 ## Icons
 
-Lucide (SVG), 20 px inline / 24 px in nav, `stroke-width 2`, `aria-hidden` next to text,
-`aria-label` on icon-only buttons. Never glyph characters or emoji as icons.
+Lucide, 2 px stroke, 22 px in icon buttons, 24 px in the tab bar, `aria-hidden` beside text,
+`aria-label` on icon-only controls.
 
-## Components
+## Refuse
 
-- **Ring** — SVG progress ring (kcal); number + label in the centre; over-target shown as a
-  thin second arc, never by turning the ring red.
-- **MacroBar** — label, value / target unit, 6 px track. Fiber sits beside protein.
-- **Sheet** — bottom sheet, drag handle, safe-area padding, backdrop closes.
-- **NumberPad** — 3 × 4 keys 64 px, decimal optional, delete icon; functional updates.
-- **Chip** — 40 px pill; `active` = accent fill with on-accent text.
-- **SegmentedControl** — for 2–4 exclusive choices (meal slot, mode, range).
-- **ListRow** — 56 px min, leading icon optional, trailing value tabular.
-- **EmptyState** — icon + one sentence + one primary action.
-- **Skeleton** — for async lists; never a bare spinner over 300 ms.
-
-## Anti-patterns (from the rule set)
-
-Text < 12 px · icon-only control without `aria-label` · hover-only affordances · instant
-state changes · raw hex in components · glyph icons · disabled zoom (we allow pinch zoom
-off for the standalone app only because it is a native-like PWA; text remains resizable).
+Eyebrow labels · tracked caps · `A · B · C` meta · identical cards as page structure · nested
+cards · sparklines or rings as decoration · gradient text · glass · display fonts in UI · glyph
+or emoji icons · load-in animations · gray-on-colour text · shadows without offset.

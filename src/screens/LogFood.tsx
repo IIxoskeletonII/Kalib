@@ -9,7 +9,7 @@ import {
   Chip,
   IconButton,
   ListRow,
-  SectionLabel,
+  SectionHeading,
   Skeleton,
   fmt,
 } from '@/components/ui';
@@ -131,7 +131,7 @@ export default function LogFood() {
             onKeyDown={(e) => {
               if (e.key === 'Enter') void runOnline();
             }}
-            className="h-12 w-full rounded-[14px] bg-surface pr-11 pl-11 text-[16px] text-ink outline-none placeholder:text-muted focus:ring-2 focus:ring-accent [&::-webkit-search-cancel-button]:hidden"
+            className="h-12 w-full rounded-xl bg-surface pr-11 pl-11 text-[16px] text-ink outline-none placeholder:text-muted focus:ring-2 focus:ring-accent [&::-webkit-search-cancel-button]:hidden"
           />
           {query && (
             <button
@@ -161,7 +161,8 @@ export default function LogFood() {
       <div className="-mx-4 flex-1 overflow-y-auto pb-6">
         {!q && docs && (
           <p className="px-4 pt-10 text-center text-[14px] text-muted">
-            {docs.length.toLocaleString()} foods offline · packaged products via Open Food Facts
+            {docs.length.toLocaleString()} foods available offline. Packaged products come from Open
+            Food Facts.
           </p>
         )}
 
@@ -215,7 +216,7 @@ export default function LogFood() {
             )}
             {onlineState.state === 'loading' && (
               <div className="space-y-4 pt-2">
-                <SectionLabel>Open Food Facts</SectionLabel>
+                <SectionHeading>Open Food Facts</SectionHeading>
                 {[0, 1, 2, 3].map((i) => (
                   <div key={i} className="flex items-center gap-3">
                     <div className="flex-1 space-y-2">
@@ -228,7 +229,7 @@ export default function LogFood() {
               </div>
             )}
             {onlineState.state === 'error' && (
-              <div className="flex items-start gap-3 rounded-[14px] bg-surface p-4 text-[14px]">
+              <div className="flex items-start gap-3 rounded-2xl bg-surface p-4 text-[14px]">
                 <WifiOff size={18} className="mt-0.5 shrink-0 text-muted" aria-hidden />
                 <div className="flex-1">
                   <p>{onlineState.message}</p>
@@ -244,9 +245,9 @@ export default function LogFood() {
             )}
             {onlineState.state === 'done' && (
               <div className="pt-2">
-                <SectionLabel trailing={`${onlineState.items.length} results`}>
+                <SectionHeading trailing={`${onlineState.items.length} results`}>
                   Open Food Facts
-                </SectionLabel>
+                </SectionHeading>
                 {onlineState.items.length === 0 ? (
                   <p className="py-6 text-center text-[14px] text-muted">
                     No packaged product found for “{q}”. Try the brand name, or Quick add.

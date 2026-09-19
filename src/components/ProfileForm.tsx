@@ -232,9 +232,9 @@ export function ProfileForm({
       )}
 
       {preview && (
-        <div className="rounded-[20px] bg-surface-2 p-4">
+        <div className="rounded-2xl bg-surface-2 p-4">
           <div className="mb-1 text-[13px] text-muted">
-            Provisional targets · BMR {fmt(preview.bmr)} kcal (
+            Provisional targets. BMR {fmt(preview.bmr)} kcal (
             {preview.bmr_method === 'mean'
               ? 'mean of formulas'
               : preview.bmr_method === 'katch_mcardle'
@@ -284,7 +284,7 @@ export function ProfileForm({
 }
 
 const INPUT =
-  'h-12 w-full rounded-[14px] bg-surface-2 px-4 text-[16px] tabular outline-none placeholder:text-muted/60 focus:ring-2 focus:ring-accent';
+  'h-12 w-full rounded-xl bg-surface-2 px-4 text-[16px] tabular outline-none placeholder:text-muted/60 focus:ring-2 focus:ring-accent';
 
 // A <div>, not a <label>: a label's click would activate the first chip button inside it.
 function Field({

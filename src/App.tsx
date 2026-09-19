@@ -90,7 +90,7 @@ function Tab({ to, label, icon: Icon }: { to: string; label: string; icon: Lucid
       to={to}
       end={to === '/'}
       className={({ isActive }) =>
-        `flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors duration-150 ${
+        `flex h-15 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors duration-150 ${
           isActive ? 'text-accent' : 'text-muted active:text-ink-2'
         }`
       }

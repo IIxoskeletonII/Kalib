@@ -1,7 +1,7 @@
 // Reactive reads. useLiveQuery re-runs whenever the underlying Dexie tables change, so every
 // write through a repo function updates every screen with no manual invalidation.
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { addDays, todayKey } from '@/core/dates';
 import { rankFavourites } from '@/core/favourites';
 import { getDailyTarget } from '@/db/repo/dailyTargets';
@@ -15,6 +15,7 @@ import {
 import { getCurrentProfile } from '@/db/repo/profiles';
 import { getSetting } from '@/db/repo/settings';
 import { listWeighIns } from '@/db/repo/weighIns';
+import { computeCoach, type CoachState } from '@/services/coach';
 import { ensureTargetForDate } from '@/services/targets';
 
 /** undefined = still loading; null = onboarded state unknown → no profile. */
@@ -67,4 +68,23 @@ export function useSetting<T>(key: string, fallback: T): T {
 
 export function useFirstActivityDate() {
   return useLiveQuery(async () => (await firstActivityDate()) ?? null, []);
+}
+
+/** §16 coach for the trailing week ending on `date`. Recomputed when the log or targets change. */
+export function useCoach(date: string): CoachState | undefined {
+  const profile = useProfile();
+  const entries = useLiveQuery(() => listEntriesSince(addDays(date, -6)), [date]);
+  const [state, setState] = useState<CoachState | undefined>(undefined);
+  const stamp = entries?.map((e) => e.updated_at).join('|');
+  useEffect(() => {
+    if (!profile || stamp === undefined) return;
+    let cancelled = false;
+    void computeCoach(date, profile.sex).then((s) => {
+      if (!cancelled) setState(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [date, profile, stamp]);
+  return state;
 }

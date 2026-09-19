@@ -78,7 +78,7 @@ export function NumberPad({
             aria-label={isBack ? 'Delete' : k}
             onClick={() => press(k)}
             className={[
-              'flex h-16 items-center justify-center rounded-[14px] text-[26px] font-medium tabular transition-[transform,background-color] duration-100 active:scale-95 active:bg-surface-3',
+              'flex h-15 items-center justify-center rounded-xl text-[26px] font-medium tabular transition-[transform,background-color] duration-100 active:scale-95 active:bg-surface-3',
               hidden ? 'invisible' : '',
               isBack ? 'bg-surface-2 text-ink-2' : 'bg-surface-2 text-ink',
               disabled ? 'opacity-40' : '',

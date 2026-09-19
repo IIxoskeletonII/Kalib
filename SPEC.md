@@ -581,3 +581,35 @@ shipped apps already do better.
 
 *Not medical advice. Targets are general-population formulas. If any medical condition
 or medication applies, they should be reviewed by a clinician.*
+
+---
+
+## 16. Coach — gap-aware recommendations (added 19 Sep 2026)
+
+Requested by the owner after v0: once a few days of logging exist, the app must see where
+the diet is falling short and keep nudging — with concrete foods, not generic advice — until
+every target is met. Classified as a **differentiator** (§15): competitors show a deficit
+number; nobody names the three foods that would fix it.
+
+### 16.1 Detection
+- Window: trailing 7 days; only **complete** days count (logged kcal ≥ 60% of target).
+  Needs ≥ 4 complete days before anything is shown.
+- A **gap** exists when the 7-day average of a nutrient is below 85% of its target:
+  protein, fiber (primary), then micronutrients against DRI. Micronutrient gaps are only
+  judged on days whose micronutrient coverage (§7.4) is ≥ 70% — never diagnose from missing data.
+- Gaps are ranked by shortfall ratio; the largest one leads. Calories over target is a
+  separate banking concern (§5), not a coach message.
+
+### 16.2 Recommendation
+- Candidate foods are ranked by **nutrient density for the gap** (grams or %DRI per 100 kcal),
+  filtered to plausible foods (20–600 kcal / 100 g, a meaningful amount per 100 g), with a
+  boost for foods the user already logs (§8.1 — familiarity wins) and for Foundation data.
+- Each suggestion states the effect of one realistic portion: *"Lentils, cooked — 100 g adds
+  8 g fiber for 116 kcal."* Tapping logs it through the normal amount sheet.
+- Three suggestions per gap, never more than one gap at a time on Today.
+
+### 16.3 Nudging
+- Recomputed daily; the message stays until the 7-day average reaches target, then a single
+  "fiber is on target this week" confirmation, then silence.
+- Tone follows §5.2: a direction, not a verdict.
+- v2 weekly review shows all gaps and trends; Today shows only the leading one.

@@ -34,6 +34,15 @@ export async function listSearchDocs(): Promise<SearchDoc[]> {
   return docs;
 }
 
+/** Live foods in the plausible energy range the coach considers (§16.2), read once. */
+export async function listCandidateFoods(): Promise<Food[]> {
+  const out: Food[] = [];
+  await db.foods.each((f) => {
+    if (isLive(f) && f.per_100g.kcal >= 20 && f.per_100g.kcal <= 600) out.push(f);
+  });
+  return out;
+}
+
 export type FoodInput = Omit<Food, keyof SyncMeta>;
 
 export async function addFood(input: FoodInput, id?: string): Promise<Food> {

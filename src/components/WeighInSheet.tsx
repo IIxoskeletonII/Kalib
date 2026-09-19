@@ -65,7 +65,7 @@ function WeighInForm({ date, current, previous, onClose }: WeighInSheetProps) {
           <IconButton
             icon={Trash2}
             label="Delete weigh-in"
-            className="h-14 w-14 rounded-[14px] bg-surface-2 text-danger"
+            className="h-13 w-13 rounded-xl bg-surface-2 text-danger"
             onClick={async () => {
               await deleteWeighIn(date);
               onClose();

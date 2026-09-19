@@ -10,7 +10,7 @@ export default function Onboarding() {
   return (
     <div className="space-y-6 pb-10">
       <header className="pt-2">
-        <img src="/icons/icon.svg" alt="" width={48} height={48} className="mb-4 rounded-[12px]" />
+        <img src="/icons/icon.svg" alt="" width={44} height={44} className="mb-5 rounded-xl" />
         <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.01em]">
           Welcome to Kalib
         </h1>

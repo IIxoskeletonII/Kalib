@@ -30,12 +30,13 @@ export function MacroBar({
   return (
     <div className={compact ? 'space-y-1' : 'space-y-1.5'}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className={`${compact ? 'text-[13px]' : 'text-[14px]'} text-muted`}>{label}</span>
+        <span className={`${compact ? 'text-[13px]' : 'text-[14px]'} text-ink-2`}>{label}</span>
         <span className={`tabular ${compact ? 'text-[14px]' : 'text-[15px]'} font-medium`}>
           {fmt(value)}
           <span className="font-normal text-muted">
-            {' / '}
+            {' of '}
             {fmt(target)}
+            {' '}
             {unit}
           </span>
         </span>

@@ -1,7 +1,7 @@
 import { Scale, TrendingDown, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { TrendChart } from '@/components/TrendChart';
-import { Card, Chip, EmptyState, ListRow, Row, SectionLabel, Segmented } from '@/components/ui';
+import { Group, Chip, EmptyState, ListRow, Row, SectionHeading, Segmented } from '@/components/ui';
 import { WeighInSheet } from '@/components/WeighInSheet';
 import { addDays, fromDateKey, todayKey } from '@/core/dates';
 import { computeTrend, trendDelta } from '@/core/trend';
@@ -38,12 +38,14 @@ export default function Trend() {
   return (
     <div className="space-y-5 pb-24">
       <header>
-        <h1 className="text-[22px] font-semibold leading-tight">Trend</h1>
-        <p className="text-[13px] text-muted">Smoothed weight · raw scale readings are noise</p>
+        <h1 className="text-[30px] leading-none font-semibold tracking-[-0.02em]">Trend</h1>
+        <p className="mt-1.5 text-[14px] text-muted">
+          Smoothed weight. Single readings are mostly water.
+        </p>
       </header>
 
       {latest ? (
-        <Card>
+        <section>
           <div className="flex items-end justify-between">
             <div>
               <div className="text-[13px] text-muted">Trend weight</div>
@@ -54,7 +56,7 @@ export default function Trend() {
             </div>
             {d7 != null && (
               <div
-                className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-[14px] font-medium tabular ${d7 <= 0 ? 'bg-fiber/15 text-fiber' : 'bg-fat/15 text-fat'}`}
+                className={`flex items-center gap-1 pb-1 text-[14px] tabular ${d7 <= 0 ? 'text-fiber' : 'text-fat'}`}
               >
                 {d7 <= 0 ? (
                   <TrendingDown size={16} aria-hidden />
@@ -62,7 +64,7 @@ export default function Trend() {
                   <TrendingUp size={16} aria-hidden />
                 )}
                 {d7 > 0 ? '+' : ''}
-                {d7.toFixed(2)} kg / 7 d
+                {d7.toFixed(2)} kg in 7 days
               </div>
             )}
           </div>
@@ -81,29 +83,29 @@ export default function Trend() {
               Raw
             </Chip>
           </div>
-        </Card>
+        </section>
       ) : (
-        <Card>
+        <div>
           <EmptyState
             icon={Scale}
             title="No weigh-ins yet"
             body="Weigh in daily from the Today screen; the trend appears after two days."
           />
-        </Card>
+        </div>
       )}
 
       {latest && (
-        <Card className="py-2">
+        <Group className="divide-y divide-line py-1">
           {d28 != null && <Row label="Last 28 days" value={signed(d28)} sub="kg" />}
           {sinceStart != null && <Row label="Since start" value={signed(sinceStart)} sub="kg" />}
-          <Row label="Weigh-ins" value={String(weighedDays)} sub={`of ${all.length} days`} />
-        </Card>
+          <Row label="Days weighed" value={String(weighedDays)} sub={`of ${all.length}`} />
+        </Group>
       )}
 
       {weighIns && weighIns.length > 0 && (
         <section>
-          <SectionLabel>Recent weigh-ins</SectionLabel>
-          <Card className="divide-y divide-line p-0">
+          <SectionHeading>Weigh-ins</SectionHeading>
+          <Group className="divide-y divide-line">
             {[...weighIns]
               .reverse()
               .slice(0, 14)
@@ -119,7 +121,7 @@ export default function Trend() {
                   value={`${w.weight_kg.toFixed(1)} kg`}
                 />
               ))}
-          </Card>
+          </Group>
         </section>
       )}
 

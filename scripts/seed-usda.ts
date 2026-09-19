@@ -194,6 +194,7 @@ function transform(
       id: `${ds.source}:${f.fdcId}`,
       external_id: String(f.fdcId),
       name: f.description.trim(),
+      ...(cat ? { category: cat } : {}),
       per_100g,
       micros,
       micro_coverage: round(microCoverageOf(micros), 3),

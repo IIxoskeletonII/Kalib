@@ -138,6 +138,15 @@ async function main() {
     features: [{ name: 'prefers-color-scheme', value: scheme }],
   });
   await send('Page.navigate', { url });
+  // Wait for the app to mount (first paint waits on IndexedDB; dev server may reload once).
+  for (let i = 0; i < 60; i++) {
+    const r = (await send('Runtime.evaluate', {
+      expression: "document.getElementById('root')?.children.length ?? 0",
+      returnByValue: true,
+    })) as { result?: { value?: number } };
+    if ((r.result?.value ?? 0) > 0) break;
+    await sleep(250);
+  }
   await sleep(wait);
   for (const js of evals) {
     const r = (await send('Runtime.evaluate', {

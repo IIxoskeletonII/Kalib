@@ -88,7 +88,7 @@ export default function QuickAdd() {
           <h1 className="text-[22px] font-semibold leading-tight">
             {id ? 'Edit entry' : 'Quick add'}
           </h1>
-          <p className="text-[13px] text-muted">Estimate · medium confidence · no micronutrients</p>
+          <p className="text-[13px] text-muted">Logged as an estimate, without micronutrients.</p>
         </div>
       </div>
 
@@ -98,7 +98,7 @@ export default function QuickAdd() {
         value={name}
         onChange={(e) => setName(e.target.value)}
         autoComplete="off"
-        className="h-12 w-full rounded-[14px] bg-surface px-4 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+        className="h-12 w-full rounded-xl bg-surface px-4 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
       />
 
       <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Field">
@@ -111,7 +111,7 @@ export default function QuickAdd() {
               role="radio"
               aria-checked={active}
               onClick={() => setFocus(f.key)}
-              className={`rounded-[14px] px-1 py-2.5 text-center transition-[background-color,box-shadow] duration-150 ${
+              className={`rounded-xl px-1 py-2.5 text-center transition-[background-color,box-shadow] duration-150 ${
                 active ? 'bg-surface ring-2 ring-accent' : 'bg-surface active:bg-surface-2'
               }`}
             >
@@ -138,7 +138,7 @@ export default function QuickAdd() {
             <IconButton
               icon={Trash2}
               label="Delete entry"
-              className="h-14 w-14 rounded-[14px] bg-surface-2 text-danger"
+              className="h-13 w-13 rounded-xl bg-surface-2 text-danger"
               onClick={async () => {
                 await deleteEntry(id);
                 navigate(`/?d=${date}`, { replace: true });
