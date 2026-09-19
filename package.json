@@ -1,0 +1,48 @@
+{
+  "name": "kalib",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Kalib \u2014 adaptive macro tracker (local-first PWA)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview --host",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src scripts",
+    "format": "prettier --write .",
+    "seed:usda": "node --max-old-space-size=4096 --import tsx scripts/seed-usda.ts",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name kalib",
+    "icons": "node --import tsx scripts/make-icons.ts",
+    "shot": "node --import tsx scripts/shot.ts"
+  },
+  "dependencies": {
+    "dexie": "^4.4.6",
+    "dexie-react-hooks": "^4.4.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router": "^7.18.4",
+    "uplot": "^1.6.32"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "eslint": "^10.11.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "fake-indexeddb": "^6.2.5",
+    "fflate": "^0.8.3",
+    "prettier": "^3.9.8",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.13",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.70.0",
+    "vite": "^8.3.0",
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^5.0.1"
+  }
+}

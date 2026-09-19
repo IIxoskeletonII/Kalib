@@ -1,0 +1,56 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0f172a;
+  --color-surface: #1e293b;
+  --color-surface-2: #273449;
+  --color-line: #334155;
+  --color-ink: #f1f5f9;
+  --color-muted: #94a3b8;
+  --color-kcal: #f59e0b;
+  --color-protein: #38bdf8;
+  --color-fiber: #4ade80;
+  --color-carb: #c084fc;
+  --color-fat: #fb7185;
+  --color-accent: #22d3ee;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: none;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+/* Respect the iPhone notch / home indicator in standalone mode. */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+button,
+[role='button'] {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
