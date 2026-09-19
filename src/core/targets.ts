@@ -179,3 +179,26 @@ export function computeTargets(i: TargetInputs): Targets {
 export function isProvisional(tdee_source: Targets['tdee_source']): boolean {
   return tdee_source === 'formula';
 }
+
+/** §3.5 — a dated list of mode switches; the latest one on or before `date` wins. */
+export interface ModeSwitch {
+  date: string;
+  mode: Mode;
+}
+
+export function resolveMode(baseMode: Mode, schedule: readonly ModeSwitch[], date: string): Mode {
+  let mode = baseMode;
+  let best = '';
+  for (const s of schedule) {
+    if (s.date <= date && s.date >= best) {
+      best = s.date;
+      mode = s.mode;
+    }
+  }
+  return mode;
+}
+
+/** The next switch strictly after `date`, if any. */
+export function nextSwitch(schedule: readonly ModeSwitch[], date: string): ModeSwitch | undefined {
+  return [...schedule].filter((s) => s.date > date).sort((a, b) => (a.date < b.date ? -1 : 1))[0];
+}

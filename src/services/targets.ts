@@ -1,6 +1,13 @@
 // Orchestration between the profile/weigh-in repos and the pure §3 formulas.
 import { ageOn } from '@/core/dates';
-import { computeTargets, isProvisional, type TargetInputs, type Targets } from '@/core/targets';
+import {
+  computeTargets,
+  isProvisional,
+  resolveMode,
+  type ModeSwitch,
+  type TargetInputs,
+  type Targets,
+} from '@/core/targets';
 import type { DailyTarget, Profile, WeighIn } from '@/core/types';
 import {
   ensureDailyTarget,
@@ -8,9 +15,28 @@ import {
   type DailyTargetInput,
 } from '@/db/repo/dailyTargets';
 import { getCurrentProfile } from '@/db/repo/profiles';
+import { getSetting, setSetting } from '@/db/repo/settings';
 import { listWeighIns } from '@/db/repo/weighIns';
 
-export function targetInputsFor(profile: Profile, weight_kg: number, date: string): TargetInputs {
+export const MODE_SCHEDULE_KEY = 'mode_schedule';
+
+export async function getModeSchedule(): Promise<ModeSwitch[]> {
+  return (await getSetting<ModeSwitch[]>(MODE_SCHEDULE_KEY)) ?? [];
+}
+
+export async function setModeSchedule(schedule: ModeSwitch[]): Promise<void> {
+  await setSetting(
+    MODE_SCHEDULE_KEY,
+    [...schedule].sort((a, b) => (a.date < b.date ? -1 : 1)),
+  );
+}
+
+export function targetInputsFor(
+  profile: Profile,
+  weight_kg: number,
+  date: string,
+  schedule: readonly ModeSwitch[] = [],
+): TargetInputs {
   return {
     sex: profile.sex,
     age: ageOn(profile.birth_date, date),
@@ -18,7 +44,7 @@ export function targetInputsFor(profile: Profile, weight_kg: number, date: strin
     weight_kg,
     bodyfat_pct: profile.bodyfat_pct,
     activity_level: profile.activity_level,
-    mode: profile.mode,
+    mode: resolveMode(profile.mode, schedule, date),
     goal_rate_kg_per_week: profile.goal_rate_kg_per_week,
     target_weight_kg: profile.target_weight_kg,
   };
@@ -52,9 +78,10 @@ export function toDailyTargetInput(t: Targets): DailyTargetInput {
 export async function currentTargets(date: string): Promise<Targets | undefined> {
   const profile = await getCurrentProfile();
   if (!profile) return undefined;
-  const weight = weightFor(await listWeighIns(), date);
+  const [weighIns, schedule] = await Promise.all([listWeighIns(), getModeSchedule()]);
+  const weight = weightFor(weighIns, date);
   if (weight == null) return undefined;
-  return computeTargets(targetInputsFor(profile, weight, date));
+  return computeTargets(targetInputsFor(profile, weight, date, schedule));
 }
 
 /** Stored target for `date`, computing it on first sight of the day. */

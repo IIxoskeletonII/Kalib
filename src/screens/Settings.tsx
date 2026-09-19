@@ -6,6 +6,10 @@ import {
   Monitor,
   Moon,
   RefreshCw,
+  CalendarClock,
+  Cloud,
+  CloudOff,
+  LogOut,
   Sun,
   UserRound,
   Utensils,
@@ -14,9 +18,12 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ProfileForm } from '@/components/ProfileForm';
 import { Button, Card, ListRow, Row, SectionHeading, Segmented, Sheet, fmt } from '@/components/ui';
-import { todayKey } from '@/core/dates';
+import { fromDateKey, todayKey } from '@/core/dates';
+import { nextSwitch, resolveMode, type ModeSwitch } from '@/core/targets';
+import type { Mode } from '@/core/types';
 import { saveProfileSnapshot } from '@/db/repo/profiles';
-import { useDailyTarget, useProfile, useWeighIns } from '@/hooks/useData';
+import { useDailyTarget, useProfile, useSetting, useWeighIns } from '@/hooks/useData';
+import { useSync } from '@/hooks/useSync';
 import { useTheme, type ThemePref } from '@/hooks/useTheme';
 import {
   exportBackup,
@@ -27,7 +34,9 @@ import {
   type BackupSummary,
 } from '@/services/backup';
 import { exportCsv } from '@/services/exportData';
-import { refreshTargetForDate } from '@/services/targets';
+import { syncNow } from '@/services/sync/manager';
+import { syncConfigured } from '@/services/sync/config';
+import { MODE_SCHEDULE_KEY, refreshTargetForDate, setModeSchedule } from '@/services/targets';
 
 const THEMES: { value: ThemePref; label: string; icon: typeof Sun }[] = [
   { value: 'system', label: 'Auto', icon: Monitor },
@@ -48,6 +57,48 @@ export default function Settings() {
   const [restoring, setRestoring] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const { status: sync, session } = useSync();
+  const schedule = useSetting<ModeSwitch[]>(MODE_SCHEDULE_KEY, []);
+  const [addingSwitch, setAddingSwitch] = useState(false);
+  const [switchDate, setSwitchDate] = useState('');
+  const [switchMode, setSwitchMode] = useState<Mode>('MAINTAIN');
+  const activeMode = profile ? resolveMode(profile.mode, schedule, today) : undefined;
+  const upcoming = nextSwitch(schedule, today);
+
+  const saveSwitch = async () => {
+    if (!switchDate) return;
+    await setModeSchedule([
+      ...schedule.filter((s) => s.date !== switchDate),
+      { date: switchDate, mode: switchMode },
+    ]);
+    await refreshTargetForDate(today);
+    setAddingSwitch(false);
+    setSwitchDate('');
+  };
+
+  const removeSwitch = async (date: string) => {
+    await setModeSchedule(schedule.filter((s) => s.date !== date));
+    await refreshTargetForDate(today);
+  };
+  const [email, setEmail] = useState('');
+  const [authNote, setAuthNote] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  const sendLink = async () => {
+    const e = email.trim();
+    if (!e || sending) return;
+    setSending(true);
+    setAuthNote(null);
+    try {
+      const { sendMagicLink } = await import('@/services/sync/supabase');
+      await sendMagicLink(e);
+      setAuthNote(`Link sent to ${e}. Open it on this phone — it signs you in here.`);
+    } catch (err) {
+      setAuthNote(`Could not send the link: ${(err as Error).message}`);
+    } finally {
+      setSending(false);
+    }
+  };
   const latestWeight = weighIns?.at(-1)?.weight_kg;
 
   const pickBackup = async (file: File | undefined) => {
@@ -169,15 +220,137 @@ export default function Settings() {
       </section>
 
       <section>
+        <SectionHeading trailing={activeMode ? `now ${modeLabel(activeMode)}` : undefined}>
+          Mode schedule
+        </SectionHeading>
+        <Card>
+          {schedule.length === 0 ? (
+            <p className="px-5 pt-4 pb-1 text-[14px] text-muted">
+              Switch modes on a date — for example to maintenance while travelling, and back to a
+              cut when you return. Targets follow the schedule automatically.
+            </p>
+          ) : (
+            <div className="divide-y divide-line">
+              {schedule.map((s) => (
+                <ListRow
+                  key={s.date}
+                  icon={CalendarClock}
+                  iconTone={s.date > today ? 'accent' : 'muted'}
+                  wrapTitle
+                  title={`${modeLabel(s.mode)} from ${fromDateKey(s.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                  subtitle={s.date > today ? 'Upcoming' : 'In effect'}
+                  value="Remove"
+                  onClick={() => void removeSwitch(s.date)}
+                />
+              ))}
+            </div>
+          )}
+          <div className="p-4 pt-3">
+            {upcoming && (
+              <p className="mb-3 text-[13px] text-muted">
+                Next: {modeLabel(upcoming.mode)} on{' '}
+                {fromDateKey(upcoming.date).toLocaleDateString(undefined, {
+                  day: 'numeric',
+                  month: 'long',
+                })}
+                .
+              </p>
+            )}
+            <Button icon={CalendarClock} className="w-full" onClick={() => setAddingSwitch(true)}>
+              Schedule a switch
+            </Button>
+          </div>
+        </Card>
+      </section>
+
+      <section>
         <SectionHeading>Appearance</SectionHeading>
         <Segmented value={theme} options={THEMES} onChange={setTheme} />
+      </section>
+
+      <section>
+        <SectionHeading
+          trailing={
+            sync.state === 'syncing'
+              ? 'syncing…'
+              : sync.state === 'idle' && sync.lastAt
+                ? `synced ${new Date(sync.lastAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
+                : undefined
+          }
+        >
+          Account
+        </SectionHeading>
+        <Card className="space-y-3 p-5">
+          {!syncConfigured ? (
+            <p className="flex items-start gap-2 text-[14px] text-muted">
+              <CloudOff size={16} className="mt-0.5 shrink-0" aria-hidden />
+              Cloud sync is not configured in this build. Everything stays on this phone.
+            </p>
+          ) : session ? (
+            <>
+              <p className="flex items-start gap-2 text-[14px]">
+                <Cloud size={16} className="mt-0.5 shrink-0 text-accent" aria-hidden />
+                <span>
+                  Signed in as <span className="font-semibold">{session.user.email}</span>. Your log
+                  syncs to your account whenever you are online.
+                </span>
+              </p>
+              {sync.state === 'error' && (
+                <p className="text-[13px] text-danger">Last sync failed: {sync.message}</p>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1"
+                  icon={Cloud}
+                  onClick={() => void syncNow()}
+                  disabled={sync.state === 'syncing'}
+                >
+                  Sync now
+                </Button>
+                <Button
+                  icon={LogOut}
+                  onClick={() => void import('@/services/sync/supabase').then((m) => m.signOut())}
+                >
+                  Sign out
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-[14px] text-muted">
+                Sign in to back your log up to the cloud and use it on another phone. No password —
+                you get a link by email.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void sendLink();
+                  }}
+                  className="h-12 min-w-0 flex-1 rounded-full bg-surface-2 px-5 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+                />
+                <Button variant="primary" onClick={sendLink} disabled={!email.trim() || sending}>
+                  {sending ? 'Sending…' : 'Send link'}
+                </Button>
+              </div>
+              {authNote && <p className="text-[13px] text-muted">{authNote}</p>}
+            </>
+          )}
+        </Card>
       </section>
 
       <section>
         <SectionHeading>Your data</SectionHeading>
         <Card className="space-y-3 p-5">
           <p className="text-[14px] text-muted">
-            Everything lives on this phone. Export now and then; there is no cloud copy yet.
+            {session
+              ? 'A copy also lives in your account. Exports are still yours to keep.'
+              : 'Everything lives on this phone. Export now and then, or sign in above for a cloud copy.'}
           </p>
           <div className="flex gap-2">
             <Button icon={FileSpreadsheet} className="flex-1" onClick={() => run('CSV', exportCsv)}>
@@ -214,6 +387,42 @@ export default function Settings() {
           />
         </Card>
       </section>
+
+      <Sheet open={addingSwitch} onClose={() => setAddingSwitch(false)} title="Schedule a switch">
+        <div className="space-y-4">
+          <label className="block space-y-2">
+            <span className="text-[13px] font-medium text-muted">From this date</span>
+            <input
+              type="date"
+              value={switchDate}
+              min={today}
+              onChange={(e) => setSwitchDate(e.target.value)}
+              className="h-12 w-full rounded-full bg-surface-2 px-5 text-[16px] outline-none focus:ring-2 focus:ring-accent"
+            />
+          </label>
+          <div className="space-y-2">
+            <span className="block text-[13px] font-medium text-muted">Mode</span>
+            <Segmented
+              value={switchMode}
+              options={[
+                { value: 'CUT', label: 'Cut' },
+                { value: 'MAINTAIN', label: 'Maintain' },
+                { value: 'RECOMP', label: 'Recomp' },
+              ]}
+              onChange={setSwitchMode}
+            />
+          </div>
+          <Button
+            variant="primary"
+            size="lg"
+            className="w-full"
+            onClick={saveSwitch}
+            disabled={!switchDate}
+          >
+            Save
+          </Button>
+        </div>
+      </Sheet>
 
       <Sheet open={pending != null} onClose={() => setPending(null)} title="Restore this backup?">
         {pending && (
@@ -267,6 +476,10 @@ export default function Settings() {
       </section>
     </div>
   );
+}
+
+function modeLabel(mode: Mode): string {
+  return mode === 'CUT' ? 'Cut' : mode === 'MAINTAIN' ? 'Maintain' : 'Recomp';
 }
 
 function cap(s: string): string {

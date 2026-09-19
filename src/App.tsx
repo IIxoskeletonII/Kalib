@@ -11,6 +11,7 @@ import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-route
 import { ensureSeeded, type SeedProgress } from '@/db/seed';
 import { useProfile } from '@/hooks/useData';
 import { useTheme } from '@/hooks/useTheme';
+import { startSync } from '@/services/sync/manager';
 import Today from '@/screens/Today';
 
 // Today is the cold-start path; everything else loads on first visit (uPlot lives in Trend).
@@ -28,6 +29,10 @@ export default function App() {
   const location = useLocation();
   const [seed, setSeed] = useState<SeedProgress | 'error' | null>(null);
   useTheme();
+
+  useEffect(() => {
+    void startSync();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

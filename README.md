@@ -32,8 +32,8 @@ code conventions: [`CLAUDE.md`](CLAUDE.md).
 ## Stack
 
 React 19 · Vite · TypeScript (strict) · Tailwind v4 · Dexie (IndexedDB) · uPlot · vite-plugin-pwa ·
-Cloudflare Workers (static assets + a small API proxy for Open Food Facts). No backend database yet;
-rows carry `id / user_id / updated_at / deleted_at` so a sync layer drops in without a migration.
+Cloudflare Workers (static assets + a small API proxy for Open Food Facts) · Supabase (auth + a
+row-per-row mirror for sync; optional).
 
 ```
 src/core/       pure formulas + types, fully unit-tested      src/db/         Dexie schema, repos, seed
@@ -63,6 +63,16 @@ npm run seed:usda
 
 Packaged foods come from Open Food Facts through `/api/off/search`, which re-ranks OFF's results
 for label completeness and popularity (see `worker/off.ts`). Picked products are cached locally.
+
+## Cloud sync (optional)
+
+Sign-in is a magic link (Supabase Auth); sync is last-write-wins by `updated_at` with soft
+deletes, over the same rows the device keeps. Without the two environment variables the build
+runs local-only and Settings says so.
+
+1. Create a free Supabase project, open the SQL editor and run `supabase/migrations/0001_init.sql`.
+2. Authentication → URL configuration: set the Site URL to the app's URL and add it to Redirect URLs.
+3. Copy `.env.example` to `.env.local` with the project URL and anon key, then `npm run deploy`.
 
 ## Deploy
 

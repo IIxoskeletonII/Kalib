@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  nextSwitch,
+  resolveMode,
   computeBmr,
   computeTargets,
   deficitPct,
@@ -215,5 +217,25 @@ describe('computeTargets (§3.4)', () => {
     expect(t.protein_g).toBeLessThan(165);
     expect(t.fiber_g).toBeGreaterThan(29);
     expect(t.water_ml).toBe(3850);
+  });
+});
+
+describe('scheduled mode switching (§3.5)', () => {
+  const schedule = [
+    { date: '2026-12-24', mode: 'MAINTAIN' as const },
+    { date: '2027-01-25', mode: 'CUT' as const },
+  ];
+  it('uses the base mode before the first switch', () => {
+    expect(resolveMode('CUT', schedule, '2026-12-23')).toBe('CUT');
+  });
+  it('switches on the day, and again on the return', () => {
+    expect(resolveMode('CUT', schedule, '2026-12-24')).toBe('MAINTAIN');
+    expect(resolveMode('CUT', schedule, '2027-01-10')).toBe('MAINTAIN');
+    expect(resolveMode('CUT', schedule, '2027-01-25')).toBe('CUT');
+  });
+  it('reports the next switch', () => {
+    expect(nextSwitch(schedule, '2026-12-01')?.date).toBe('2026-12-24');
+    expect(nextSwitch(schedule, '2027-01-01')?.date).toBe('2027-01-25');
+    expect(nextSwitch(schedule, '2027-02-01')).toBeUndefined();
   });
 });

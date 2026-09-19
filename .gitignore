@@ -9,3 +9,7 @@ dev-dist
 # Third-party agent skills (reinstall: see README)
 .claude/skills/
 .agents/
+
+# Local secrets / per-machine config
+.env.local
+.env.*.local
