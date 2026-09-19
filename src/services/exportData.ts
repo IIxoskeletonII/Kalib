@@ -1,9 +1,7 @@
 // SPEC §12: CSV export of all log entries and weigh-ins from v0, plus a full JSON backup.
 import { MICRO_KEYS } from '@/core/nutrients';
 import type { LogEntry, WeighIn } from '@/core/types';
-import { listDailyTargets } from '@/db/repo/dailyTargets';
 import { listAllEntries } from '@/db/repo/logEntries';
-import { getCurrentProfile } from '@/db/repo/profiles';
 import { listWeighIns } from '@/db/repo/weighIns';
 import { exportFiles, type ExportFile } from '@/platform/exportFile';
 
@@ -78,31 +76,4 @@ export async function exportCsv(): Promise<'shared' | 'downloaded'> {
     { name: `kalib-weight-${stamp}.csv`, mime: 'text/csv', content: weighInsCsv(weighIns) },
   ];
   return exportFiles(files);
-}
-
-/** Everything the user created (not the USDA seed, which is regenerable). */
-export async function exportJson(): Promise<'shared' | 'downloaded'> {
-  const [entries, weighIns, targets, profile] = await Promise.all([
-    listAllEntries(),
-    listWeighIns(),
-    listDailyTargets(),
-    getCurrentProfile(),
-  ]);
-  const backup = {
-    app: 'kalib',
-    format: 1,
-    exported_at: new Date().toISOString(),
-    profile: profile ?? null,
-    weigh_ins: weighIns,
-    log_entries: entries,
-    daily_targets: targets,
-  };
-  const stamp = new Date().toISOString().slice(0, 10);
-  return exportFiles([
-    {
-      name: `kalib-backup-${stamp}.json`,
-      mime: 'application/json',
-      content: JSON.stringify(backup, null, 1),
-    },
-  ]);
 }

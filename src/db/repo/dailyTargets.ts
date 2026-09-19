@@ -51,3 +51,7 @@ export async function listDailyTargets(): Promise<DailyTarget[]> {
     .toArray();
   return rows.filter(isLive);
 }
+
+export async function bulkPutDailyTargets(rows: readonly DailyTarget[]): Promise<void> {
+  await db.daily_targets.bulkPut([...rows]);
+}

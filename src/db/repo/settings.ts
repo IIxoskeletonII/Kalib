@@ -1,3 +1,4 @@
+import type { Setting } from '@/core/types';
 import { db, LOCAL_USER_ID, nowIso } from '../db';
 
 export async function getSetting<T>(key: string): Promise<T | undefined> {
@@ -7,4 +8,12 @@ export async function getSetting<T>(key: string): Promise<T | undefined> {
 
 export async function setSetting(key: string, value: unknown): Promise<void> {
   await db.settings.put({ key, user_id: LOCAL_USER_ID, value, updated_at: nowIso() });
+}
+
+export async function listSettings(): Promise<Setting[]> {
+  return db.settings.toArray();
+}
+
+export async function bulkPutSettings(rows: readonly Setting[]): Promise<void> {
+  await db.settings.bulkPut([...rows]);
 }

@@ -9,7 +9,8 @@ import { Button, IconButton, Segmented } from '@/components/ui';
 import { mealSlotForTime, todayKey } from '@/core/dates';
 import { MEAL_SLOTS, type MealSlot } from '@/core/types';
 import { deleteEntry, getEntry, updateEntry } from '@/db/repo/logEntries';
-import { logManual } from '@/services/logging';
+import { createCustomFood } from '@/services/customFoods';
+import { logFood, logManual } from '@/services/logging';
 
 type Field = 'kcal' | 'protein_g' | 'carb_g' | 'fat_g' | 'fiber_g';
 const FIELDS: { key: Field; label: string; unit: string; color: string }[] = [
@@ -35,6 +36,7 @@ export default function QuickAdd() {
   const [values, setValues] = useState<Values>(EMPTY);
   const [focus, setFocus] = useState<Field>('kcal');
   const [loaded, setLoaded] = useState(!id);
+  const [saveAsFood, setSaveAsFood] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -57,7 +59,9 @@ export default function QuickAdd() {
   }, [id, navigate]);
 
   const num = (f: Field) => Number(values[f]) || 0;
-  const canSave = num('kcal') > 0 || num('protein_g') > 0 || num('carb_g') > 0 || num('fat_g') > 0;
+  const hasMacros =
+    num('kcal') > 0 || num('protein_g') > 0 || num('carb_g') > 0 || num('fat_g') > 0;
+  const canSave = hasMacros && (!saveAsFood || name.trim().length > 0);
 
   const save = async () => {
     if (!canSave) return;
@@ -69,7 +73,12 @@ export default function QuickAdd() {
       fiber_g: num('fiber_g'),
     };
     if (id) await updateEntry(id, { ...macros, name: name || 'Quick add', meal_slot: slot });
-    else await logManual({ ...macros, name, meal_slot: slot, date });
+    else if (saveAsFood) {
+      // SPEC §8.1: the entry becomes a reusable food (one nominal 100 g serving) and is logged
+      // against it, so it shows up in search and in "Log again".
+      const food = await createCustomFood({ name, serving_g: 100, ...macros });
+      await logFood({ food, grams: 100, meal_slot: slot, date, entry_method: 'search' });
+    } else await logManual({ ...macros, name, meal_slot: slot, date });
     navigate(`/?d=${date}`, { replace: true });
   };
 
@@ -126,6 +135,30 @@ export default function QuickAdd() {
       </div>
 
       <Segmented value={slot} options={SLOT_OPTIONS} onChange={setSlot} />
+
+      {!id && (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={saveAsFood}
+          onClick={() => setSaveAsFood((v) => !v)}
+          className="card flex items-center justify-between px-4 py-3 text-left"
+        >
+          <span>
+            <span className="block text-[15px] font-semibold">Save as a food</span>
+            <span className="block text-[13px] text-muted">
+              Reusable next time — one tap from Today.
+            </span>
+          </span>
+          <span
+            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200 ${saveAsFood ? 'bg-accent' : 'bg-surface-3'}`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform duration-200 ease-[var(--ease-out-soft)] ${saveAsFood ? 'translate-x-5' : ''}`}
+            />
+          </span>
+        </button>
+      )}
 
       <div className="mt-auto space-y-3 pb-2">
         <NumberPad

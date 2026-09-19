@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { addDays, todayKey } from '@/core/dates';
 import { rankFavourites } from '@/core/favourites';
 import { getDailyTarget } from '@/db/repo/dailyTargets';
-import { listSearchDocs } from '@/db/repo/foods';
+import { listSearchDocs, listUserFoods } from '@/db/repo/foods';
 import {
   firstActivityDate,
   foodUsageCounts,
@@ -58,6 +58,17 @@ export function useFavourites(limit = 8) {
   return useMemo(
     () => (entries ? rankFavourites(entries, new Date(), limit) : undefined),
     [entries, limit],
+  );
+}
+
+/** Custom foods and cached packaged products, newest first. */
+export function useUserFoods() {
+  return useLiveQuery(
+    async () =>
+      (await listUserFoods())
+        .filter((f) => f.deleted_at == null)
+        .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)),
+    [],
   );
 }
 

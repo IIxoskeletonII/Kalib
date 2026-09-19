@@ -19,3 +19,15 @@ export async function saveProfileSnapshot(input: ProfileInput): Promise<Profile>
   await db.profiles.add(row);
   return row;
 }
+
+/** Every snapshot, oldest first (backup / audit). */
+export async function listProfiles(): Promise<Profile[]> {
+  return db.profiles
+    .where('[user_id+created_at]')
+    .between([LOCAL_USER_ID, Dexie.minKey], [LOCAL_USER_ID, Dexie.maxKey])
+    .toArray();
+}
+
+export async function bulkPutProfiles(rows: readonly Profile[]): Promise<void> {
+  await db.profiles.bulkPut([...rows]);
+}

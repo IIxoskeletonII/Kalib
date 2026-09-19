@@ -1,5 +1,5 @@
 // SPEC §8 weighed-ingredient path: search → number pad → done, ≤10 s.
-import { ChevronLeft, Globe, PenLine, Search, SearchX, WifiOff, X } from 'lucide-react';
+import { ChevronLeft, Globe, PenLine, Plus, Search, SearchX, WifiOff, X } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { AmountSheet, SOURCE_LABEL } from '@/components/AmountSheet';
@@ -35,7 +35,7 @@ export default function LogFood() {
 
   const docs = useSearchDocs();
   const usage = useFoodUsage();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(params.get('q') ?? '');
   const deferred = useDeferredValue(query);
   const inputRef = useRef<HTMLInputElement>(null);
   const [online, setOnline] = useState<{ q: string; r: Online }>({ q: '', r: { state: 'idle' } });
@@ -74,8 +74,12 @@ export default function LogFood() {
   const onlineState: Online = online.q === q ? online.r : { state: 'idle' };
 
   const pick = async (id: string) => {
-    const [food, grams] = await Promise.all([getFood(id), lastGramsForFood(id)]);
-    if (food) setPicked({ food, grams });
+    const [food, last] = await Promise.all([getFood(id), lastGramsForFood(id)]);
+    if (!food) return;
+    // Own foods and packaged products carry a real serving; USDA rows start blank.
+    const serving =
+      food.source === 'custom' || food.source === 'off' ? food.portions[0]?.grams : undefined;
+    setPicked({ food, grams: last ?? serving });
   };
 
   const pickOnline = async (p: OffProduct) => {
@@ -155,6 +159,9 @@ export default function LogFood() {
         </Chip>
         <Chip icon={Globe} onClick={runOnline} disabled={q.length < 2}>
           Packaged foods
+        </Chip>
+        <Chip icon={Plus} onClick={() => navigate(`/foods/new?d=${date}`)}>
+          New food
         </Chip>
       </div>
 

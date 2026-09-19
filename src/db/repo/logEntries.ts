@@ -83,3 +83,7 @@ export async function foodUsageCounts(): Promise<Map<string, number>> {
   });
   return counts;
 }
+
+export async function bulkPutEntries(rows: readonly LogEntry[]): Promise<void> {
+  await db.log_entries.bulkPut([...rows]);
+}

@@ -50,3 +50,17 @@ export async function addFood(input: FoodInput, id?: string): Promise<Food> {
   await db.foods.add(row);
   return row;
 }
+
+/** Foods the user created or fetched (not the regenerable USDA seed). */
+export async function listUserFoods(): Promise<Food[]> {
+  return db.foods.where('source').anyOf(['custom', 'off', 'photo']).toArray();
+}
+
+export async function updateFood(id: string, patch: Partial<FoodInput>): Promise<void> {
+  await db.foods.update(id, { ...patch, updated_at: new Date().toISOString() });
+}
+
+export async function deleteFood(id: string): Promise<void> {
+  const ts = new Date().toISOString();
+  await db.foods.update(id, { deleted_at: ts, updated_at: ts });
+}

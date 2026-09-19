@@ -50,3 +50,7 @@ export async function deleteWeighIn(date: string): Promise<void> {
   const row = await db.weigh_ins.where('[user_id+date]').equals([LOCAL_USER_ID, date]).first();
   if (row) await db.weigh_ins.update(row.id, { deleted_at: nowIso(), updated_at: nowIso() });
 }
+
+export async function bulkPutWeighIns(rows: readonly WeighIn[]): Promise<void> {
+  await db.weigh_ins.bulkPut([...rows]);
+}

@@ -2,20 +2,31 @@ import {
   Database,
   FileJson,
   FileSpreadsheet,
+  FolderOpen,
   Monitor,
   Moon,
   RefreshCw,
   Sun,
   UserRound,
+  Utensils,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { ProfileForm } from '@/components/ProfileForm';
-import { Button, Card, ListRow, Row, SectionHeading, Segmented, fmt } from '@/components/ui';
+import { Button, Card, ListRow, Row, SectionHeading, Segmented, Sheet, fmt } from '@/components/ui';
 import { todayKey } from '@/core/dates';
 import { saveProfileSnapshot } from '@/db/repo/profiles';
 import { useDailyTarget, useProfile, useWeighIns } from '@/hooks/useData';
 import { useTheme, type ThemePref } from '@/hooks/useTheme';
-import { exportCsv, exportJson } from '@/services/exportData';
+import {
+  exportBackup,
+  parseBackup,
+  restoreBackup,
+  summarize,
+  type Backup,
+  type BackupSummary,
+} from '@/services/backup';
+import { exportCsv } from '@/services/exportData';
 import { refreshTargetForDate } from '@/services/targets';
 
 const THEMES: { value: ThemePref; label: string; icon: typeof Sun }[] = [
@@ -33,7 +44,40 @@ export default function Settings() {
   const [editing, setEditing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [updateNote, setUpdateNote] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ backup: Backup; summary: BackupSummary } | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
   const latestWeight = weighIns?.at(-1)?.weight_kg;
+
+  const pickBackup = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const backup = parseBackup(JSON.parse(await file.text()));
+      setPending({ backup, summary: summarize(backup) });
+    } catch (err) {
+      setNote(`Could not read that file: ${(err as Error).message}`);
+    } finally {
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const confirmRestore = async () => {
+    if (!pending || restoring) return;
+    setRestoring(true);
+    try {
+      await restoreBackup(pending.backup);
+      await refreshTargetForDate(today);
+      setNote(
+        `Restored ${pending.summary.log_entries} entries and ${pending.summary.weigh_ins} weigh-ins.`,
+      );
+      setPending(null);
+    } catch (err) {
+      setNote(`Restore failed: ${(err as Error).message}`);
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const checkForUpdate = async () => {
     setUpdateNote('Checking…');
@@ -139,13 +183,69 @@ export default function Settings() {
             <Button icon={FileSpreadsheet} className="flex-1" onClick={() => run('CSV', exportCsv)}>
               CSV
             </Button>
-            <Button icon={FileJson} className="flex-1" onClick={() => run('Backup', exportJson)}>
+            <Button icon={FileJson} className="flex-1" onClick={() => run('Backup', exportBackup)}>
               Backup
             </Button>
           </div>
+          <Button icon={FolderOpen} className="w-full" onClick={() => fileRef.current?.click()}>
+            Restore a backup
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => void pickBackup(e.target.files?.[0])}
+          />
           {note && <p className="text-[13px] text-muted">{note}</p>}
         </Card>
       </section>
+
+      <section>
+        <SectionHeading>Foods</SectionHeading>
+        <Card>
+          <ListRow
+            icon={Utensils}
+            iconTone="accent"
+            title="My foods"
+            subtitle="Custom foods and scanned products"
+            chevron
+            onClick={() => navigate('/foods')}
+          />
+        </Card>
+      </section>
+
+      <Sheet open={pending != null} onClose={() => setPending(null)} title="Restore this backup?">
+        {pending && (
+          <div className="space-y-4">
+            <p className="text-[15px] leading-snug text-ink-2">
+              From{' '}
+              {pending.summary.exported_at
+                ? pending.summary.exported_at.slice(0, 10)
+                : 'an unknown date'}
+              : {pending.summary.log_entries} log entries, {pending.summary.weigh_ins} weigh-ins,{' '}
+              {pending.summary.foods} foods, {pending.summary.profiles} profile snapshots.
+            </p>
+            <p className="text-[14px] text-muted">
+              Rows with the same id are replaced; everything else on this phone is kept.
+            </p>
+            <div className="flex gap-2">
+              <Button size="lg" className="px-5" onClick={() => setPending(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="lg"
+                className="flex-1"
+                onClick={confirmRestore}
+                disabled={restoring}
+              >
+                {restoring ? 'Restoring…' : 'Restore'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Sheet>
 
       <section>
         <SectionHeading>About</SectionHeading>

@@ -1,5 +1,6 @@
 // Grams → entry, for a database food. Used by search, favourites and entry editing.
-import { Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
+import { Link } from 'react-router';
 import { useMemo, useState } from 'react';
 import { scaleFood } from '@/core/nutrition';
 import { MEAL_SLOTS, type EntryMethod, type Food, type MealSlot } from '@/core/types';
@@ -106,12 +107,20 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
 
   return (
     <div className="space-y-5">
-      <div className="pr-12">
+      <div>
         <div className="flex items-center gap-2">
           <Badge tone={p.food.source === 'custom' ? 'accent' : 'muted'}>
             {SOURCE_LABEL[p.food.source]}
           </Badge>
           {p.food.brand && <span className="truncate text-[13px] text-muted">{p.food.brand}</span>}
+          {p.food.source === 'custom' && (
+            <Link
+              to={`/foods/${p.food.id}`}
+              className="ml-auto inline-flex h-8 items-center gap-1 rounded-full bg-surface-2 px-3 text-[13px] font-medium text-ink-2"
+            >
+              <Pencil size={13} aria-hidden /> Edit
+            </Link>
+          )}
         </div>
         <h2 className="mt-1 line-clamp-2 text-[18px] font-semibold leading-snug">{p.food.name}</h2>
       </div>

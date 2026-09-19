@@ -20,6 +20,8 @@ const Settings = lazy(() => import('@/screens/Settings'));
 const LogFood = lazy(() => import('@/screens/LogFood'));
 const QuickAdd = lazy(() => import('@/screens/QuickAdd'));
 const Onboarding = lazy(() => import('@/screens/Onboarding'));
+const MyFoods = lazy(() => import('@/screens/MyFoods'));
+const FoodEditor = lazy(() => import('@/screens/FoodEditor'));
 
 export default function App() {
   const profile = useProfile();
@@ -45,7 +47,7 @@ export default function App() {
   if (profile === null && !onboarding) return <Navigate to="/onboarding" replace />;
   if (profile && onboarding) return <Navigate to="/" replace />;
 
-  const hideNav = /^\/(log|quick|onboarding)/.test(location.pathname);
+  const hideNav = /^\/(log|quick|onboarding|foods)/.test(location.pathname);
   const screenKey = location.pathname.split('/')[1] ?? '';
 
   return (
@@ -61,6 +63,9 @@ export default function App() {
               <Route path="/trend" element={<Trend />} />
               <Route path="/coach" element={<Coach />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/foods" element={<MyFoods />} />
+              <Route path="/foods/new" element={<FoodEditor />} />
+              <Route path="/foods/:id" element={<FoodEditor />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
