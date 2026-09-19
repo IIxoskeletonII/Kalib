@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router';
 import { ProfileForm } from '@/components/ProfileForm';
 import { todayKey } from '@/core/dates';
 import { saveProfileSnapshot } from '@/db/repo/profiles';
+import { setSetting } from '@/db/repo/settings';
 import { upsertWeighIn } from '@/db/repo/weighIns';
 import { refreshTargetForDate } from '@/services/targets';
 
@@ -23,8 +24,9 @@ export default function Onboarding() {
       <ProfileForm
         askWeight
         submitLabel="Start tracking"
-        onSubmit={async ({ weight_kg, ...profile }) => {
+        onSubmit={async ({ weight_kg, name, ...profile }) => {
           await saveProfileSnapshot(profile);
+          await setSetting('name', name);
           const today = todayKey();
           if (weight_kg != null) await upsertWeighIn(today, weight_kg);
           await refreshTargetForDate(today);

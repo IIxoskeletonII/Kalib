@@ -11,11 +11,15 @@ export type SyncStatus =
   | { state: 'off' }
   | { state: 'idle'; lastAt: string | null }
   | { state: 'syncing'; lastAt: string | null }
-  | { state: 'error'; lastAt: string | null; message: string };
+  | { state: 'error'; lastAt: string | null; message: string }
+  /** Signed in as someone other than the account whose data is on this phone. */
+  | { state: 'mismatch'; ownerEmail: string | null };
 
 type Listener = (s: SyncStatus, session: Session | null) => void;
 
 const LAST_AT = 'sync:last_at';
+/** The account this phone's data belongs to, set on the first successful sync. */
+const OWNER = 'sync:user_id';
 const listeners = new Set<Listener>();
 let session: Session | null = null;
 let status: SyncStatus = { state: 'off' };
@@ -39,6 +43,12 @@ export async function syncNow(): Promise<SyncReport | null> {
     queued = true;
     return null;
   }
+  // Never merge two people's data: a phone syncs with exactly one account until it is reset.
+  const owner = await getSetting<{ id: string; email: string | null }>(OWNER);
+  if (owner && owner.id !== session.user.id) {
+    await setStatus({ state: 'mismatch', ownerEmail: owner.email });
+    return null;
+  }
   running = true;
   const lastAt = (await getSetting<string>(LAST_AT)) ?? null;
   await setStatus({ state: 'syncing', lastAt });
@@ -46,6 +56,7 @@ export async function syncNow(): Promise<SyncReport | null> {
     const { supabaseRemote } = await import('./supabase');
     const report = await syncOnce(supabaseRemote(session.user.id), dexieLocal);
     const now = new Date().toISOString();
+    if (!owner) await setSetting(OWNER, { id: session.user.id, email: session.user.email ?? null });
     await setSetting(LAST_AT, now);
     await setStatus({ state: 'idle', lastAt: now });
     return report;
@@ -94,6 +105,13 @@ export async function startSync(): Promise<void> {
   });
   window.addEventListener('online', () => void syncNow());
   onStorageMutated(scheduleSoon);
+}
+
+/** Wipes everything on this phone (after sign-out) so another person can sign in. */
+export async function resetThisPhone(): Promise<void> {
+  const { db } = await import('@/db/db');
+  await db.delete();
+  window.location.replace('/');
 }
 
 export function subscribeSync(l: Listener): () => void {

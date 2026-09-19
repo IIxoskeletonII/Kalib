@@ -21,11 +21,19 @@ export async function getSession(): Promise<Session | null> {
   return (await supabase().auth.getSession()).data.session;
 }
 
+/** Emails a sign-in link and, when the email template includes {{ .Token }}, a 6-digit code. */
 export async function sendMagicLink(email: string): Promise<void> {
   const { error } = await supabase().auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: window.location.origin },
+    options: { emailRedirectTo: window.location.origin, shouldCreateUser: true },
   });
+  if (error) throw new Error(error.message);
+}
+
+/** Signs in with the emailed code. Works inside the installed app even when the email was
+ * opened in Safari, which has its own storage. */
+export async function verifyCode(email: string, code: string): Promise<void> {
+  const { error } = await supabase().auth.verifyOtp({ email, token: code.trim(), type: 'email' });
   if (error) throw new Error(error.message);
 }
 

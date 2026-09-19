@@ -10,6 +10,8 @@ import { Button, Chip, Row, Segmented, fmt } from './ui';
 
 export interface ProfileFormValues extends ProfileInput {
   weight_kg?: number | undefined;
+  /** First name, used for the greeting and the account chip; stored as a setting. */
+  name: string;
 }
 
 const ACTIVITY: { v: ActivityLevel; label: string; hint: string }[] = [
@@ -32,6 +34,7 @@ const RATES = [0.25, 0.5, 0.75, 1.0];
 
 export function ProfileForm({
   initial,
+  initialName,
   askWeight,
   latestWeight,
   submitLabel,
@@ -39,6 +42,7 @@ export function ProfileForm({
   onCancel,
 }: {
   initial?: Profile | undefined;
+  initialName?: string | undefined;
   /** Onboarding also collects the first weigh-in. */
   askWeight: boolean;
   /** Latest weigh-in, for the preview when the form has no weight field. */
@@ -47,6 +51,7 @@ export function ProfileForm({
   onSubmit: (values: ProfileFormValues) => Promise<void>;
   onCancel?: (() => void) | undefined;
 }) {
+  const [name, setName] = useState(initialName ?? '');
   const [sex, setSex] = useState<Sex>(initial?.sex ?? 'male');
   const [birth, setBirth] = useState(initial?.birth_date ?? '');
   const [height, setHeight] = useState(initial ? String(initial.height_cm) : '');
@@ -73,6 +78,7 @@ export function ProfileForm({
     const tw = n(targetW);
     if (bf == null && tw == null) return undefined;
     const v: ProfileFormValues = {
+      name: name.trim(),
       sex,
       birth_date: birth,
       height_cm: h,
@@ -84,7 +90,7 @@ export function ProfileForm({
     if (tw != null && tw > 0) v.target_weight_kg = tw;
     if (w != null) v.weight_kg = w;
     return v;
-  }, [sex, birth, height, weight, bodyfat, targetW, activity, mode, rate, askWeight]);
+  }, [name, sex, birth, height, weight, bodyfat, targetW, activity, mode, rate, askWeight]);
 
   const preview: Targets | undefined = useMemo(() => {
     const w = values?.weight_kg ?? latestWeight;
@@ -116,6 +122,18 @@ export function ProfileForm({
         }
       }}
     >
+      <Field label="Your name" htmlFor={`${ids}-name`}>
+        <input
+          id={`${ids}-name`}
+          type="text"
+          autoComplete="given-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className={INPUT}
+          placeholder="Eliya"
+        />
+      </Field>
+
       <Field label="Sex">
         <Segmented
           value={sex}

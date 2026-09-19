@@ -22,6 +22,7 @@ import { fromDateKey, todayKey } from '@/core/dates';
 import { nextSwitch, resolveMode, type ModeSwitch } from '@/core/targets';
 import type { Mode } from '@/core/types';
 import { saveProfileSnapshot } from '@/db/repo/profiles';
+import { setSetting } from '@/db/repo/settings';
 import { useDailyTarget, useProfile, useSetting, useWeighIns } from '@/hooks/useData';
 import { useSync } from '@/hooks/useSync';
 import { useTheme, type ThemePref } from '@/hooks/useTheme';
@@ -34,7 +35,7 @@ import {
   type BackupSummary,
 } from '@/services/backup';
 import { exportCsv } from '@/services/exportData';
-import { syncNow } from '@/services/sync/manager';
+import { resetThisPhone, syncNow } from '@/services/sync/manager';
 import { syncConfigured } from '@/services/sync/config';
 import { MODE_SCHEDULE_KEY, refreshTargetForDate, setModeSchedule } from '@/services/targets';
 
@@ -83,6 +84,27 @@ export default function Settings() {
   const [email, setEmail] = useState('');
   const [authNote, setAuthNote] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const name = useSetting<string>('name', '');
+
+  const submitCode = async () => {
+    if (code.length < 6 || verifying) return;
+    setVerifying(true);
+    setAuthNote(null);
+    try {
+      const { verifyCode } = await import('@/services/sync/supabase');
+      await verifyCode(email.trim(), code);
+      setCodeSent(false);
+      setCode('');
+    } catch (err) {
+      setAuthNote(`That code did not work: ${(err as Error).message}`);
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const sendLink = async () => {
     const e = email.trim();
@@ -92,7 +114,7 @@ export default function Settings() {
     try {
       const { sendMagicLink } = await import('@/services/sync/supabase');
       await sendMagicLink(e);
-      setAuthNote(`Link sent to ${e}. Open it on this phone — it signs you in here.`);
+      setCodeSent(true);
     } catch (err) {
       setAuthNote(`Could not send the link: ${(err as Error).message}`);
     } finally {
@@ -167,6 +189,148 @@ export default function Settings() {
         </h1>
       </header>
 
+      <section>
+        <SectionHeading
+          trailing={
+            sync.state === 'syncing'
+              ? 'syncing…'
+              : sync.state === 'idle' && sync.lastAt
+                ? `synced ${new Date(sync.lastAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
+                : undefined
+          }
+        >
+          Account
+        </SectionHeading>
+        <Card className="p-5">
+          {!syncConfigured ? (
+            <p className="flex items-start gap-2 text-[14px] text-muted">
+              <CloudOff size={16} className="mt-0.5 shrink-0" aria-hidden />
+              Cloud sync is not configured in this build. Everything stays on this phone.
+            </p>
+          ) : session ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent text-[22px] font-bold text-on-accent">
+                  {(name.trim() || session.user.email || '?').charAt(0).toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-[17px] font-bold">{name.trim() || 'Signed in'}</p>
+                  <p className="truncate text-[14px] text-muted">{session.user.email}</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[13px]">
+                    {sync.state === 'mismatch' ? (
+                      <span className="text-danger">Not syncing — see below</span>
+                    ) : sync.state === 'error' ? (
+                      <span className="text-danger">Last sync failed</span>
+                    ) : (
+                      <>
+                        <span className="h-2 w-2 rounded-full bg-accent" />
+                        <span className="text-ink-2">
+                          {sync.state === 'syncing'
+                            ? 'Syncing…'
+                            : sync.state === 'idle' && sync.lastAt
+                              ? `Synced ${relativeTime(sync.lastAt)}`
+                              : 'Signed in, first sync pending'}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+              {sync.state === 'mismatch' && (
+                <p className="rounded-2xl bg-danger/10 p-3 text-[13px] leading-snug text-ink-2">
+                  This phone holds {sync.ownerEmail ? `${sync.ownerEmail}’s` : 'another account’s'}{' '}
+                  data, so it will not sync to this account. To hand the phone to someone else: sign
+                  out, then choose “Remove this phone’s data”.
+                </p>
+              )}
+              {sync.state === 'error' && <p className="text-[13px] text-danger">{sync.message}</p>}
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1"
+                  icon={Cloud}
+                  onClick={() => void syncNow()}
+                  disabled={sync.state === 'syncing' || sync.state === 'mismatch'}
+                >
+                  Sync now
+                </Button>
+                <Button icon={LogOut} onClick={() => setSignOutOpen(true)}>
+                  Sign out
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-[14px] text-muted">
+                Sign in to keep a copy of your log in the cloud and use it on another phone. No
+                password: a code arrives by email.
+              </p>
+              {!codeSent ? (
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void sendLink();
+                    }}
+                    className="h-12 min-w-0 flex-1 rounded-full bg-surface-2 px-5 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+                  />
+                  <Button variant="primary" onClick={sendLink} disabled={!email.trim() || sending}>
+                    {sending ? 'Sending…' : 'Send code'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[14px]">
+                    Sent to <span className="font-semibold">{email.trim()}</span>. Enter the 6-digit
+                    code from the email:
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={8}
+                      placeholder="123456"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ''))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void submitCode();
+                      }}
+                      className="h-12 min-w-0 flex-1 rounded-full bg-surface-2 px-5 text-[18px] tracking-[0.2em] outline-none placeholder:tracking-normal placeholder:text-muted focus:ring-2 focus:ring-accent tabular"
+                    />
+                    <Button
+                      variant="primary"
+                      onClick={submitCode}
+                      disabled={code.length < 6 || verifying}
+                    >
+                      {verifying ? 'Checking…' : 'Sign in'}
+                    </Button>
+                  </div>
+                  <p className="text-[13px] text-muted">
+                    Tapping the link in the email also works if it opens Kalib itself.{' '}
+                    <button
+                      type="button"
+                      className="font-semibold text-accent"
+                      onClick={() => {
+                        setCodeSent(false);
+                        setCode('');
+                      }}
+                    >
+                      Use a different email
+                    </button>
+                  </p>
+                </div>
+              )}
+              {authNote && <p className="text-[13px] text-muted">{authNote}</p>}
+            </div>
+          )}
+        </Card>
+      </section>
+
       {target && (
         <section>
           <SectionHeading trailing={target.provisional ? 'provisional' : 'measured'}>
@@ -204,13 +368,15 @@ export default function Settings() {
           {profile && editing && (
             <ProfileForm
               initial={profile}
+              initialName={name}
               askWeight={false}
               latestWeight={latestWeight}
               submitLabel="Save profile"
               onCancel={() => setEditing(false)}
-              onSubmit={async (values) => {
+              onSubmit={async ({ name: newName, ...values }) => {
                 // Snapshot, never mutate: history keeps the parameters that produced each target.
                 await saveProfileSnapshot(values);
+                await setSetting('name', newName);
                 await refreshTargetForDate(today);
                 setEditing(false);
               }}
@@ -269,82 +435,6 @@ export default function Settings() {
       </section>
 
       <section>
-        <SectionHeading
-          trailing={
-            sync.state === 'syncing'
-              ? 'syncing…'
-              : sync.state === 'idle' && sync.lastAt
-                ? `synced ${new Date(sync.lastAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
-                : undefined
-          }
-        >
-          Account
-        </SectionHeading>
-        <Card className="space-y-3 p-5">
-          {!syncConfigured ? (
-            <p className="flex items-start gap-2 text-[14px] text-muted">
-              <CloudOff size={16} className="mt-0.5 shrink-0" aria-hidden />
-              Cloud sync is not configured in this build. Everything stays on this phone.
-            </p>
-          ) : session ? (
-            <>
-              <p className="flex items-start gap-2 text-[14px]">
-                <Cloud size={16} className="mt-0.5 shrink-0 text-accent" aria-hidden />
-                <span>
-                  Signed in as <span className="font-semibold">{session.user.email}</span>. Your log
-                  syncs to your account whenever you are online.
-                </span>
-              </p>
-              {sync.state === 'error' && (
-                <p className="text-[13px] text-danger">Last sync failed: {sync.message}</p>
-              )}
-              <div className="flex gap-2">
-                <Button
-                  className="flex-1"
-                  icon={Cloud}
-                  onClick={() => void syncNow()}
-                  disabled={sync.state === 'syncing'}
-                >
-                  Sync now
-                </Button>
-                <Button
-                  icon={LogOut}
-                  onClick={() => void import('@/services/sync/supabase').then((m) => m.signOut())}
-                >
-                  Sign out
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-[14px] text-muted">
-                Sign in to back your log up to the cloud and use it on another phone. No password —
-                you get a link by email.
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void sendLink();
-                  }}
-                  className="h-12 min-w-0 flex-1 rounded-full bg-surface-2 px-5 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
-                />
-                <Button variant="primary" onClick={sendLink} disabled={!email.trim() || sending}>
-                  {sending ? 'Sending…' : 'Send link'}
-                </Button>
-              </div>
-              {authNote && <p className="text-[13px] text-muted">{authNote}</p>}
-            </>
-          )}
-        </Card>
-      </section>
-
-      <section>
         <SectionHeading>Your data</SectionHeading>
         <Card className="space-y-3 p-5">
           <p className="text-[14px] text-muted">
@@ -387,6 +477,38 @@ export default function Settings() {
           />
         </Card>
       </section>
+
+      <Sheet open={signOutOpen} onClose={() => setSignOutOpen(false)} title="Sign out">
+        <div className="space-y-3">
+          <p className="text-[14px] text-muted">
+            Your log stays on this phone and in your account. Remove it from the phone only if
+            someone else will use Kalib here.
+          </p>
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={async () => {
+              const m = await import('@/services/sync/supabase');
+              await m.signOut();
+              setSignOutOpen(false);
+            }}
+          >
+            Sign out, keep data on this phone
+          </Button>
+          <Button
+            variant="danger"
+            size="lg"
+            className="w-full bg-danger/10"
+            onClick={async () => {
+              const m = await import('@/services/sync/supabase');
+              await m.signOut();
+              await resetThisPhone();
+            }}
+          >
+            Sign out and remove this phone’s data
+          </Button>
+        </div>
+      </Sheet>
 
       <Sheet open={addingSwitch} onClose={() => setAddingSwitch(false)} title="Schedule a switch">
         <div className="space-y-4">
@@ -476,6 +598,14 @@ export default function Settings() {
       </section>
     </div>
   );
+}
+
+function relativeTime(iso: string): string {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  if (mins < 24 * 60) return `${Math.round(mins / 60)} h ago`;
+  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
 function modeLabel(mode: Mode): string {

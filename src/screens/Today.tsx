@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
+import { AccountChip } from '@/components/AccountChip';
 import { AmountSheet, SLOT_LABEL } from '@/components/AmountSheet';
 import { MacroTile } from '@/components/MacroTile';
 import { Ring } from '@/components/Ring';
@@ -142,10 +143,15 @@ export default function Today() {
   return (
     <div className="pb-32">
       <header className="pt-2">
-        <p className="text-[14px] font-medium text-muted">{dateLine}</p>
-        <h1 className="mt-0.5 text-[34px] leading-none font-extrabold tracking-[-0.03em]">
-          {formatDayLabel(date, today)}
-        </h1>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[14px] font-medium text-muted">{dateLine}</p>
+            <h1 className="mt-0.5 text-[34px] leading-none font-extrabold tracking-[-0.03em]">
+              {formatDayLabel(date, today)}
+            </h1>
+          </div>
+          <AccountChip />
+        </div>
         <div className="mt-5">
           <WeekStrip selected={date} today={today} onSelect={setDate} loggedDates={loggedDates} />
         </div>
