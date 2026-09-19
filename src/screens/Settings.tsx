@@ -1,4 +1,13 @@
-import { Database, FileJson, FileSpreadsheet, Monitor, Moon, Sun, UserRound } from 'lucide-react';
+import {
+  Database,
+  FileJson,
+  FileSpreadsheet,
+  Monitor,
+  Moon,
+  RefreshCw,
+  Sun,
+  UserRound,
+} from 'lucide-react';
 import { useState } from 'react';
 import { ProfileForm } from '@/components/ProfileForm';
 import { Button, Group, ListRow, Row, SectionHeading, Segmented, fmt } from '@/components/ui';
@@ -23,7 +32,27 @@ export default function Settings() {
   const [theme, setTheme] = useTheme();
   const [editing, setEditing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [updateNote, setUpdateNote] = useState<string | null>(null);
   const latestWeight = weighIns?.at(-1)?.weight_kg;
+
+  const checkForUpdate = async () => {
+    setUpdateNote('Checking…');
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration();
+      if (!reg) {
+        setUpdateNote('Updates apply automatically when the app is installed.');
+        return;
+      }
+      await reg.update();
+      if (reg.installing || reg.waiting) {
+        setUpdateNote('Update found — installing. The app reloads in a moment.');
+      } else {
+        setUpdateNote(`You have the latest version (${__APP_VERSION__}).`);
+      }
+    } catch (err) {
+      setUpdateNote(`Could not check: ${(err as Error).message}`);
+    }
+  };
 
   const run = async (label: string, fn: () => Promise<'shared' | 'downloaded'>) => {
     try {
@@ -127,6 +156,10 @@ export default function Settings() {
             </span>
           </p>
           <p>Kalib {__APP_VERSION__}. Not medical advice.</p>
+          <Button size="sm" icon={RefreshCw} onClick={checkForUpdate}>
+            Check for updates
+          </Button>
+          {updateNote && <p>{updateNote}</p>}
         </Group>
       </section>
     </div>
