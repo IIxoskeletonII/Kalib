@@ -25,14 +25,13 @@ npm run seed:usda
 
 ## Deploy (Cloudflare Pages, free tier)
 
-One-time: `npx wrangler login`, then `npx wrangler pages project create kalib` (production branch
-`main`). After that:
+One-time: `npx wrangler login`. After that:
 
 ```sh
-npm run deploy       # build + wrangler pages deploy dist
+npm run deploy       # build + wrangler deploy (uploads dist/ as static assets)
 ```
 
-The app is served at `https://kalib.pages.dev` (unlisted, `noindex`). On the iPhone: open it in
+The app is served at `https://kalib.kalib.workers.dev` (unlisted, `noindex`) as static assets on a Worker — Cloudflare folded Pages into Workers; `wrangler.jsonc` holds the config. On the iPhone: open it in
 Safari → Share → **Add to Home Screen**. Installed, it runs standalone and offline; the food
 database downloads once on first launch (~4 MB, cached by the service worker).
 

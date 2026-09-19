@@ -14,7 +14,7 @@
     "lint": "eslint src scripts",
     "format": "prettier --write .",
     "seed:usda": "node --max-old-space-size=4096 --import tsx scripts/seed-usda.ts",
-    "deploy": "npm run build && wrangler pages deploy dist --project-name kalib",
+    "deploy": "npm run build && wrangler deploy",
     "icons": "node --import tsx scripts/make-icons.ts",
     "shot": "node --import tsx scripts/shot.ts"
   },
