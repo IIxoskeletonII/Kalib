@@ -16,41 +16,44 @@ export function MacroBar({
   target,
   unit,
   color,
-  size = 'md',
+  compact = false,
 }: {
   label: string;
   value: number;
   target: number;
   unit: string;
   color: MacroColor;
-  size?: 'lg' | 'md' | 'sm';
+  compact?: boolean;
 }) {
   const pct = target > 0 ? Math.min(1, value / target) : 0;
   const over = target > 0 && value > target;
-  const big = size === 'lg';
   return (
-    <div className={size === 'sm' ? 'space-y-1' : 'space-y-1.5'}>
-      <div className="flex items-baseline justify-between">
-        <span className={`${big ? 'text-base' : 'text-sm'} text-muted`}>{label}</span>
-        <span
-          className={`tabular ${big ? 'text-2xl font-semibold' : size === 'md' ? 'text-base' : 'text-sm'}`}
-        >
+    <div className={compact ? 'space-y-1' : 'space-y-1.5'}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className={`${compact ? 'text-[13px]' : 'text-[14px]'} text-muted`}>{label}</span>
+        <span className={`tabular ${compact ? 'text-[14px]' : 'text-[15px]'} font-medium`}>
           {fmt(value)}
-          <span className="text-muted">
-            {' '}
-            / {fmt(target)}
+          <span className="font-normal text-muted">
+            {' / '}
+            {fmt(target)}
             {unit}
           </span>
         </span>
       </div>
       <div
-        className={`${big ? 'h-3' : size === 'md' ? 'h-2' : 'h-1.5'} w-full overflow-hidden rounded-full bg-surface-2`}
+        className={`${compact ? 'h-1.5' : 'h-2'} w-full overflow-hidden rounded-full bg-surface-2`}
       >
         <div
-          className={`h-full rounded-full ${FILL[color]} ${over ? 'opacity-60' : ''} transition-[width] duration-300`}
+          className={`h-full rounded-full ${FILL[color]} transition-[width] duration-500 ease-out`}
           style={{ width: `${pct * 100}%` }}
         />
       </div>
+      {over && !compact && (
+        <div className="text-[12px] text-muted tabular">
+          +{fmt(value - target)}
+          {unit} over
+        </div>
+      )}
     </div>
   );
 }

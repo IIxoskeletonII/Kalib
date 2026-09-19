@@ -4,7 +4,11 @@ import 'uplot/dist/uPlot.min.css';
 import { fromDateKey } from '@/core/dates';
 import type { TrendPoint } from '@/core/trend';
 
-/** Trend line, with raw weigh-ins as dots behind a toggle (SPEC §2.5). */
+function token(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/** Trend line, with raw weigh-ins as dots behind a toggle (SPEC §2.5). Colours come from the theme tokens. */
 export function TrendChart({ points, showRaw }: { points: TrendPoint[]; showRaw: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
@@ -16,24 +20,27 @@ export function TrendChart({ points, showRaw }: { points: TrendPoint[]; showRaw:
     const trend = points.map((p) => p.trend);
     const raw = points.map((p) => (p.weighed ? (p.raw ?? null) : null));
     const data: uPlot.AlignedData = [xs, trend, raw];
+    const accent = token('--accent');
+    const muted = token('--muted');
+    const line = token('--line');
+    const font = `12px ${token('--font-sans') || 'system-ui'}`;
 
     const build = () => {
       plot.current?.destroy();
-      const width = el.clientWidth;
       plot.current = new uPlot(
         {
-          width,
-          height: 240,
-          padding: [12, 8, 0, 0],
+          width: el.clientWidth,
+          height: 220,
+          padding: [16, 8, 0, 0],
           cursor: { show: false },
           legend: { show: false },
           scales: { x: { time: true } },
           axes: [
             {
-              stroke: '#94a3b8',
-              grid: { stroke: '#273449', width: 1 },
+              stroke: muted,
+              grid: { stroke: line, width: 1 },
               ticks: { show: false },
-              font: '12px system-ui',
+              font,
               values: (_u, splits) =>
                 splits.map((s) =>
                   new Date(s * 1000).toLocaleDateString(undefined, {
@@ -43,21 +50,21 @@ export function TrendChart({ points, showRaw }: { points: TrendPoint[]; showRaw:
                 ),
             },
             {
-              stroke: '#94a3b8',
-              grid: { stroke: '#273449', width: 1 },
+              stroke: muted,
+              grid: { stroke: line, width: 1 },
               ticks: { show: false },
-              font: '12px system-ui',
-              size: 44,
+              font,
+              size: 48,
               values: (_u, splits) => splits.map((s) => s.toFixed(1)),
             },
           ],
           series: [
             {},
-            { stroke: '#22d3ee', width: 2.5, spanGaps: true, points: { show: false } },
+            { stroke: accent, width: 2.5, spanGaps: true, points: { show: false } },
             {
               show: showRaw,
               stroke: 'transparent',
-              points: { show: true, size: 6, fill: '#94a3b8', stroke: 'transparent' },
+              points: { show: true, size: 6, fill: muted, stroke: 'transparent' },
             },
           ],
         },
@@ -68,12 +75,15 @@ export function TrendChart({ points, showRaw }: { points: TrendPoint[]; showRaw:
     build();
     const ro = new ResizeObserver(() => {
       if (plot.current && el.clientWidth !== plot.current.width) {
-        plot.current.setSize({ width: el.clientWidth, height: 240 });
+        plot.current.setSize({ width: el.clientWidth, height: 220 });
       }
     });
     ro.observe(el);
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    mq.addEventListener('change', build);
     return () => {
       ro.disconnect();
+      mq.removeEventListener('change', build);
       plot.current?.destroy();
       plot.current = null;
     };

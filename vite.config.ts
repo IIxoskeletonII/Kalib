@@ -55,7 +55,11 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   // In dev, /api/* is served by the deployed Worker; production serves both from one Worker.
-  server: { proxy: { '/api': { target: 'https://kalib.kalib.workers.dev', changeOrigin: true } } },
+  server: {
+    proxy: { '/api': { target: 'https://kalib.kalib.workers.dev', changeOrigin: true } },
+    // The screenshot harness keeps a Chrome profile under .cache; don't reload on its writes.
+    watch: { ignored: ['**/.cache/**', '**/dist/**'] },
+  },
   build: { target: 'es2022', sourcemap: false },
   test: {
     environment: 'node',

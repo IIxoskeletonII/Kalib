@@ -8,6 +8,7 @@ function e(food_id: string | undefined, date: string, grams: number, hour = 8): 
     food_id,
     name: food_id ? `Food ${food_id}` : 'Manual',
     grams,
+    kcal: grams * 2,
     date,
     logged_at: `${date}T${String(hour).padStart(2, '0')}:00:00.000Z`,
   };
@@ -34,6 +35,7 @@ describe('rankFavourites (§8)', () => {
       now,
     );
     expect(favs[0]!.last_grams).toBe(150);
+    expect(favs[0]!.last_kcal).toBe(300);
     expect(favs[0]!.count).toBe(3);
   });
 

@@ -81,6 +81,17 @@ describe('rankOffProducts', () => {
     expect(out.map((p) => p.code)).toEqual(['3', '4']);
   });
 
+  it('ranks Latin-script names above other scripts', () => {
+    const out = rankOffProducts(
+      [
+        { ...pringles, code: 'ru', product_name: 'Картофельные чипсы', unique_scans_n: 500 },
+        { ...pringles, code: 'en', product_name: 'Pringles Paprika', unique_scans_n: 50 },
+      ],
+      'pringles',
+    );
+    expect(out.map((p) => p.code)).toEqual(['en', 'ru']);
+  });
+
   it('treats apostrophes as noise', () => {
     const out = rankOffProducts(
       [{ ...pringles, product_name: "Lay's Classic", brands: ["Lay's"] }],

@@ -1,26 +1,28 @@
 // Manual macros with no food behind them — the eating-out fallback until custom foods (v1).
 // Logged as entry_method=manual, confidence=medium (SPEC §6, §7.4).
+import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { SLOT_LABEL } from '@/components/AmountSheet';
 import { NumberPad } from '@/components/NumberPad';
-import { Button, Chip } from '@/components/ui';
+import { Button, IconButton, Segmented } from '@/components/ui';
 import { mealSlotForTime, todayKey } from '@/core/dates';
 import { MEAL_SLOTS, type MealSlot } from '@/core/types';
 import { deleteEntry, getEntry, updateEntry } from '@/db/repo/logEntries';
 import { logManual } from '@/services/logging';
 
 type Field = 'kcal' | 'protein_g' | 'carb_g' | 'fat_g' | 'fiber_g';
-const FIELDS: { key: Field; label: string; unit: string }[] = [
-  { key: 'kcal', label: 'Calories', unit: 'kcal' },
-  { key: 'protein_g', label: 'Protein', unit: 'g' },
-  { key: 'carb_g', label: 'Carbs', unit: 'g' },
-  { key: 'fat_g', label: 'Fat', unit: 'g' },
-  { key: 'fiber_g', label: 'Fiber', unit: 'g' },
+const FIELDS: { key: Field; label: string; unit: string; color: string }[] = [
+  { key: 'kcal', label: 'Calories', unit: 'kcal', color: 'text-kcal' },
+  { key: 'protein_g', label: 'Protein', unit: 'g', color: 'text-protein' },
+  { key: 'carb_g', label: 'Carbs', unit: 'g', color: 'text-carb' },
+  { key: 'fat_g', label: 'Fat', unit: 'g', color: 'text-fat' },
+  { key: 'fiber_g', label: 'Fiber', unit: 'g', color: 'text-fiber' },
 ];
 
 type Values = Record<Field, string>;
 const EMPTY: Values = { kcal: '', protein_g: '', carb_g: '', fat_g: '', fiber_g: '' };
+const SLOT_OPTIONS = MEAL_SLOTS.map((s) => ({ value: s, label: SLOT_LABEL[s] }));
 
 export default function QuickAdd() {
   const [params] = useSearchParams();
@@ -73,59 +75,59 @@ export default function QuickAdd() {
 
   const nextField = () => {
     const i = FIELDS.findIndex((f) => f.key === focus);
-    const next = FIELDS[(i + 1) % FIELDS.length]!.key;
-    setFocus(next);
+    setFocus(FIELDS[(i + 1) % FIELDS.length]!.key);
   };
 
   if (!loaded) return null;
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className="h-11 w-11 shrink-0 rounded-full text-2xl text-muted"
-          onClick={() => navigate(-1)}
-          aria-label="Back"
-        >
-          ‹
-        </button>
-        <input
-          type="text"
-          placeholder="Name (optional) — e.g. gyro"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoComplete="off"
-          className="h-12 w-full rounded-xl bg-surface px-4 text-base outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
-        />
+      <div className="flex items-center gap-1">
+        <IconButton icon={ChevronLeft} label="Back" onClick={() => navigate(-1)} />
+        <div className="flex-1">
+          <h1 className="text-[22px] font-semibold leading-tight">
+            {id ? 'Edit entry' : 'Quick add'}
+          </h1>
+          <p className="text-[13px] text-muted">Estimate · medium confidence · no micronutrients</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-1.5">
-        {FIELDS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            onClick={() => setFocus(f.key)}
-            className={`rounded-xl px-1 py-2 text-center ${focus === f.key ? 'bg-surface-2 ring-2 ring-accent' : 'bg-surface'}`}
-          >
-            <div className="text-[11px] text-muted">{f.label}</div>
-            <div className="tabular text-lg font-semibold">
-              {values[f.key] || <span className="text-line">0</span>}
-            </div>
-            <div className="text-[10px] text-muted">{f.unit}</div>
-          </button>
-        ))}
+      <input
+        type="text"
+        placeholder="Name (optional) — e.g. gyro"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        autoComplete="off"
+        className="h-12 w-full rounded-[14px] bg-surface px-4 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+      />
+
+      <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Field">
+        {FIELDS.map((f) => {
+          const active = focus === f.key;
+          return (
+            <button
+              key={f.key}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => setFocus(f.key)}
+              className={`rounded-[14px] px-1 py-2.5 text-center transition-[background-color,box-shadow] duration-150 ${
+                active ? 'bg-surface ring-2 ring-accent' : 'bg-surface active:bg-surface-2'
+              }`}
+            >
+              <div className={`text-[11px] font-medium ${f.color}`}>{f.label}</div>
+              <div className="tabular text-[20px] font-semibold leading-tight">
+                {values[f.key] || <span className="text-surface-3">0</span>}
+              </div>
+              <div className="text-[10px] text-muted">{f.unit}</div>
+            </button>
+          );
+        })}
       </div>
 
-      <div className="flex gap-2">
-        {MEAL_SLOTS.map((s) => (
-          <Chip key={s} active={slot === s} onClick={() => setSlot(s)} className="flex-1 px-0">
-            {SLOT_LABEL[s]}
-          </Chip>
-        ))}
-      </div>
+      <Segmented value={slot} options={SLOT_OPTIONS} onChange={setSlot} />
 
-      <div className="mt-auto space-y-3">
+      <div className="mt-auto space-y-3 pb-2">
         <NumberPad
           onChange={(u) => setValues((prev) => ({ ...prev, [focus]: u(prev[focus]) }))}
           onSubmit={nextField}
@@ -133,27 +135,24 @@ export default function QuickAdd() {
         />
         <div className="flex gap-2">
           {id && (
-            <Button
-              variant="danger"
-              className="px-3"
+            <IconButton
+              icon={Trash2}
+              label="Delete entry"
+              className="h-14 w-14 rounded-[14px] bg-surface-2 text-danger"
               onClick={async () => {
                 await deleteEntry(id);
                 navigate(`/?d=${date}`, { replace: true });
               }}
-            >
-              Delete
-            </Button>
+            />
           )}
-          <Button variant="secondary" onClick={nextField} className="px-3">
+          <Button size="lg" icon={ChevronRight} onClick={nextField} className="px-4">
             Next
           </Button>
-          <Button variant="primary" onClick={save} disabled={!canSave} className="flex-1">
+          <Button variant="primary" size="lg" onClick={save} disabled={!canSave} className="flex-1">
             {id ? 'Update' : 'Log'}
+            {num('kcal') > 0 ? ` · ${num('kcal')} kcal` : ''}
           </Button>
         </div>
-        <p className="text-center text-xs text-muted">
-          Saved as an estimate (medium confidence, no micronutrients).
-        </p>
       </div>
     </div>
   );

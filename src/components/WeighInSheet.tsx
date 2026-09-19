@@ -1,8 +1,9 @@
 // SPEC §8: weigh-in ≤5 s, number pad, no navigation.
+import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { deleteWeighIn, upsertWeighIn } from '@/db/repo/weighIns';
 import { NumberPad } from './NumberPad';
-import { Button, Sheet } from './ui';
+import { Button, IconButton, Sheet } from './ui';
 
 export interface WeighInSheetProps {
   open: boolean;
@@ -25,8 +26,14 @@ export function WeighInSheet(p: WeighInSheetProps) {
 
 function WeighInForm({ date, current, previous, onClose }: WeighInSheetProps) {
   const [value, setValue] = useState(current != null ? String(current) : '');
+  const [pristine, setPristine] = useState(current != null);
+  const type = (u: (prev: string) => string) => {
+    setValue((prev) => u(pristine ? '' : prev));
+    setPristine(false);
+  };
   const kg = Number(value);
   const valid = Number.isFinite(kg) && kg >= 20 && kg <= 400;
+  const delta = previous != null && valid ? kg - previous : undefined;
 
   const save = async () => {
     if (!valid) return;
@@ -35,38 +42,37 @@ function WeighInForm({ date, current, previous, onClose }: WeighInSheetProps) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-end justify-between">
-        <div className="tabular text-5xl font-semibold">
+        <div className="display">
           {value === '' ? (
-            <span className="text-line">{previous != null ? previous.toFixed(1) : '0.0'}</span>
+            <span className="text-surface-3">{previous != null ? previous.toFixed(1) : '0.0'}</span>
           ) : (
             value
           )}
-          <span className="ml-1 text-2xl text-muted">kg</span>
+          <span className="ml-1.5 text-[22px] font-medium text-muted">kg</span>
         </div>
-        {previous != null && value !== '' && valid && (
-          <div className="tabular text-sm text-muted">
-            {kg - previous >= 0 ? '+' : ''}
-            {(kg - previous).toFixed(1)} vs last
+        {delta != null && value !== '' && (
+          <div className={`tabular text-[15px] ${delta <= 0 ? 'text-fiber' : 'text-fat'}`}>
+            {delta > 0 ? '+' : ''}
+            {delta.toFixed(1)} kg vs last
           </div>
         )}
       </div>
-      <NumberPad onChange={setValue} onSubmit={save} decimal maxDigits={4} />
+      <NumberPad onChange={type} onSubmit={save} decimal maxDigits={4} />
       <div className="flex gap-2">
         {current != null && (
-          <Button
-            variant="danger"
-            className="px-3"
+          <IconButton
+            icon={Trash2}
+            label="Delete weigh-in"
+            className="h-14 w-14 rounded-[14px] bg-surface-2 text-danger"
             onClick={async () => {
               await deleteWeighIn(date);
               onClose();
             }}
-          >
-            Delete
-          </Button>
+          />
         )}
-        <Button variant="primary" className="flex-1" disabled={!valid} onClick={save}>
+        <Button variant="primary" size="lg" className="flex-1" disabled={!valid} onClick={save}>
           Save
         </Button>
       </div>

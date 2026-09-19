@@ -6,6 +6,7 @@ export interface FavouriteInput {
   food_id?: string | undefined;
   name: string;
   grams: number;
+  kcal: number;
   date: string;
   logged_at: string;
 }
@@ -16,6 +17,7 @@ export interface Favourite {
   score: number;
   count: number;
   last_grams: number;
+  last_kcal: number;
   last_logged_at: string;
 }
 
@@ -42,6 +44,7 @@ export function rankFavourites(
         score: w,
         count: 1,
         last_grams: e.grams,
+        last_kcal: e.kcal,
         last_logged_at: e.logged_at,
       });
     } else {
@@ -50,6 +53,7 @@ export function rankFavourites(
       if (e.logged_at > cur.last_logged_at) {
         cur.last_logged_at = e.logged_at;
         cur.last_grams = e.grams;
+        cur.last_kcal = e.kcal;
         cur.name = e.name;
       }
     }

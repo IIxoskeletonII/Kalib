@@ -7,7 +7,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 const CHROME = process.env.CHROME ?? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-const PROFILE = join(import.meta.dirname, '..', '.cache', 'chrome-profile');
+let profileName = 'chrome-profile';
 
 const args = process.argv.slice(2);
 const url = args[0];
@@ -20,6 +20,7 @@ const evals: string[] = [];
 let wait = 800;
 let width = 390;
 let height = 844;
+let scheme = 'dark';
 for (let i = 2; i < args.length; i++) {
   const a = args[i]!;
   const v = args[i + 1];
@@ -40,12 +41,19 @@ for (let i = 2; i < args.length; i++) {
     case '--height':
       height = Number(v);
       break;
+    case '--scheme':
+      scheme = v;
+      break;
+    case '--profile':
+      profileName = `chrome-profile-${v}`;
+      break;
     default:
       continue;
   }
   i++;
 }
 
+const PROFILE = join(import.meta.dirname, '..', '.cache', profileName);
 const port = 9222 + Math.floor(Math.random() * 500);
 const chrome = spawn(
   CHROME,
@@ -126,6 +134,9 @@ async function main() {
     mobile: true,
   });
   await send('Emulation.setTouchEmulationEnabled', { enabled: true });
+  await send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-color-scheme', value: scheme }],
+  });
   await send('Page.navigate', { url });
   await sleep(wait);
   for (const js of evals) {

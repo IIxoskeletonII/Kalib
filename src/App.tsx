@@ -1,7 +1,9 @@
+import { CalendarDays, LineChart, Settings as SettingsIcon, type LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router';
 import { ensureSeeded, type SeedProgress } from '@/db/seed';
 import { useProfile } from '@/hooks/useData';
+import { useTheme } from '@/hooks/useTheme';
 import LogFood from '@/screens/LogFood';
 import Onboarding from '@/screens/Onboarding';
 import QuickAdd from '@/screens/QuickAdd';
@@ -13,6 +15,7 @@ export default function App() {
   const profile = useProfile();
   const location = useLocation();
   const [seed, setSeed] = useState<SeedProgress | 'error' | null>(null);
+  useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -50,36 +53,54 @@ export default function App() {
       </main>
 
       {seed && (
-        <div className="pointer-events-none fixed inset-x-0 top-0 z-50 mx-auto max-w-md px-4 pt-2 safe-top">
-          <div className="rounded-lg bg-surface-2 px-3 py-1.5 text-center text-xs text-muted shadow">
-            {seed === 'error'
-              ? 'Food database not loaded — reconnect and reopen.'
-              : `Loading ${seed.source === 'usda_foundation' ? 'core' : 'extended'} food database…`}
+        <div
+          className="pointer-events-none fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 mx-auto max-w-md px-4"
+          role="status"
+        >
+          <div className="fade-in flex items-center justify-center gap-2 rounded-full bg-surface-2 px-4 py-2 text-center text-[13px] text-ink-2 shadow-fab">
+            {seed === 'error' ? (
+              'Food database not loaded — reconnect and reopen.'
+            ) : (
+              <>
+                <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
+                Loading {seed.source === 'usda_foundation' ? 'core' : 'extended'} food database…
+              </>
+            )}
           </div>
         </div>
       )}
 
       {!hideNav && (
-        <nav className="grid grid-cols-3 border-t border-line bg-bg safe-bottom">
-          <Tab to="/" label="Today" />
-          <Tab to="/trend" label="Trend" />
-          <Tab to="/settings" label="Settings" />
+        <nav
+          className="grid grid-cols-3 border-t border-line bg-bg/95 backdrop-blur safe-bottom"
+          aria-label="Primary"
+        >
+          <Tab to="/" label="Today" icon={CalendarDays} />
+          <Tab to="/trend" label="Trend" icon={LineChart} />
+          <Tab to="/settings" label="Settings" icon={SettingsIcon} />
         </nav>
       )}
     </div>
   );
 }
 
-function Tab({ to, label }: { to: string; label: string }) {
+function Tab({ to, label, icon: Icon }: { to: string; label: string; icon: LucideIcon }) {
   return (
     <NavLink
       to={to}
       end={to === '/'}
       className={({ isActive }) =>
-        `flex h-14 items-center justify-center text-sm ${isActive ? 'text-accent font-semibold' : 'text-muted'}`
+        `flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors duration-150 ${
+          isActive ? 'text-accent' : 'text-muted active:text-ink-2'
+        }`
       }
     >
-      {label}
+      {({ isActive }) => (
+        <>
+          <Icon size={24} strokeWidth={isActive ? 2.25 : 2} aria-hidden />
+          {label}
+        </>
+      )}
     </NavLink>
   );
 }

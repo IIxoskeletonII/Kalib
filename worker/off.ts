@@ -130,7 +130,10 @@ export function rankOffProducts(hits: OffHit[], query: string): OffProduct[] {
     // with the query is noise no matter how popular it is.
     if (overlap === 0) continue;
     const completeness = num(h.completeness) ?? 0;
-    const score = overlap * 3 + Math.log1p(p.scans) + (p.italy ? 0.5 : 0) + completeness;
+    // Names in another script (Cyrillic, Thai, ...) are real products but not what an Italian
+    // user is holding; keep them, below the Latin-script entries.
+    const latin = /[a-z]/i.test(p.name.normalize('NFD')) ? 0 : -3;
+    const score = overlap * 3 + Math.log1p(p.scans) + (p.italy ? 0.5 : 0) + completeness + latin;
     scored.push({ p, score, completeness });
   }
   scored.sort((a, b) => b.score - a.score);

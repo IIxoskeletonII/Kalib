@@ -1,5 +1,6 @@
 // SPEC §8: numbers are entered on a custom pad, never the OS keyboard. Summoning/dismissing
 // the iOS keyboard alone costs 1–2 s per entry.
+import { Delete } from 'lucide-react';
 import { useCallback, useEffect } from 'react';
 
 export interface NumberPadProps {
@@ -51,6 +52,7 @@ export function NumberPad({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return;
       if (/^[0-9]$/.test(e.key)) press(e.key);
       else if (e.key === '.' || e.key === ',') press('.');
       else if (e.key === 'Backspace') press('backspace');
@@ -76,13 +78,13 @@ export function NumberPad({
             aria-label={isBack ? 'Delete' : k}
             onClick={() => press(k)}
             className={[
-              'h-14 rounded-xl text-2xl font-medium tabular active:scale-95 transition-transform',
+              'flex h-16 items-center justify-center rounded-[14px] text-[26px] font-medium tabular transition-[transform,background-color] duration-100 active:scale-95 active:bg-surface-3',
               hidden ? 'invisible' : '',
-              isBack ? 'bg-surface-2 text-muted' : 'bg-surface text-ink',
+              isBack ? 'bg-surface-2 text-ink-2' : 'bg-surface-2 text-ink',
               disabled ? 'opacity-40' : '',
             ].join(' ')}
           >
-            {isBack ? '⌫' : k}
+            {isBack ? <Delete size={24} strokeWidth={2} aria-hidden /> : k}
           </button>
         );
       })}

@@ -9,6 +9,8 @@ export interface Env {
 }
 
 const USER_AGENT = 'Kalib/0.1 (https://kalib.kalib.workers.dev)';
+/** Bump when ranking/normalisation changes so edge-cached responses are not reused. */
+const RANK_VERSION = 3;
 const SEARCH_URL = 'https://search.openfoodfacts.org/search';
 const LEGACY_SEARCH_URL = 'https://world.openfoodfacts.org/cgi/search.pl';
 const PRODUCT_URL = 'https://world.openfoodfacts.org/api/v2/product';
@@ -20,7 +22,8 @@ const json = (body: unknown, status = 200, cacheSeconds = 0): Response =>
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'cache-control': cacheSeconds ? `public, max-age=${cacheSeconds}` : 'no-store',
+      // Browsers keep it an hour; the edge cache keeps it for the full window.
+      'cache-control': cacheSeconds ? `public, max-age=3600, s-maxage=${cacheSeconds}` : 'no-store',
     },
   });
 
@@ -104,7 +107,10 @@ export default {
     if (url.pathname.startsWith('/api/')) {
       if (request.method !== 'GET') return json({ error: 'method' }, 405);
       const cache = caches.default;
-      const cached = await cache.match(request);
+      const cacheKey = new Request(
+        `${url.origin}${url.pathname}?${url.searchParams}&_r=${RANK_VERSION}`,
+      );
+      const cached = await cache.match(cacheKey);
       if (cached) return cached;
 
       let response: Response;
@@ -124,7 +130,7 @@ export default {
       } catch (err) {
         return json({ error: (err as Error).message }, 502);
       }
-      if (response.ok) ctx.waitUntil(cache.put(request, response.clone()));
+      if (response.ok) ctx.waitUntil(cache.put(cacheKey, response.clone()));
       return response;
     }
 

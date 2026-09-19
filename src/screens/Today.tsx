@@ -1,10 +1,44 @@
+import {
+  ChevronLeft,
+  ChevronRight,
+  Cookie,
+  Info,
+  Moon,
+  Plus,
+  Scale,
+  Sun,
+  Sunrise,
+  TrendingDown,
+  TrendingUp,
+  Utensils,
+  type LucideIcon,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AmountSheet, SLOT_LABEL } from '@/components/AmountSheet';
 import { MacroBar } from '@/components/MacroBar';
-import { Button, Card, Chip, fmt } from '@/components/ui';
+import { Ring } from '@/components/Ring';
+import { Sparkline } from '@/components/Sparkline';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  IconButton,
+  ListRow,
+  SectionLabel,
+  Skeleton,
+  fmt,
+} from '@/components/ui';
 import { WeighInSheet } from '@/components/WeighInSheet';
-import { addDays, diffDays, formatDayLabel, mealSlotForTime, todayKey } from '@/core/dates';
+import {
+  addDays,
+  diffDays,
+  formatDayLabel,
+  fromDateKey,
+  mealSlotForTime,
+  todayKey,
+} from '@/core/dates';
 import { dayTotals } from '@/core/nutrition';
 import { CALIBRATION_DAYS } from '@/core/targets';
 import { computeTrend, trendDelta } from '@/core/trend';
@@ -26,6 +60,13 @@ interface SheetState {
   method: 'search' | 'favourite';
 }
 
+const SLOT_ICON: Record<MealSlot, LucideIcon> = {
+  breakfast: Sunrise,
+  lunch: Sun,
+  dinner: Moon,
+  snack: Cookie,
+};
+
 export default function Today() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
@@ -46,10 +87,11 @@ export default function Today() {
   const trend = useMemo(() => computeTrend(weighIns ?? [], undefined, date), [weighIns, date]);
   const trendToday = trend.find((p) => p.date === date);
   const weekDelta = trendDelta(trend, 7);
+  const spark = trend.slice(-14).map((p) => p.trend);
   const todaysWeighIn = weighIns?.find((w) => w.date === date);
   const previousWeighIn = weighIns?.filter((w) => w.date < date).at(-1);
-
   const calibrationDay = firstDate ? diffDays(firstDate, date) + 1 : undefined;
+  const remaining = target ? target.kcal - totals.kcal : 0;
 
   const openFavourite = async (food_id: string, grams: number) => {
     const food = await getFood(food_id);
@@ -73,47 +115,62 @@ export default function Today() {
     return m;
   }, [entries]);
 
+  const loading = entries === undefined || target === undefined;
+  const fullDate = fromDateKey(date).toLocaleDateString(undefined, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+
   return (
-    <div className="space-y-4 pb-28">
+    <div className="space-y-5 pb-28">
       <header className="flex items-center justify-between">
-        <button
-          type="button"
-          className="h-11 w-11 rounded-full text-2xl text-muted"
+        <IconButton
+          icon={ChevronLeft}
+          label="Previous day"
           onClick={() => setDate(addDays(date, -1))}
-          aria-label="Previous day"
-        >
-          ‹
-        </button>
-        <h1 className="text-lg font-semibold">{formatDayLabel(date, today)}</h1>
-        <button
-          type="button"
-          className="h-11 w-11 rounded-full text-2xl text-muted disabled:opacity-30"
+        />
+        <div className="text-center">
+          <h1 className="text-[22px] font-semibold leading-tight">{formatDayLabel(date, today)}</h1>
+          <p className="text-[13px] text-muted">{fullDate}</p>
+        </div>
+        <IconButton
+          icon={ChevronRight}
+          label="Next day"
           onClick={() => setDate(addDays(date, 1))}
           disabled={date >= today}
-          aria-label="Next day"
-        >
-          ›
-        </button>
+        />
       </header>
 
-      <Card className="space-y-3">
-        {target ? (
-          <>
-            <MacroBar
-              label="Calories"
-              value={totals.kcal}
-              target={target.kcal}
-              unit=""
-              color="kcal"
-              size="lg"
-            />
-            <div className="grid grid-cols-2 gap-4">
+      {loading ? (
+        <Card>
+          <div className="flex items-center gap-5">
+            <Skeleton className="h-[132px] w-[132px] rounded-full" />
+            <div className="flex-1 space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/6" />
+            </div>
+          </div>
+        </Card>
+      ) : target ? (
+        <Card>
+          <div className="flex items-center gap-5">
+            <Ring value={totals.kcal} target={target.kcal}>
+              <span className="display text-[30px]">{fmt(Math.abs(remaining))}</span>
+              <span className="mt-1 text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
+                {remaining >= 0 ? 'left' : 'over'}
+              </span>
+            </Ring>
+            <div className="min-w-0 flex-1 space-y-3">
               <MacroBar
                 label="Protein"
                 value={totals.protein_g}
                 target={target.protein_g}
                 unit="g"
                 color="protein"
+                compact
               />
               <MacroBar
                 label="Fiber"
@@ -121,16 +178,15 @@ export default function Today() {
                 target={target.fiber_g}
                 unit="g"
                 color="fiber"
+                compact
               />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <MacroBar
                 label="Carbs"
                 value={totals.carb_g}
                 target={target.carb_g}
                 unit="g"
                 color="carb"
-                size="sm"
+                compact
               />
               <MacroBar
                 label="Fat"
@@ -138,95 +194,129 @@ export default function Today() {
                 target={target.fat_g}
                 unit="g"
                 color="fat"
-                size="sm"
+                compact
               />
             </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-[13px]">
+            <span className="tabular text-ink-2">
+              <span className="font-semibold text-ink">{fmt(totals.kcal)}</span> of{' '}
+              {fmt(target.kcal)} kcal
+            </span>
             {target.provisional && (
-              <p className="text-xs text-muted">
-                Provisional targets from formula
+              <span className="flex items-center gap-1 text-muted">
+                <Info size={14} strokeWidth={2} aria-hidden />
                 {calibrationDay != null && calibrationDay <= CALIBRATION_DAYS
-                  ? ` · calibration day ${calibrationDay} of ${CALIBRATION_DAYS}`
-                  : ''}
-              </p>
+                  ? `Provisional · day ${calibrationDay} of ${CALIBRATION_DAYS}`
+                  : 'Provisional targets'}
+              </span>
             )}
-          </>
-        ) : (
-          <p className="text-sm text-muted">
-            {weighIns && weighIns.length === 0
-              ? 'Log your first weigh-in to get targets.'
-              : 'Computing targets…'}
-          </p>
-        )}
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <EmptyState
+            icon={Scale}
+            title="No targets yet"
+            body="Log a weigh-in and your provisional targets appear here."
+            action={
+              <Button variant="primary" icon={Scale} onClick={() => setWeighOpen(true)}>
+                Log weigh-in
+              </Button>
+            }
+          />
+        </Card>
+      )}
+
+      <Card onClick={() => setWeighOpen(true)}>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-[13px] text-muted">Weight</div>
+            <div className="mt-0.5 flex items-baseline gap-2">
+              {todaysWeighIn ? (
+                <span className="tabular text-[28px] font-semibold leading-none">
+                  {todaysWeighIn.weight_kg.toFixed(1)}
+                  <span className="ml-1 text-[15px] font-normal text-muted">kg</span>
+                </span>
+              ) : (
+                <span className="text-[17px] text-ink-2">Tap to weigh in</span>
+              )}
+            </div>
+            {trendToday && (
+              <div className="mt-1.5 flex items-center gap-2 text-[13px] text-muted tabular">
+                <span>trend {trendToday.trend.toFixed(1)} kg</span>
+                {weekDelta != null && (
+                  <span
+                    className={`flex items-center gap-0.5 ${weekDelta <= 0 ? 'text-fiber' : 'text-fat'}`}
+                  >
+                    {weekDelta <= 0 ? (
+                      <TrendingDown size={14} aria-hidden />
+                    ) : (
+                      <TrendingUp size={14} aria-hidden />
+                    )}
+                    {weekDelta > 0 ? '+' : ''}
+                    {weekDelta.toFixed(2)} / 7d
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          {spark.length >= 2 ? (
+            <Sparkline values={spark} width={104} height={40} />
+          ) : (
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-2 text-ink-2">
+              <Scale size={20} strokeWidth={2} aria-hidden />
+            </span>
+          )}
+        </div>
       </Card>
 
-      <button type="button" className="w-full text-left" onClick={() => setWeighOpen(true)}>
-        <Card className="flex items-center justify-between">
-          <div>
-            <div className="text-sm text-muted">Weight</div>
-            <div className="tabular text-2xl font-semibold">
-              {todaysWeighIn ? (
-                `${todaysWeighIn.weight_kg.toFixed(1)} kg`
-              ) : (
-                <span className="text-muted">Tap to weigh in</span>
-              )}
-            </div>
-          </div>
-          {trendToday && (
-            <div className="text-right text-sm text-muted tabular">
-              <div>trend {trendToday.trend.toFixed(1)} kg</div>
-              {weekDelta != null && (
-                <div className={weekDelta < 0 ? 'text-fiber' : 'text-fat'}>
-                  {weekDelta > 0 ? '+' : ''}
-                  {weekDelta.toFixed(2)} kg / 7d
-                </div>
-              )}
-            </div>
-          )}
-        </Card>
-      </button>
-
       {favourites && favourites.length > 0 && (
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4">
-          {favourites.map((f) => (
-            <Chip
-              key={f.food_id}
-              onClick={() => openFavourite(f.food_id, f.last_grams)}
-              className="max-w-[60vw] truncate"
-            >
-              {shortName(f.name)} · {fmt(f.last_grams)} g
-            </Chip>
-          ))}
-        </div>
+        <section>
+          <SectionLabel>Quick log</SectionLabel>
+          <div className="rail -mx-4 flex gap-2 overflow-x-auto px-4">
+            {favourites.map((f) => (
+              <button
+                key={f.food_id}
+                type="button"
+                onClick={() => openFavourite(f.food_id, f.last_grams)}
+                className="flex w-[150px] shrink-0 flex-col justify-between rounded-[16px] bg-surface p-3.5 text-left transition-[transform,background-color] duration-150 active:scale-[0.97] active:bg-surface-2"
+              >
+                <span className="line-clamp-2 text-[14px] font-medium leading-snug">
+                  {shortName(f.name)}
+                </span>
+                <span className="mt-2 text-[12px] text-muted tabular">
+                  {fmt(f.last_grams)} g · {fmt(f.last_kcal)} kcal
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
       {MEAL_SLOTS.map((slot) => {
         const list = bySlot.get(slot)!;
         if (list.length === 0) return null;
         const kcal = list.reduce((a, e) => a + e.kcal, 0);
+        const Icon = SLOT_ICON[slot];
         return (
           <section key={slot}>
-            <div className="mb-1 flex items-baseline justify-between px-1">
-              <h2 className="font-medium">{SLOT_LABEL[slot]}</h2>
-              <span className="tabular text-sm text-muted">{fmt(kcal)} kcal</span>
-            </div>
+            <SectionLabel trailing={`${fmt(kcal)} kcal`}>
+              <span className="inline-flex items-center gap-1.5">
+                <Icon size={14} strokeWidth={2} aria-hidden />
+                {SLOT_LABEL[slot]}
+              </span>
+            </SectionLabel>
             <Card className="divide-y divide-line p-0">
               {list.map((e) => (
-                <button
+                <ListRow
                   key={e.id}
-                  type="button"
                   onClick={() => openEntry(e)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate">{e.name}</div>
-                    <div className="text-xs text-muted tabular">
-                      {e.grams > 0 ? `${fmt(e.grams)} g · ` : ''}P {fmt(e.protein_g)} · C{' '}
-                      {fmt(e.carb_g)} · F {fmt(e.fat_g)} · Fib {fmt(e.fiber_g)}
-                      {e.confidence !== 'high' && <span className="ml-1 text-kcal">~</span>}
-                    </div>
-                  </div>
-                  <div className="tabular">{fmt(e.kcal)}</div>
-                </button>
+                  title={e.name}
+                  badge={e.confidence !== 'high' ? <Badge tone="kcal">est.</Badge> : undefined}
+                  subtitle={`${e.grams > 0 ? `${fmt(e.grams)} g · ` : ''}P ${fmt(e.protein_g)} · C ${fmt(e.carb_g)} · F ${fmt(e.fat_g)} · Fib ${fmt(e.fiber_g)}`}
+                  value={fmt(e.kcal)}
+                />
               ))}
             </Card>
           </section>
@@ -234,24 +324,28 @@ export default function Today() {
       })}
 
       {entries && entries.length === 0 && (
-        <p className="px-1 text-center text-sm text-muted">Nothing logged yet.</p>
+        <EmptyState
+          icon={Utensils}
+          title="Nothing logged yet"
+          body="Search a food, or type calories for something off-menu."
+          action={
+            <Link
+              to={`/log?d=${date}`}
+              className="inline-flex h-12 items-center gap-2 rounded-[14px] bg-surface-2 px-5 font-medium active:scale-[0.98]"
+            >
+              <Plus size={18} aria-hidden /> Log food
+            </Link>
+          }
+        />
       )}
 
-      <div className="fixed inset-x-0 bottom-16 z-30 mx-auto flex max-w-md justify-end gap-2 px-4 safe-bottom">
-        <Link
-          to={`/quick?d=${date}`}
-          className="h-12 rounded-full bg-surface-2 px-4 leading-[3rem] text-sm"
-        >
-          Quick add
-        </Link>
-        <Link
-          to={`/log?d=${date}`}
-          className="h-12 w-12 rounded-full bg-accent text-center text-3xl font-light leading-[2.9rem] text-bg"
-          aria-label="Log food"
-        >
-          +
-        </Link>
-      </div>
+      <Link
+        to={`/log?d=${date}`}
+        aria-label="Log food"
+        className="fixed right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-on-accent shadow-fab transition-transform duration-150 active:scale-95"
+      >
+        <Plus size={26} strokeWidth={2.25} aria-hidden />
+      </Link>
 
       <WeighInSheet
         open={weighOpen}
@@ -270,16 +364,11 @@ export default function Today() {
         entryMethod={sheet?.method ?? 'search'}
         onClose={() => setSheet(null)}
       />
-      {!target && weighIns && weighIns.length === 0 && (
-        <Button variant="primary" className="w-full" onClick={() => setWeighOpen(true)}>
-          Log first weigh-in
-        </Button>
-      )}
     </div>
   );
 }
 
-/** USDA names are long; the chip shows the first two comma segments. */
+/** USDA names are long; the tile shows the first two comma segments. */
 function shortName(name: string): string {
   return name.split(',').slice(0, 2).join(',').trim();
 }

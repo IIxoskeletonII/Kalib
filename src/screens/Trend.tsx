@@ -1,29 +1,31 @@
+import { Scale, TrendingDown, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { TrendChart } from '@/components/TrendChart';
-import { Card, Chip, Row } from '@/components/ui';
+import { Card, Chip, EmptyState, ListRow, Row, SectionLabel, Segmented } from '@/components/ui';
 import { WeighInSheet } from '@/components/WeighInSheet';
-import { addDays, todayKey } from '@/core/dates';
+import { addDays, fromDateKey, todayKey } from '@/core/dates';
 import { computeTrend, trendDelta } from '@/core/trend';
 import { setSetting } from '@/db/repo/settings';
 import { useSetting, useWeighIns } from '@/hooks/useData';
 
-const RANGES = [
-  { label: '4w', days: 28 },
-  { label: '12w', days: 84 },
-  { label: 'All', days: 0 },
-] as const;
+type Range = '28' | '84' | 'all';
+const RANGES: { value: Range; label: string }[] = [
+  { value: '28', label: '4 weeks' },
+  { value: '84', label: '12 weeks' },
+  { value: 'all', label: 'All' },
+];
 
 export default function Trend() {
   const weighIns = useWeighIns();
   const showRaw = useSetting<boolean>('show_raw_weight', false);
-  const [range, setRange] = useState<number>(28);
+  const [range, setRange] = useState<Range>('28');
   const [editDate, setEditDate] = useState<string | null>(null);
   const today = todayKey();
 
   const all = useMemo(() => computeTrend(weighIns ?? [], undefined, today), [weighIns, today]);
   const points = useMemo(() => {
-    if (range === 0) return all;
-    const from = addDays(today, -range);
+    if (range === 'all') return all;
+    const from = addDays(today, -Number(range));
     return all.filter((p) => p.date >= from);
   }, [all, range, today]);
 
@@ -34,44 +36,64 @@ export default function Trend() {
   const weighedDays = all.filter((p) => p.weighed).length;
 
   return (
-    <div className="space-y-4 pb-20">
-      <h1 className="text-lg font-semibold">Weight trend</h1>
+    <div className="space-y-5 pb-24">
+      <header>
+        <h1 className="text-[22px] font-semibold leading-tight">Trend</h1>
+        <p className="text-[13px] text-muted">Smoothed weight · raw scale readings are noise</p>
+      </header>
 
-      <Card>
-        {points.length >= 2 ? (
-          <TrendChart points={points} showRaw={showRaw} />
-        ) : (
-          <p className="py-10 text-center text-sm text-muted">
-            Two or more weigh-ins needed for a chart.
-          </p>
-        )}
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex gap-2">
-            {RANGES.map((r) => (
-              <Chip
-                key={r.label}
-                active={range === r.days}
-                onClick={() => setRange(r.days)}
-                className="h-8 px-3 text-xs"
+      {latest ? (
+        <Card>
+          <div className="flex items-end justify-between">
+            <div>
+              <div className="text-[13px] text-muted">Trend weight</div>
+              <div className="display mt-1">
+                {latest.trend.toFixed(1)}
+                <span className="ml-1.5 text-[20px] font-medium text-muted">kg</span>
+              </div>
+            </div>
+            {d7 != null && (
+              <div
+                className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-[14px] font-medium tabular ${d7 <= 0 ? 'bg-fiber/15 text-fiber' : 'bg-fat/15 text-fat'}`}
               >
-                {r.label}
-              </Chip>
-            ))}
+                {d7 <= 0 ? (
+                  <TrendingDown size={16} aria-hidden />
+                ) : (
+                  <TrendingUp size={16} aria-hidden />
+                )}
+                {d7 > 0 ? '+' : ''}
+                {d7.toFixed(2)} kg / 7 d
+              </div>
+            )}
           </div>
-          <Chip
-            active={showRaw}
-            onClick={() => setSetting('show_raw_weight', !showRaw)}
-            className="h-8 px-3 text-xs"
-          >
-            {showRaw ? 'Raw shown' : 'Show raw'}
-          </Chip>
-        </div>
-      </Card>
+          <div className="mt-4">
+            {points.length >= 2 ? (
+              <TrendChart points={points} showRaw={showRaw} />
+            ) : (
+              <p className="py-10 text-center text-[14px] text-muted">
+                Two or more weigh-ins needed for a chart.
+              </p>
+            )}
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <Segmented value={range} options={RANGES} onChange={setRange} className="flex-1" />
+            <Chip active={showRaw} onClick={() => setSetting('show_raw_weight', !showRaw)}>
+              Raw
+            </Chip>
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <EmptyState
+            icon={Scale}
+            title="No weigh-ins yet"
+            body="Weigh in daily from the Today screen; the trend appears after two days."
+          />
+        </Card>
+      )}
 
       {latest && (
-        <Card>
-          <Row label="Trend now" value={`${latest.trend.toFixed(1)} kg`} />
-          {d7 != null && <Row label="Last 7 days" value={signed(d7)} sub="kg" />}
+        <Card className="py-2">
           {d28 != null && <Row label="Last 28 days" value={signed(d28)} sub="kg" />}
           {sinceStart != null && <Row label="Since start" value={signed(sinceStart)} sub="kg" />}
           <Row label="Weigh-ins" value={String(weighedDays)} sub={`of ${all.length} days`} />
@@ -79,22 +101,26 @@ export default function Trend() {
       )}
 
       {weighIns && weighIns.length > 0 && (
-        <Card className="divide-y divide-line p-0">
-          {[...weighIns]
-            .reverse()
-            .slice(0, 14)
-            .map((w) => (
-              <button
-                key={w.id}
-                type="button"
-                onClick={() => setEditDate(w.date)}
-                className="flex w-full items-center justify-between px-4 py-3 text-left"
-              >
-                <span className="text-muted">{w.date}</span>
-                <span className="tabular">{w.weight_kg.toFixed(1)} kg</span>
-              </button>
-            ))}
-        </Card>
+        <section>
+          <SectionLabel>Recent weigh-ins</SectionLabel>
+          <Card className="divide-y divide-line p-0">
+            {[...weighIns]
+              .reverse()
+              .slice(0, 14)
+              .map((w) => (
+                <ListRow
+                  key={w.id}
+                  onClick={() => setEditDate(w.date)}
+                  title={fromDateKey(w.date).toLocaleDateString(undefined, {
+                    weekday: 'short',
+                    day: 'numeric',
+                    month: 'short',
+                  })}
+                  value={`${w.weight_kg.toFixed(1)} kg`}
+                />
+              ))}
+          </Card>
+        </section>
       )}
 
       <WeighInSheet

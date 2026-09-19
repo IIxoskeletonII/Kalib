@@ -1,11 +1,12 @@
 // Grams → entry, for a database food. Used by search, favourites and entry editing.
+import { Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { scaleFood } from '@/core/nutrition';
 import { MEAL_SLOTS, type EntryMethod, type Food, type MealSlot } from '@/core/types';
 import { deleteEntry } from '@/db/repo/logEntries';
 import { logFood, rescaleEntry } from '@/services/logging';
 import { NumberPad } from './NumberPad';
-import { Button, Chip, Sheet, fmt } from './ui';
+import { Badge, Button, Chip, IconButton, Segmented, Sheet, fmt } from './ui';
 
 export interface AmountSheetProps {
   open: boolean;
@@ -15,7 +16,7 @@ export interface AmountSheetProps {
   initialSlot: MealSlot;
   /** When set, saves update this entry instead of creating one. */
   entryId?: string | undefined;
-  entryMethod: Extract<EntryMethod, 'search' | 'favourite'>;
+  entryMethod: Extract<EntryMethod, 'search' | 'favourite' | 'barcode'>;
   /** Dismissed without saving. */
   onClose: () => void;
   /** Saved or deleted; defaults to onClose. */
@@ -28,6 +29,16 @@ export const SLOT_LABEL: Record<MealSlot, string> = {
   dinner: 'Dinner',
   snack: 'Snack',
 };
+
+export const SOURCE_LABEL: Record<Food['source'], string> = {
+  usda_foundation: 'USDA',
+  usda_sr: 'USDA SR',
+  off: 'Open Food Facts',
+  custom: 'My food',
+  photo: 'Photo estimate',
+};
+
+const SLOT_OPTIONS = MEAL_SLOTS.map((s) => ({ value: s, label: SLOT_LABEL[s] }));
 
 export function AmountSheet(p: AmountSheetProps) {
   return (
@@ -42,7 +53,18 @@ export function AmountSheet(p: AmountSheetProps) {
 
 function AmountForm(p: AmountSheetProps & { food: Food }) {
   const [grams, setGrams] = useState(p.initialGrams != null ? String(p.initialGrams) : '');
+  // A prefilled amount (last time's grams, or a portion chip) is replaced by the first key
+  // press rather than appended to — "150" → tap 2 → "2", not "1502".
+  const [pristine, setPristine] = useState(p.initialGrams != null);
   const [slot, setSlot] = useState<MealSlot>(p.initialSlot);
+  const type = (u: (prev: string) => string) => {
+    setGrams((prev) => u(pristine ? '' : prev));
+    setPristine(false);
+  };
+  const preset = (v: number) => {
+    setGrams(String(v));
+    setPristine(true);
+  };
   const [busy, setBusy] = useState(false);
 
   const g = Number(grams) || 0;
@@ -74,63 +96,85 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
     done();
   };
 
+  const presets = [
+    { label: '100 g', grams: 100 },
+    ...p.food.portions.map((po) => ({
+      label: `${po.label} · ${fmt(po.grams)} g`,
+      grams: po.grams,
+    })),
+  ];
+
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="line-clamp-2 text-lg font-semibold leading-tight">{p.food.name}</h2>
-        {p.food.brand && <p className="text-sm text-muted">{p.food.brand}</p>}
+    <div className="space-y-5">
+      <div className="pr-12">
+        <div className="flex items-center gap-2">
+          <Badge tone={p.food.source === 'custom' ? 'accent' : 'muted'}>
+            {SOURCE_LABEL[p.food.source]}
+          </Badge>
+          {p.food.brand && <span className="truncate text-[13px] text-muted">{p.food.brand}</span>}
+        </div>
+        <h2 className="mt-1 line-clamp-2 text-[19px] font-semibold leading-snug">{p.food.name}</h2>
       </div>
 
-      <div className="flex items-end justify-between">
-        <div className="tabular text-5xl font-semibold">
-          {grams === '' ? <span className="text-line">0</span> : grams}
-          <span className="ml-1 text-2xl text-muted">g</span>
+      <div className="flex items-end justify-between gap-4">
+        <div className="display">
+          {grams === '' ? <span className="text-surface-3">0</span> : grams}
+          <span className="ml-1.5 text-[22px] font-medium text-muted">g</span>
         </div>
-        <div className="text-right text-sm text-muted tabular">
-          <div className="text-lg text-ink">{fmt(preview.kcal)} kcal</div>
-          <div>
-            P {fmt(preview.protein_g)} · C {fmt(preview.carb_g)} · F {fmt(preview.fat_g)} · Fib{' '}
-            {fmt(preview.fiber_g)}
+        <div className="text-right">
+          <div className="tabular text-[22px] font-semibold leading-none">
+            {fmt(preview.kcal)}
+            <span className="ml-1 text-[14px] font-normal text-muted">kcal</span>
+          </div>
+          <div className="mt-2 flex justify-end gap-2 text-[12px] tabular">
+            <Macro c="text-protein" v={preview.protein_g} l="P" />
+            <Macro c="text-carb" v={preview.carb_g} l="C" />
+            <Macro c="text-fat" v={preview.fat_g} l="F" />
+            <Macro c="text-fiber" v={preview.fiber_g} l="Fib" />
           </div>
         </div>
       </div>
 
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4">
-        <Chip onClick={() => setGrams('100')} active={grams === '100'}>
-          100 g
-        </Chip>
-        {p.food.portions.map((po) => (
-          <Chip
-            key={po.label}
-            onClick={() => setGrams(String(po.grams))}
-            active={grams === String(po.grams)}
-          >
-            {po.label} · {fmt(po.grams)} g
+      <div className="rail -mx-5 flex gap-2 overflow-x-auto px-5">
+        {presets.map((po) => (
+          <Chip key={po.label} onClick={() => preset(po.grams)} active={g === po.grams}>
+            {po.label}
           </Chip>
         ))}
       </div>
 
-      <div className="flex gap-2">
-        {MEAL_SLOTS.map((s) => (
-          <Chip key={s} active={slot === s} onClick={() => setSlot(s)} className="flex-1 px-0">
-            {SLOT_LABEL[s]}
-          </Chip>
-        ))}
-      </div>
+      <Segmented value={slot} options={SLOT_OPTIONS} onChange={setSlot} />
 
-      <NumberPad onChange={setGrams} onSubmit={save} decimal maxDigits={5} />
+      <NumberPad onChange={type} onSubmit={save} decimal maxDigits={4} />
 
       <div className="flex gap-2">
         {p.entryId && (
-          <Button variant="danger" onClick={remove} className="px-3">
-            Delete
-          </Button>
+          <IconButton
+            icon={Trash2}
+            label="Delete entry"
+            onClick={remove}
+            className="h-14 w-14 rounded-[14px] bg-surface-2 text-danger"
+          />
         )}
-        <Button variant="primary" onClick={save} disabled={g <= 0 || busy} className="flex-1">
+        <Button
+          variant="primary"
+          size="lg"
+          onClick={save}
+          disabled={g <= 0 || busy}
+          className="flex-1"
+        >
           {p.entryId ? 'Update' : 'Log'}
           {g > 0 ? ` · ${fmt(preview.kcal)} kcal` : ''}
         </Button>
       </div>
     </div>
+  );
+}
+
+function Macro({ c, v, l }: { c: string; v: number; l: string }) {
+  return (
+    <span className="text-muted">
+      <span className={`font-semibold ${c}`}>{fmt(v)}</span> {l}
+    </span>
   );
 }
