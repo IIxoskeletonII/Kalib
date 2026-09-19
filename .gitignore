@@ -5,3 +5,7 @@ dev-dist
 .wrangler
 *.local
 .DS_Store
+
+# Third-party agent skills (reinstall: see README)
+.claude/skills/
+.agents/

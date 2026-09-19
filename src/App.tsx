@@ -6,18 +6,20 @@ import {
   Sparkles,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router';
 import { ensureSeeded, type SeedProgress } from '@/db/seed';
 import { useProfile } from '@/hooks/useData';
 import { useTheme } from '@/hooks/useTheme';
-import Coach from '@/screens/Coach';
-import LogFood from '@/screens/LogFood';
-import Onboarding from '@/screens/Onboarding';
-import QuickAdd from '@/screens/QuickAdd';
-import Settings from '@/screens/Settings';
 import Today from '@/screens/Today';
-import Trend from '@/screens/Trend';
+
+// Today is the cold-start path; everything else loads on first visit (uPlot lives in Trend).
+const Trend = lazy(() => import('@/screens/Trend'));
+const Coach = lazy(() => import('@/screens/Coach'));
+const Settings = lazy(() => import('@/screens/Settings'));
+const LogFood = lazy(() => import('@/screens/LogFood'));
+const QuickAdd = lazy(() => import('@/screens/QuickAdd'));
+const Onboarding = lazy(() => import('@/screens/Onboarding'));
 
 export default function App() {
   const profile = useProfile();
@@ -50,17 +52,19 @@ export default function App() {
     <div className="mx-auto flex h-full max-w-md flex-col">
       <main className="flex-1 overflow-y-auto px-4 pt-3 safe-top">
         <div key={screenKey} className="screen-in h-full">
-          <Routes>
-            <Route path="/" element={<Today />} />
-            <Route path="/log" element={<LogFood />} />
-            <Route path="/quick" element={<QuickAdd />} />
-            <Route path="/quick/:id" element={<QuickAdd />} />
-            <Route path="/trend" element={<Trend />} />
-            <Route path="/coach" element={<Coach />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <Suspense fallback={null}>
+            <Routes>
+              <Route path="/" element={<Today />} />
+              <Route path="/log" element={<LogFood />} />
+              <Route path="/quick" element={<QuickAdd />} />
+              <Route path="/quick/:id" element={<QuickAdd />} />
+              <Route path="/trend" element={<Trend />} />
+              <Route path="/coach" element={<Coach />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </div>
       </main>
 
