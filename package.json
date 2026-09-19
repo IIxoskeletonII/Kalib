@@ -19,6 +19,8 @@
     "shot": "node --import tsx scripts/shot.ts"
   },
   "dependencies": {
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.23.0",
     "dexie": "^4.4.6",
     "dexie-react-hooks": "^4.4.0",
     "lucide-react": "^1.47.0",

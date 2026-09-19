@@ -15,6 +15,7 @@ import {
 import { getCurrentProfile } from '@/db/repo/profiles';
 import { getSetting } from '@/db/repo/settings';
 import { listWeighIns } from '@/db/repo/weighIns';
+import { computeWeekBanking } from '@/services/banking';
 import { computeCoach, type CoachState } from '@/services/coach';
 import { ensureTargetForDate } from '@/services/targets';
 
@@ -109,4 +110,9 @@ export function useCoach(date: string): CoachState | undefined {
     };
   }, [date, profile, stamp]);
   return state;
+}
+
+/** §5 banking for the week containing `date`; recomputed live as entries and targets change. */
+export function useBanking(date: string) {
+  return useLiveQuery(() => computeWeekBanking(date), [date]);
 }

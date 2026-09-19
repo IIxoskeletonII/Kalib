@@ -44,6 +44,7 @@ import { computeTrend, trendDelta } from '@/core/trend';
 import { MEAL_SLOTS, type Food, type LogEntry, type MealSlot } from '@/core/types';
 import { getFood } from '@/db/repo/foods';
 import {
+  useBanking,
   useCoach,
   useDailyTarget,
   useEntries,
@@ -53,6 +54,7 @@ import {
   useWeighIns,
 } from '@/hooks/useData';
 import { useCountUp } from '@/hooks/useCountUp';
+import { recordChoice } from '@/services/banking';
 
 interface SheetState {
   food: Food;
@@ -78,6 +80,7 @@ export default function Today() {
 
   const entries = useEntries(date);
   const target = useDailyTarget(date);
+  const banking = useBanking(date);
   const weighIns = useWeighIns();
   const favourites = useFavourites();
   const firstDate = useFirstActivityDate();
@@ -95,7 +98,10 @@ export default function Today() {
   const todaysWeighIn = weighIns?.find((w) => w.date === date);
   const previousWeighIn = weighIns?.filter((w) => w.date < date).at(-1);
   const calibrationDay = firstDate ? diffDays(firstDate, date) + 1 : undefined;
-  const remaining = target ? target.kcal - totals.kcal : 0;
+  // §5: the ring runs on the banked target for the day, not the raw formula target.
+  const dayTarget = banking ? Math.round(banking.todayTarget) : (target?.kcal ?? 0);
+  const bankShift = target ? dayTarget - target.kcal : 0;
+  const remaining = target ? dayTarget - totals.kcal : 0;
   const shownRemaining = useCountUp(Math.abs(remaining));
 
   const openFavourite = async (food_id: string, grams: number) => {
@@ -154,7 +160,7 @@ export default function Today() {
         <>
           <Card className="mt-6 px-6 pt-6 pb-5">
             <div className="flex flex-col items-center">
-              <Ring value={totals.kcal} target={target.kcal}>
+              <Ring value={totals.kcal} target={dayTarget}>
                 <span className="display">{fmt(shownRemaining)}</span>
                 <span className="mt-1.5 text-[13px] font-semibold text-muted">
                   {remaining >= 0 ? 'kcal left' : 'kcal over'}
@@ -163,7 +169,16 @@ export default function Today() {
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 border-t border-line pt-4 tabular">
               <Stat label="Eaten" value={fmt(totals.kcal)} unit="kcal" />
-              <Stat label="Target" value={fmt(target.kcal)} unit="kcal" align="right" />
+              <Stat
+                label={
+                  bankShift !== 0
+                    ? `Target (${bankShift > 0 ? '+' : ''}${fmt(bankShift)} banked)`
+                    : 'Target'
+                }
+                value={fmt(dayTarget)}
+                unit="kcal"
+                align="right"
+              />
             </div>
             <p className="mt-3 text-center text-[12px] text-muted">{provisionalNote}</p>
           </Card>
@@ -250,6 +265,76 @@ export default function Today() {
         </div>
         {spark.length >= 2 && <Sparkline values={spark} />}
       </Card>
+
+      {banking?.pending && (
+        <Card className="mt-3 p-5">
+          <p className="text-[15px] font-semibold">
+            {new Date(banking.pending.date + 'T12:00').toLocaleDateString(undefined, {
+              weekday: 'long',
+            })}{' '}
+            went {fmt(banking.pending.overshoot)} kcal over
+          </p>
+          <p className="mt-1 text-[14px] text-muted">Not a verdict — just where to take it from.</p>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Button
+              variant="primary"
+              onClick={() => void recordChoice(banking.pending!.date, 'spread')}
+            >
+              Spread it
+              <span className="ml-1 text-[12px] font-medium opacity-70">
+                −{fmt(banking.pending.spreadPerDay)}/day
+              </span>
+            </Button>
+            <Button onClick={() => void recordChoice(banking.pending!.date, 'tomorrow')}>
+              Take it tomorrow
+              <span className="ml-1 text-[12px] font-medium opacity-70">
+                −{fmt(banking.pending.tomorrowCut)}
+              </span>
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {banking && target && (
+        <Card className="mt-3 px-5 py-4">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[14px] font-semibold text-ink-2">This week</span>
+            <span className="tabular text-[13px] text-muted">
+              {banking.daysLeft} {banking.daysLeft === 1 ? 'day' : 'days'} left
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline gap-1 tabular">
+            <span className="text-[22px] font-bold tracking-[-0.02em]">
+              {fmt(banking.consumedToDate)}
+            </span>
+            <span className="text-[13px] text-muted">of {fmt(banking.weekBudget)} kcal</span>
+            {Math.abs(banking.balance) >= 50 && (
+              <span
+                className={`ml-auto text-[13px] font-semibold ${banking.balance > 0 ? 'text-fiber' : 'text-fat'}`}
+              >
+                {banking.balance > 0
+                  ? `${fmt(banking.balance)} banked`
+                  : `${fmt(-banking.balance)} over`}
+              </span>
+            )}
+          </div>
+          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+            <div
+              className="h-full rounded-full bg-accent transition-[width] duration-700 ease-[var(--ease-out-soft)]"
+              style={{
+                width: `${Math.min(100, (banking.consumedToDate / Math.max(1, banking.weekBudget)) * 100)}%`,
+              }}
+            />
+          </div>
+          {banking.notices.length > 0 && (
+            <ul className="mt-3 space-y-1 text-[13px] leading-snug text-muted">
+              {banking.notices.slice(-2).map((n, i) => (
+                <li key={i}>{n.text}</li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
 
       {coach?.kind === 'gap' && (
         <section className="mt-7" aria-label="Coach">

@@ -14,9 +14,13 @@ targets you keep missing. Progressive web app, works offline, costs nothing to r
 ## What it does
 
 - **Logging in seconds** — offline USDA database (7 k foods), packaged products from Open Food
-  Facts, a custom number pad (no OS keyboard), one-tap "log again" tiles, quick manual entry.
+  Facts by search or **barcode photo** (decoded on-device), your own foods, a custom number pad
+  (no OS keyboard), one-tap "log again" tiles, quick manual entry.
 - **Targets that calibrate to you** — formula targets for two weeks, then a measured TDEE from
   the weight trend and logged intake (SPEC §4). Fiber is a first-class target next to protein.
+- **Weekly banking** — a big day is spread across the week within bounds (never more than
+  300 kcal off a day, never below the safety floor, one rollover then forgiven); an under-day
+  rolls forward. The ring runs on the banked target.
 - **Weight trend, not scale noise** — exponentially smoothed trend, raw readings hidden by default.
 - **Coach** — after a few full days it finds what is running short (protein, fiber, then
   micronutrients when the data is good enough) and names everyday foods that close the gap.
@@ -43,7 +47,7 @@ worker/         Cloudflare Worker (assets + /api/off/*)        scripts/        U
 ```sh
 npm install
 npm run dev          # http://localhost:5173 (add --host to test on a phone over LAN)
-npm test             # 97 unit tests: every formula in SPEC §3/§4/§16, repos, worker ranking
+npm test             # 115 unit tests: every formula in SPEC §3/§4/§16, repos, worker ranking
 npm run build        # typecheck + production build → dist/
 ```
 

@@ -1,5 +1,15 @@
 // SPEC §8 weighed-ingredient path: search → number pad → done, ≤10 s.
-import { ChevronLeft, Globe, PenLine, Plus, Search, SearchX, WifiOff, X } from 'lucide-react';
+import {
+  Camera,
+  ChevronLeft,
+  Globe,
+  PenLine,
+  Plus,
+  Search,
+  SearchX,
+  WifiOff,
+  X,
+} from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { AmountSheet, SOURCE_LABEL } from '@/components/AmountSheet';
@@ -19,13 +29,20 @@ import type { Food, MealSlot } from '@/core/types';
 import { getFood, getFoods } from '@/db/repo/foods';
 import { lastGramsForFood } from '@/db/repo/logEntries';
 import { useFoodUsage, useSearchDocs } from '@/hooks/useData';
-import { cacheOffProduct, searchPackaged, type OffProduct } from '@/services/off';
+import { captureImage } from '@/platform/camera';
+import { decodeBarcode } from '@/services/barcode';
+import { cacheOffProduct, lookupBarcode, searchPackaged, type OffProduct } from '@/services/off';
 
 type Online =
   | { state: 'idle' }
   | { state: 'loading' }
   | { state: 'done'; items: OffProduct[] }
   | { state: 'error'; message: string };
+
+// Dev-only hook for the screenshot harness to exercise the decoder with a fixture image.
+if (import.meta.env.DEV) {
+  (window as unknown as { __kalib?: object }).__kalib = { decodeBarcode };
+}
 
 export default function LogFood() {
   const [params] = useSearchParams();
@@ -40,6 +57,9 @@ export default function LogFood() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [online, setOnline] = useState<{ q: string; r: Online }>({ q: '', r: { state: 'idle' } });
   const [picked, setPicked] = useState<{ food: Food; grams: number | undefined } | null>(null);
+  const [scan, setScan] = useState<
+    { state: 'idle' } | { state: 'busy'; step: string } | { state: 'error'; message: string }
+  >({ state: 'idle' });
   const [kcalById, setKcalById] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
@@ -86,6 +106,43 @@ export default function LogFood() {
     const food = await cacheOffProduct(p);
     const grams = (await lastGramsForFood(food.id)) ?? p.serving_g;
     setPicked({ food, grams });
+  };
+
+  const runScan = async () => {
+    const file = await captureImage();
+    if (!file) return;
+    setScan({ state: 'busy', step: 'Reading the barcode…' });
+    try {
+      const code = await decodeBarcode(file);
+      if (!code) {
+        setScan({
+          state: 'error',
+          message:
+            'No barcode found in that photo. Hold it flat, closer and in good light, then try again.',
+        });
+        return;
+      }
+      if (!navigator.onLine) {
+        setScan({ state: 'error', message: `Read ${code}, but looking it up needs a connection.` });
+        return;
+      }
+      setScan({ state: 'busy', step: `Looking up ${code}…` });
+      const product = await lookupBarcode(code);
+      if (!product) {
+        setScan({
+          state: 'error',
+          message: `${code} is not in Open Food Facts yet. Add it as a new food from the label.`,
+        });
+        return;
+      }
+      const food = await cacheOffProduct(product);
+      const grams =
+        (await lastGramsForFood(food.id)) ?? product.serving_g ?? food.portions[0]?.grams;
+      setScan({ state: 'idle' });
+      setPicked({ food, grams });
+    } catch (err) {
+      setScan({ state: 'error', message: (err as Error).message });
+    }
   };
 
   const runOnline = async () => {
@@ -154,6 +211,9 @@ export default function LogFood() {
       </div>
 
       <div className="rail -mx-4 flex gap-2 overflow-x-auto px-4 pb-3">
+        <Chip icon={Camera} onClick={runScan} disabled={scan.state === 'busy'}>
+          Scan
+        </Chip>
         <Chip icon={PenLine} onClick={() => navigate(`/quick?d=${date}`)}>
           Quick add
         </Chip>
@@ -166,6 +226,39 @@ export default function LogFood() {
       </div>
 
       <div className="-mx-4 flex-1 overflow-y-auto pb-6">
+        {scan.state !== 'idle' && (
+          <div className="card mx-4 mb-3 flex items-start gap-3 p-4 text-[14px]">
+            {scan.state === 'busy' ? (
+              <span className="mt-1 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-accent" />
+            ) : (
+              <Camera size={18} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+            )}
+            <div className="flex-1">
+              <p>{scan.state === 'busy' ? scan.step : scan.message}</p>
+              {scan.state === 'error' && (
+                <div className="mt-2 flex gap-3">
+                  <button type="button" onClick={runScan} className="font-semibold text-accent">
+                    Scan again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/foods/new?d=${date}`)}
+                    className="font-semibold text-accent"
+                  >
+                    New food
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScan({ state: 'idle' })}
+                    className="font-semibold text-muted"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {!q && docs && (
           <p className="px-4 pt-10 text-center text-[14px] text-muted">
             {docs.length.toLocaleString()} foods available offline. Packaged products come from Open
