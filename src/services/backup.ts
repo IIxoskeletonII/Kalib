@@ -1,17 +1,34 @@
 // SPEC §12 — full JSON backup and restore. Everything the user created; never the USDA seed.
 // Restore is a merge: rows with the same id are overwritten, nothing else is touched.
-import type { DailyTarget, Food, LogEntry, Profile, Setting, WeighIn } from '@/core/types';
+import type {
+  DailyTarget,
+  Food,
+  LogEntry,
+  Profile,
+  Setting,
+  Supplement,
+  SupplementLog,
+  WaterLog,
+  WeighIn,
+} from '@/core/types';
 import { bulkPutDailyTargets, listDailyTargets } from '@/db/repo/dailyTargets';
 import { bulkPutFoods, listUserFoods } from '@/db/repo/foods';
 import { bulkPutEntries, listAllEntries } from '@/db/repo/logEntries';
 import { bulkPutProfiles, listProfiles } from '@/db/repo/profiles';
 import { bulkPutSettings, listSettings } from '@/db/repo/settings';
+import {
+  bulkPutSupplementLogs,
+  bulkPutSupplements,
+  listAllSupplementLogs,
+  listAllSupplements,
+} from '@/db/repo/supplements';
+import { bulkPutWater, listAllWater } from '@/db/repo/water';
 import { bulkPutWeighIns, listWeighIns } from '@/db/repo/weighIns';
 import { exportFiles } from '@/platform/exportFile';
 
 export interface Backup {
   app: 'kalib';
-  format: 2;
+  format: 3;
   exported_at: string;
   profiles: Profile[];
   foods: Food[];
@@ -19,26 +36,42 @@ export interface Backup {
   log_entries: LogEntry[];
   daily_targets: DailyTarget[];
   settings: Setting[];
+  water_logs: WaterLog[];
+  supplements: Supplement[];
+  supplement_logs: SupplementLog[];
 }
 
-// Format 1 (first v0 builds) carried a single `profile` and no foods or settings; parseBackup
-// upgrades it in place.
+// Format 1 (first v0 builds) carried a single `profile` and no foods or settings; format 2
+// added those; format 3 (SPEC §17) adds water and supplements. parseBackup upgrades in place.
 
 /** Device-specific keys that must not travel between installs. */
 const LOCAL_ONLY_SETTING = /^seed_version:/;
 
 export async function buildBackup(): Promise<Backup> {
-  const [profiles, foods, weigh_ins, log_entries, daily_targets, settings] = await Promise.all([
+  const [
+    profiles,
+    foods,
+    weigh_ins,
+    log_entries,
+    daily_targets,
+    settings,
+    water_logs,
+    supplements,
+    supplement_logs,
+  ] = await Promise.all([
     listProfiles(),
     listUserFoods(),
     listWeighIns(),
     listAllEntries(),
     listDailyTargets(),
     listSettings(),
+    listAllWater(),
+    listAllSupplements(),
+    listAllSupplementLogs(),
   ]);
   return {
     app: 'kalib',
-    format: 2,
+    format: 3,
     exported_at: new Date().toISOString(),
     profiles,
     foods,
@@ -46,6 +79,9 @@ export async function buildBackup(): Promise<Backup> {
     log_entries,
     daily_targets,
     settings: settings.filter((s) => !LOCAL_ONLY_SETTING.test(s.key)),
+    water_logs,
+    supplements,
+    supplement_logs,
   };
 }
 
@@ -89,6 +125,9 @@ export function parseBackup(raw: unknown): Backup {
     log_entries?: unknown;
     daily_targets?: unknown;
     settings?: unknown;
+    water_logs?: unknown;
+    supplements?: unknown;
+    supplement_logs?: unknown;
   };
   if (b.app !== 'kalib') throw new Error('Not a Kalib backup file.');
   if (!isArray<WeighIn>(b.weigh_ins) || !isArray<LogEntry>(b.log_entries)) {
@@ -98,7 +137,7 @@ export function parseBackup(raw: unknown): Backup {
   if (b.format === 1) {
     return {
       app: 'kalib',
-      format: 2,
+      format: 3,
       exported_at: typeof b.exported_at === 'string' ? b.exported_at : '',
       profiles: b.profile ? [b.profile] : [],
       foods: [],
@@ -106,12 +145,16 @@ export function parseBackup(raw: unknown): Backup {
       log_entries: b.log_entries,
       daily_targets,
       settings: [],
+      water_logs: [],
+      supplements: [],
+      supplement_logs: [],
     };
   }
-  if (b.format !== 2) throw new Error(`Backup format ${String(b.format)} is newer than this app.`);
+  if (b.format !== 2 && b.format !== 3)
+    throw new Error(`Backup format ${String(b.format)} is newer than this app.`);
   return {
     app: 'kalib',
-    format: 2,
+    format: 3,
     exported_at: typeof b.exported_at === 'string' ? b.exported_at : '',
     profiles: isArray<Profile>(b.profiles) ? b.profiles : [],
     foods: isArray<Food>(b.foods) ? b.foods : [],
@@ -121,6 +164,9 @@ export function parseBackup(raw: unknown): Backup {
     settings: isArray<Setting>(b.settings)
       ? b.settings.filter((s) => !LOCAL_ONLY_SETTING.test(s.key))
       : [],
+    water_logs: isArray<WaterLog>(b.water_logs) ? b.water_logs : [],
+    supplements: isArray<Supplement>(b.supplements) ? b.supplements : [],
+    supplement_logs: isArray<SupplementLog>(b.supplement_logs) ? b.supplement_logs : [],
   };
 }
 
@@ -143,4 +189,7 @@ export async function restoreBackup(b: Backup): Promise<void> {
   await bulkPutEntries(b.log_entries);
   await bulkPutDailyTargets(b.daily_targets);
   await bulkPutSettings(b.settings);
+  await bulkPutWater(b.water_logs);
+  await bulkPutSupplements(b.supplements);
+  await bulkPutSupplementLogs(b.supplement_logs);
 }

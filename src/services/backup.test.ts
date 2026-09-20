@@ -89,7 +89,8 @@ describe('backup', () => {
       log_entries: [],
       daily_targets: [],
     });
-    expect(b.format).toBe(2);
+    expect(b.format).toBe(3);
+    expect(b.water_logs).toEqual([]);
     expect(b.profiles).toEqual([]);
   });
 

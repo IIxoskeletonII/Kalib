@@ -151,3 +151,37 @@ export interface Setting {
   value: unknown;
   updated_at: string;
 }
+
+// SPEC §17 — water and supplements.
+
+export interface WaterLog extends SyncMeta {
+  date: string; // YYYY-MM-DD
+  logged_at: string; // ISO timestamp
+  ml: number;
+}
+
+export type SupplementUnit = 'g' | 'mg' | 'µg' | 'IU' | 'capsule' | 'ml';
+export type SupplementTiming = 'morning' | 'with_food' | 'evening' | 'any';
+
+export interface Supplement extends SyncMeta {
+  name: string;
+  dose: number;
+  unit: SupplementUnit;
+  timing: SupplementTiming;
+  /** Catalogue item this was created from, if any (SPEC §17.3). */
+  catalogue_id?: string;
+  /** Micronutrient it supplies, so the coach can count it (§17.2). */
+  nutrient?: MicroKey;
+  /** Amount of that nutrient per dose, in the nutrient's own unit (MICRO_DEFS). */
+  nutrient_amount?: number;
+  sort_order: number;
+  active: boolean;
+}
+
+export interface SupplementLog extends SyncMeta {
+  supplement_id: string;
+  date: string; // YYYY-MM-DD
+  taken_at: string; // ISO timestamp
+  dose: number;
+  unit: SupplementUnit;
+}

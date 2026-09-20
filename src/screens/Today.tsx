@@ -19,6 +19,7 @@ import { AmountSheet, SLOT_LABEL } from '@/components/AmountSheet';
 import { MacroTile } from '@/components/MacroTile';
 import { Ring } from '@/components/Ring';
 import { Sparkline } from '@/components/Sparkline';
+import { SupplementsCard } from '@/components/SupplementsCard';
 import {
   Badge,
   Button,
@@ -30,6 +31,7 @@ import {
   fmt,
 } from '@/components/ui';
 import { WeekStrip } from '@/components/WeekStrip';
+import { WaterCard } from '@/components/WaterCard';
 import { WeighInSheet } from '@/components/WeighInSheet';
 import {
   addDays,
@@ -250,27 +252,40 @@ export default function Today() {
                 {todaysWeighIn.weight_kg.toFixed(1)}
                 <span className="ml-1 text-[15px] font-medium text-muted">kg</span>
               </span>
+            ) : previousWeighIn ? (
+              <span className="text-[17px] font-medium text-muted">
+                Last {previousWeighIn.weight_kg.toFixed(1)} kg
+              </span>
             ) : (
-              <span className="text-[17px] font-medium text-ink-2">Tap to weigh in</span>
+              <span className="text-[17px] font-medium text-muted">Not logged yet</span>
             )}
           </div>
           {trendToday && (
-            <p className="mt-0.5 text-[13px] text-muted tabular">
+            <p className="mt-0.5 text-[13px] whitespace-nowrap text-muted tabular">
               Trend {trendToday.trend.toFixed(1)} kg
               {weekDelta != null && (
                 <>
                   {' · '}
                   <span className={weekDelta <= 0 ? 'text-fiber' : 'text-fat'}>
                     {weekDelta > 0 ? '+' : ''}
-                    {weekDelta.toFixed(1)} kg / wk
+                    {weekDelta.toFixed(1)} kg/wk
                   </span>
                 </>
               )}
             </p>
           )}
         </div>
-        {spark.length >= 2 && <Sparkline values={spark} />}
+        {todaysWeighIn && spark.length >= 2 ? (
+          <Sparkline values={spark} />
+        ) : (
+          <span className="inline-flex h-10 shrink-0 items-center gap-1 rounded-full bg-primary px-3.5 text-[14px] font-semibold text-on-primary">
+            <Plus size={15} strokeWidth={2.6} aria-hidden />
+            {date === today ? 'Log weight' : 'Add weight'}
+          </span>
+        )}
       </Card>
+
+      {target && <WaterCard date={date} targetMl={target.water_ml} />}
 
       {banking?.pending && (
         <Card className="mt-3 p-5">
@@ -341,6 +356,8 @@ export default function Today() {
           )}
         </Card>
       )}
+
+      <SupplementsCard date={date} />
 
       {coach?.kind === 'gap' && (
         <section className="mt-7" aria-label="Coach">

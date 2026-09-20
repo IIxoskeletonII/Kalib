@@ -32,7 +32,7 @@ cards with a soft 30 px shadow; mint→sky gradient on the ring; pastel macro id
 | `line` | rgba(255,255,255,.07) | rgba(21,22,25,.08) | hairlines |
 | `ink` / `ink-2` / `muted` | #F5F6F8 / #C9CDD4 / #8F95A0 | #151619 / #3D4147 / #5D6470 | text roles |
 | `primary` / `on-primary` | #F5F6F8 / #0C0D10 | #151619 / #FFFFFF | primary buttons, selected day, centre action |
-| `accent` → `accent-2` | #5EEAD4 → #38BDF8 | #0B7D6F → #1E63A8 | ring gradient, active states, sparkline |
+| `accent` → `accent-2` | #5EEAD4 → #38BDF8 | #0B7D6F → #1E63A8 | ring gradient, active states, sparkline; `accent-2` alone is water |
 | `kcal` `protein` `fiber` `carb` `fat` | #F5B74A #7DB9FF #7EE0A4 #C4A7FF #FF9AA8 | #8F5A06 #1E63A8 #22753E #6B45C4 #C22D49 | macro identity only |
 | `danger` | #FF7B74 | #B8312B | destructive |
 
@@ -64,6 +64,15 @@ Disabled = 40 % opacity. Motion: `--ease-out-soft` (0.22,1,0.36,1) for arrivals,
 (0.32,0.72,0,1) for sheets (320 ms). The ring fills from empty on mount and eases on change
 (900 ms); the hero number counts up (700 ms); screens rise in 220 ms; bars ease 700 ms.
 Reduced-motion zeroes all of it. Skeletons for loading, never spinners.
+
+Arrival animations use `animation-fill-mode: backwards`, never `both`: a transform that persists
+after the animation makes that element the containing block for every `position: fixed` sheet
+inside it, which then stops at the tab bar instead of covering it.
+
+Checklists (supplements): a 28 pt circle, 2 pt `surface-3` ring when open, `accent` fill with a
+3 px check when done; the row's text drops to `muted` but never strikes through. Quick-add
+actions that repeat (water) are a 48 pt filled circle at the card's right edge; the rest of the
+card opens the detail sheet.
 
 ## Icons
 

@@ -613,3 +613,46 @@ number; nobody names the three foods that would fix it.
   "fiber is on target this week" confirmation, then silence.
 - Tone follows §5.2: a direction, not a verdict.
 - v2 weekly review shows all gaps and trends; Today shows only the leading one.
+
+## 17. Water and supplements (added 20 Sep 2026)
+
+Requested by the owner after the sync release. Water is already a primary target (§3.4, §14)
+but was display-only; supplements were untracked. Both are **table stakes** (§15) — every
+competitor has a water tap and a pill checklist — so the treatment is: minimal, one tap,
+no screen of its own on the daily path. The one differentiating piece is §17.3: doses are
+personalised from the profile and shown with their basis, and supplement micronutrients
+count toward the coach's gap detection (§16).
+
+### 17.1 Water
+- Target: `daily_targets.water_ml` (35 ml/kg). Displayed as litres to one decimal (§2.4).
+- Logging: one tap on `+` adds one glass (`settings.water_glass_ml`, default 250 ml) as a
+  `water_logs` row; the card fills toward target. The card opens a sheet with preset amounts
+  (200 / 250 / 330 / 500 / 750 ml), a custom amount, the day's list, and undo (soft delete).
+- No reminders in v1. Going over target is not flagged.
+
+### 17.2 Supplements
+- `supplements`: the user's standing list — `name, dose, unit (g|mg|µg|IU|capsule|ml),
+  timing (morning|with_food|evening|any), nutrient? (MicroKey), nutrient_amount?,
+  catalogue_id?, sort_order, active`. `supplement_logs`: one row per take
+  (`supplement_id, date, taken_at, dose, unit`).
+- Today shows the list as a checklist under the water card: tap = taken (row created), tap
+  again = untaken (soft delete). Header reads "2 of 3". When the list is empty, a single
+  "Add supplements" row leads to the management screen. Nothing else on Today.
+- Management screen (`/supplements`): reorder-free list, add from the catalogue (§17.3) or
+  as a custom item, edit dose/unit/timing, remove. Exact amounts are always shown as logged
+  on the label (elemental mineral, EPA+DHA, IU for vitamin D).
+- Micronutrient supplements add `nutrient_amount` to the day's micronutrient totals for the
+  coach (§16.1) only; they never touch calories or macros.
+
+### 17.3 Personalised dose guidance
+- The catalogue carries, per item, a `recommend(person)` function over `sex, age, weight_kg,
+  height_cm` returning `{ dose, low, high, upper?, basis }`. Sources: NIH ODS DRI tables
+  (RDA/AI and tolerable upper intake levels), EFSA for caffeine and omega-3, ISSN position
+  stand for creatine. Only creatine, caffeine (and water) scale with body weight; vitamins
+  and minerals are set by sex and age band — the UI says which, e.g. *"5 g — 0.03–0.05 g/kg
+  at 110 kg (ISSN)"* or *"300 mg — RDA 400 mg for men 19–30; supplement cap 350 mg (NIH)"*.
+  Height is not a factor in any of the references and is shown as such.
+- Every recommendation is labelled general guidance from public reference intakes, not
+  medical advice; iron in particular says "test ferritin first".
+- The user's saved dose is theirs; the recommendation is shown beside it and never
+  overwrites it.

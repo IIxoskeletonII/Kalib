@@ -7,7 +7,10 @@ import type {
   LogEntry,
   Profile,
   Setting,
+  Supplement,
+  SupplementLog,
   TdeeEstimate,
+  WaterLog,
   WeighIn,
 } from '@/core/types';
 
@@ -24,6 +27,9 @@ export class KalibDB extends Dexie {
   daily_targets!: EntityTable<DailyTarget, 'id'>;
   tdee_estimates!: EntityTable<TdeeEstimate, 'id'>;
   settings!: EntityTable<Setting, 'key'>;
+  water_logs!: EntityTable<WaterLog, 'id'>;
+  supplements!: EntityTable<Supplement, 'id'>;
+  supplement_logs!: EntityTable<SupplementLog, 'id'>;
 
   constructor(name: string = DB_NAME) {
     super(name);
@@ -35,6 +41,12 @@ export class KalibDB extends Dexie {
       daily_targets: 'id, &[user_id+date]',
       tdee_estimates: 'id, [user_id+computed_on]',
       settings: 'key',
+    });
+    // v2 (SPEC §17): water and supplements. Additive, so no upgrade function is needed.
+    this.version(2).stores({
+      water_logs: 'id, [user_id+date], date',
+      supplements: 'id, [user_id+sort_order]',
+      supplement_logs: 'id, [user_id+date], [supplement_id+date], date',
     });
   }
 }

@@ -25,6 +25,12 @@ function table(name: SyncTable) {
       return db.tdee_estimates;
     case 'settings':
       return db.settings;
+    case 'water_logs':
+      return db.water_logs;
+    case 'supplements':
+      return db.supplements;
+    case 'supplement_logs':
+      return db.supplement_logs;
   }
 }
 

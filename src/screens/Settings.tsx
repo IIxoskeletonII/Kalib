@@ -4,6 +4,7 @@ import {
   FileSpreadsheet,
   FolderOpen,
   Monitor,
+  Pill,
   Moon,
   RefreshCw,
   CalendarClock,
@@ -486,7 +487,7 @@ export default function Settings() {
       </section>
 
       <section>
-        <SectionHeading>Foods</SectionHeading>
+        <SectionHeading>Foods and supplements</SectionHeading>
         <Card>
           <ListRow
             icon={Utensils}
@@ -495,6 +496,14 @@ export default function Settings() {
             subtitle="Custom foods and scanned products"
             chevron
             onClick={() => navigate('/foods')}
+          />
+          <ListRow
+            icon={Pill}
+            iconTone="accent"
+            title="Supplements"
+            subtitle="Your daily list and suggested doses"
+            chevron
+            onClick={() => navigate('/supplements')}
           />
         </Card>
       </section>

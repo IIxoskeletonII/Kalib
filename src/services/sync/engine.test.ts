@@ -132,3 +132,24 @@ describe('syncOnce', () => {
     expect(remote.data.get('settings')?.get('theme')?.value).toBe('dark');
   });
 });
+
+describe('a failing table', () => {
+  it('does not stop the others, and the error surfaces afterwards', async () => {
+    const local = new MemoryLocal();
+    local.seed('weigh_ins', [row('w1', '2026-09-01T00:00:00Z')]);
+    local.seed('water_logs', [row('h1', '2026-09-01T00:00:00Z')]);
+    const pushed: string[] = [];
+    const remote: SyncRemote = {
+      userId: 'u1',
+      async push(table, rows) {
+        if (table === 'weigh_ins') throw new Error('relation "weigh_ins" does not exist');
+        pushed.push(...rows.map((r) => `${table}:${String(r.id)}`));
+      },
+      async pull() {
+        return [];
+      },
+    };
+    await expect(syncOnce(remote, local)).rejects.toThrow('weigh_ins');
+    expect(pushed).toEqual(['water_logs:h1']);
+  });
+});

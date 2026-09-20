@@ -11,11 +11,12 @@ import {
 import { selectEverydayPool } from '@/core/coachFoods';
 import { addDays } from '@/core/dates';
 import { dayTotals } from '@/core/nutrition';
-import type { Food, LogEntry, Sex } from '@/core/types';
+import type { Food, LogEntry, MicroKey, Micros, Sex } from '@/core/types';
 import { listDailyTargets } from '@/db/repo/dailyTargets';
 import { listCandidateFoods } from '@/db/repo/foods';
 import { foodUsageCounts, listEntriesSince } from '@/db/repo/logEntries';
 import { getSetting, setSetting } from '@/db/repo/settings';
+import { listAllSupplements, listSupplementLogsSince } from '@/db/repo/supplements';
 
 export interface CoachResult {
   gap: Gap;
@@ -31,19 +32,40 @@ const LAST_GAP_KEY = 'coach:last_gap';
 
 export async function buildWeek(date: string): Promise<DaySummary[]> {
   const from = addDays(date, -(COACH_WINDOW_DAYS - 1));
-  const [entries, targets] = await Promise.all([listEntriesSince(from), listDailyTargets()]);
+  const [entries, targets, supplements, takes] = await Promise.all([
+    listEntriesSince(from),
+    listDailyTargets(),
+    listAllSupplements(),
+    listSupplementLogsSince(from),
+  ]);
   const byDate = new Map<string, LogEntry[]>();
   for (const e of entries) {
     if (e.date > date) continue;
     (byDate.get(e.date) ?? byDate.set(e.date, []).get(e.date)!).push(e);
   }
+  // §17.2: a taken micronutrient supplement counts toward that day's micro total (never kcal).
+  const supplementById = new Map(supplements.map((s) => [s.id, s]));
+  const microsByDate = new Map<string, Micros>();
+  for (const take of takes) {
+    const s = supplementById.get(take.supplement_id);
+    if (!s?.nutrient || !s.nutrient_amount || take.date > date) continue;
+    const m = microsByDate.get(take.date) ?? microsByDate.set(take.date, {}).get(take.date)!;
+    m[s.nutrient] = (m[s.nutrient] ?? 0) + s.nutrient_amount * (take.dose / s.dose);
+  }
   const days: DaySummary[] = [];
   for (const t of targets) {
     if (t.date < from || t.date > date) continue;
     const dayEntries = byDate.get(t.date) ?? [];
+    const totals = dayTotals(dayEntries);
+    const extra = microsByDate.get(t.date);
+    if (extra) {
+      for (const k of Object.keys(extra) as MicroKey[]) {
+        totals.micros[k] = (totals.micros[k] ?? 0) + extra[k]!;
+      }
+    }
     days.push({
       date: t.date,
-      totals: dayTotals(dayEntries),
+      totals,
       target: {
         kcal: t.kcal,
         protein_g: t.protein_g,

@@ -14,10 +14,17 @@ import {
 } from '@/db/repo/logEntries';
 import { getCurrentProfile } from '@/db/repo/profiles';
 import { getSetting } from '@/db/repo/settings';
+import {
+  listSupplementLogsForDate,
+  listSupplementLogsSince,
+  listSupplements,
+} from '@/db/repo/supplements';
+import { listWaterForDate } from '@/db/repo/water';
 import { listWeighIns } from '@/db/repo/weighIns';
+import { personFor } from '@/services/supplements';
 import { computeWeekBanking } from '@/services/banking';
 import { computeCoach, type CoachState } from '@/services/coach';
-import { ensureTargetForDate } from '@/services/targets';
+import { ensureTargetForDate, weightFor } from '@/services/targets';
 
 /** undefined = still loading; null = onboarded state unknown → no profile. */
 export function useProfile() {
@@ -97,8 +104,10 @@ export function useFirstActivityDate() {
 export function useCoach(date: string): CoachState | undefined {
   const profile = useProfile();
   const entries = useLiveQuery(() => listEntriesSince(addDays(date, -6)), [date]);
+  const takes = useLiveQuery(() => listSupplementLogsSince(addDays(date, -6)), [date]);
   const [state, setState] = useState<CoachState | undefined>(undefined);
-  const stamp = entries?.map((e) => e.updated_at).join('|');
+  const stamp =
+    entries && takes ? [...entries, ...takes].map((e) => e.updated_at).join('|') : undefined;
   useEffect(() => {
     if (!profile || stamp === undefined) return;
     let cancelled = false;
@@ -115,4 +124,30 @@ export function useCoach(date: string): CoachState | undefined {
 /** §5 banking for the week containing `date`; recomputed live as entries and targets change. */
 export function useBanking(date: string) {
   return useLiveQuery(() => computeWeekBanking(date), [date]);
+}
+
+/** §17.1 the day's water logs, oldest first. */
+export function useWaterLogs(date: string) {
+  return useLiveQuery(() => listWaterForDate(date), [date]);
+}
+
+/** §17.2 active supplements in list order. */
+export function useSupplements() {
+  return useLiveQuery(listSupplements, []);
+}
+
+/** Supplement ids taken on `date` (any live take counts). */
+export function useTakenSupplements(date: string): ReadonlySet<string> | undefined {
+  const logs = useLiveQuery(() => listSupplementLogsForDate(date), [date]);
+  return useMemo(() => (logs ? new Set(logs.map((l) => l.supplement_id)) : undefined), [logs]);
+}
+
+/** §17.3 who doses are personalised for: the profile plus the latest weight. */
+export function usePerson() {
+  const profile = useProfile();
+  const weighIns = useWeighIns();
+  return useMemo(
+    () => (profile ? personFor(profile, weightFor(weighIns ?? [], todayKey())) : undefined),
+    [profile, weighIns],
+  );
 }

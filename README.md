@@ -9,6 +9,7 @@ targets you keep missing. Progressive web app, works offline, costs nothing to r
   <img src="docs/screenshots/today-light.png" width="200" alt="Today, light" />
   <img src="docs/screenshots/log-sheet.png" width="200" alt="Logging a food" />
   <img src="docs/screenshots/coach.png" width="200" alt="Coach" />
+  <img src="docs/screenshots/water-supplements.png" width="200" alt="Water and supplements" />
 </p>
 
 ## What it does
@@ -24,6 +25,10 @@ targets you keep missing. Progressive web app, works offline, costs nothing to r
 - **Weight trend, not scale noise** — exponentially smoothed trend, raw readings hidden by default.
 - **Coach** — after a few full days it finds what is running short (protein, fiber, then
   micronutrients when the data is good enough) and names everyday foods that close the gap.
+- **Water and supplements** — one tap adds a glass toward the 35 ml/kg target; a daily checklist
+  for creatine, vitamins and minerals with a suggested dose worked out from sex, age and weight
+  (NIH ODS / EFSA / ISSN references, shown with their basis). Micronutrient supplements count
+  toward the coach's gap detection.
 - **Your data stays yours** — everything lives in IndexedDB on the device; CSV and JSON export.
 
 Product spec: [`SPEC.md`](SPEC.md) · design system: [`design-system/kalib/MASTER.md`](design-system/kalib/MASTER.md) ·
@@ -71,7 +76,8 @@ Sign-in is email + password (Supabase Auth, no SMTP needed); sync is last-write-
 its own rows (RLS), and a phone binds to the first account it syncs with. Without the two
 environment variables the build runs local-only and Settings says so.
 
-1. Create a free Supabase project, open the SQL editor and run `supabase/migrations/0001_init.sql`.
+1. Create a free Supabase project, open the SQL editor and run every file in
+   `supabase/migrations/` in order (`0001_init.sql`, `0002_water_supplements.sql`).
 2. Authentication → Providers → Email: turn **Confirm email** off (accounts sign in immediately).
 3. Authentication → URL configuration: Site URL = the app's URL; add it to Redirect URLs (password reset).
 4. Copy `.env.example` to `.env.local` with the project URL and publishable key, then `npm run deploy`.
