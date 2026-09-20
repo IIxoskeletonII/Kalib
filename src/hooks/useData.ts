@@ -27,6 +27,7 @@ import { personFor } from '@/services/supplements';
 import { computeWeekBanking } from '@/services/banking';
 import { computeCoach, type CoachState } from '@/services/coach';
 import { ensureTargetForDate, weightFor } from '@/services/targets';
+import { tdeeState, type TdeeState } from '@/services/tdee';
 
 /** undefined = still loading; null = onboarded state unknown → no profile. */
 export function useProfile() {
@@ -194,4 +195,29 @@ export function useBatchesForRecipe(recipe_id: string | undefined) {
 /** undefined = loading; null = missing. */
 export function useFood(id: string | undefined) {
   return useLiveQuery(async () => (id ? ((await getFood(id)) ?? null) : null), [id]);
+}
+
+/**
+ * §4 engine state for today: recomputes the estimate and runs the weekly publish whenever
+ * the log or the weigh-ins change. undefined while the first computation runs.
+ */
+export function useTdee(): TdeeState | undefined {
+  const today = todayKey();
+  const profile = useProfile();
+  const weighIns = useWeighIns();
+  const entries = useLiveQuery(() => listEntriesSince(addDays(today, -45)), [today]);
+  const [state, setState] = useState<TdeeState | undefined>(undefined);
+  const stamp =
+    weighIns && entries ? [...weighIns, ...entries].map((r) => r.updated_at).join('|') : undefined;
+  useEffect(() => {
+    if (!profile || stamp === undefined) return;
+    let cancelled = false;
+    void tdeeState(today).then((s) => {
+      if (!cancelled) setState(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [today, profile, stamp]);
+  return state;
 }

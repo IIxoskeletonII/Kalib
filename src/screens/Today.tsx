@@ -34,16 +34,9 @@ import {
 import { WeekStrip } from '@/components/WeekStrip';
 import { WaterCard } from '@/components/WaterCard';
 import { WeighInSheet } from '@/components/WeighInSheet';
-import {
-  addDays,
-  diffDays,
-  formatDayLabel,
-  fromDateKey,
-  mealSlotForTime,
-  todayKey,
-} from '@/core/dates';
+import { addDays, formatDayLabel, fromDateKey, mealSlotForTime, todayKey } from '@/core/dates';
 import { dayTotals } from '@/core/nutrition';
-import { CALIBRATION_DAYS } from '@/core/targets';
+import type { EngineResult } from '@/core/tdee';
 import { formatPortions } from '@/core/recipes';
 import { computeTrend, trendDelta } from '@/core/trend';
 import {
@@ -62,12 +55,13 @@ import {
   useDailyTarget,
   useEntries,
   useFavourites,
-  useFirstActivityDate,
   useLoggedDates,
+  useTdee,
   useWeighIns,
 } from '@/hooks/useData';
 import { useCountUp } from '@/hooks/useCountUp';
 import { recordChoice } from '@/services/banking';
+import { acceptPendingTdee, dismissPendingTdee, type TdeeState } from '@/services/tdee';
 
 interface SheetState {
   food: Food;
@@ -104,7 +98,7 @@ export default function Today() {
     const covered = new Set(batches?.map((b) => b.food.id));
     return allFavourites.filter((f) => !covered.has(f.food_id));
   }, [allFavourites, batches]);
-  const firstDate = useFirstActivityDate();
+  const tdee = useTdee();
   const coach = useCoach(date);
   const loggedDates = useLoggedDates(addDays(today, -6), today);
 
@@ -118,7 +112,6 @@ export default function Today() {
   const spark = trend.slice(-14).map((p) => p.trend);
   const todaysWeighIn = weighIns?.find((w) => w.date === date);
   const previousWeighIn = weighIns?.filter((w) => w.date < date).at(-1);
-  const calibrationDay = firstDate ? diffDays(firstDate, date) + 1 : undefined;
   // §5: the ring runs on the banked target for the day, not the raw formula target.
   const dayTarget = banking ? Math.round(banking.todayTarget) : (target?.kcal ?? 0);
   const bankShift = target ? dayTarget - target.kcal : 0;
@@ -153,12 +146,7 @@ export default function Today() {
     day: 'numeric',
     month: 'long',
   });
-  const provisionalNote =
-    target?.provisional && calibrationDay != null && calibrationDay <= CALIBRATION_DAYS
-      ? `Provisional target, calibration day ${calibrationDay} of ${CALIBRATION_DAYS}`
-      : target?.provisional
-        ? 'Provisional target from formula'
-        : 'Measured target';
+  const provisionalNote = targetNote(target?.provisional, tdee, date === today);
 
   return (
     <div className="pb-32">
@@ -375,6 +363,30 @@ export default function Today() {
         </Card>
       )}
 
+      {date === today && tdee?.pending && (
+        <Card className="mt-3 p-5">
+          <p className="text-[15px] font-semibold tabular">
+            Measured {fmt(tdee.pending.measured)} kcal —{' '}
+            {fmt(Math.abs(tdee.pending.measured - tdee.pending.formula))} kcal{' '}
+            {tdee.pending.measured > tdee.pending.formula ? 'above' : 'below'} the formula
+          </p>
+          <p className="mt-1 text-[14px] leading-snug text-muted">
+            A gap this size is almost always logging, not metabolism: unlogged bites, oils and
+            drinks, or portions guessed low. Worth checking a week of entries before trusting it.
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Button onClick={() => void dismissPendingTdee()}>Keep formula</Button>
+            <Button variant="primary" onClick={() => void acceptPendingTdee()}>
+              Apply it
+              <span className="ml-1 text-[12px] font-medium opacity-70">
+                {tdee.pending.tdee > tdee.pending.formula ? '+' : ''}
+                {fmt(tdee.pending.tdee - tdee.pending.formula)}
+              </span>
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <SupplementsCard date={date} />
 
       {coach?.kind === 'gap' && (
@@ -568,6 +580,39 @@ function Stat({
       </div>
     </div>
   );
+}
+
+/** The line under the ring: where the target comes from and how the §4 measurement is going. */
+function targetNote(
+  provisional: boolean | undefined,
+  tdee: TdeeState | undefined,
+  isToday: boolean,
+): string {
+  if (provisional == null) return '';
+  if (!provisional) {
+    return tdee?.published
+      ? `Measured target · TDEE ${fmt(tdee.published.tdee)} kcal`
+      : 'Measured target';
+  }
+  if (!tdee || !isToday) return 'Provisional target from formula';
+  return `Provisional target · ${engineLine(tdee.result, tdee.pending != null)}`;
+}
+
+function engineLine(r: EngineResult, pending: boolean): string {
+  switch (r.status) {
+    case 'calibrating':
+      return `calibration day ${r.day} of ${r.first_estimate_day}`;
+    case 'insufficient': {
+      const needL = Math.max(0, r.need_logged - r.logged_days);
+      const needW = Math.max(0, r.need_weighed - r.weighed_days);
+      const parts: string[] = [];
+      if (needL) parts.push(`${needL} more logged ${needL === 1 ? 'day' : 'days'}`);
+      if (needW) parts.push(`${needW} more ${needW === 1 ? 'weigh-in' : 'weigh-ins'}`);
+      return parts.length ? `needs ${parts.join(' and ')}` : 'measuring';
+    }
+    case 'ok':
+      return pending ? 'measurement on hold, see below' : 'formula kept this week';
+  }
 }
 
 /** "150 g · 34 g protein · 3 g fiber" — the two macros the plan is built on; the rest are on the sheet. */

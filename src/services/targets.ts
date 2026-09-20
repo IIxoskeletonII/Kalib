@@ -31,11 +31,26 @@ export async function setModeSchedule(schedule: ModeSwitch[]): Promise<void> {
   );
 }
 
+/** §4.4 — the TDEE the weekly publish put into force, and from when. */
+export interface PublishedTdee {
+  tdee: number;
+  measured: number;
+  since: string;
+  estimate_date: string;
+}
+
+export const PUBLISHED_TDEE_KEY = 'tdee:published';
+
+export async function getPublishedTdee(): Promise<PublishedTdee | undefined> {
+  return (await getSetting<PublishedTdee>(PUBLISHED_TDEE_KEY)) ?? undefined;
+}
+
 export function targetInputsFor(
   profile: Profile,
   weight_kg: number,
   date: string,
   schedule: readonly ModeSwitch[] = [],
+  published?: PublishedTdee | undefined,
 ): TargetInputs {
   return {
     sex: profile.sex,
@@ -47,6 +62,8 @@ export function targetInputsFor(
     mode: resolveMode(profile.mode, schedule, date),
     goal_rate_kg_per_week: profile.goal_rate_kg_per_week,
     target_weight_kg: profile.target_weight_kg,
+    // A published measurement applies from its publish date; earlier days stay formula.
+    measured_tdee: published && date >= published.since ? published.tdee : undefined,
   };
 }
 
@@ -76,6 +93,20 @@ export function toDailyTargetInput(t: Targets): DailyTargetInput {
 
 /** Full §3 result for the current profile and latest weight; undefined until onboarded. */
 export async function currentTargets(date: string): Promise<Targets | undefined> {
+  const profile = await getCurrentProfile();
+  if (!profile) return undefined;
+  const [weighIns, schedule, published] = await Promise.all([
+    listWeighIns(),
+    getModeSchedule(),
+    getPublishedTdee(),
+  ]);
+  const weight = weightFor(weighIns, date);
+  if (weight == null) return undefined;
+  return computeTargets(targetInputsFor(profile, weight, date, schedule, published));
+}
+
+/** The §3.3 scaffold for `date`, ignoring any published measurement — the §4.3 reference. */
+export async function formulaTargets(date: string): Promise<Targets | undefined> {
   const profile = await getCurrentProfile();
   if (!profile) return undefined;
   const [weighIns, schedule] = await Promise.all([listWeighIns(), getModeSchedule()]);

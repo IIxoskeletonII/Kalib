@@ -1,12 +1,13 @@
-import { Scale, TrendingDown, TrendingUp } from 'lucide-react';
+import { Flame, Scale, TrendingDown, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { TrendChart } from '@/components/TrendChart';
 import { Card, Chip, EmptyState, ListRow, Row, SectionHeading, Segmented } from '@/components/ui';
 import { WeighInSheet } from '@/components/WeighInSheet';
 import { addDays, fromDateKey, todayKey } from '@/core/dates';
 import { computeTrend, trendDelta } from '@/core/trend';
+import { fmt } from '@/components/ui';
 import { setSetting } from '@/db/repo/settings';
-import { useSetting, useWeighIns } from '@/hooks/useData';
+import { useSetting, useTdee, useWeighIns } from '@/hooks/useData';
 
 type Range = '28' | '84' | 'all';
 const RANGES: { value: Range; label: string }[] = [
@@ -18,6 +19,7 @@ const RANGES: { value: Range; label: string }[] = [
 export default function Trend() {
   const weighIns = useWeighIns();
   const showRaw = useSetting<boolean>('show_raw_weight', false);
+  const tdee = useTdee();
   const [range, setRange] = useState<Range>('28');
   const [editDate, setEditDate] = useState<string | null>(null);
   const today = todayKey();
@@ -100,6 +102,96 @@ export default function Trend() {
         </Card>
       )}
 
+      {tdee && (
+        <section className="mt-7">
+          <SectionHeading
+            trailing={
+              tdee.published ? `applied ${fmt(tdee.published.tdee)} kcal` : 'not applied yet'
+            }
+          >
+            <span className="inline-flex items-center gap-2">
+              <Flame size={16} className="text-accent" aria-hidden />
+              Measured burn
+            </span>
+          </SectionHeading>
+          <Card className="p-5">
+            {tdee.result.status === 'ok' ? (
+              <>
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <div className="text-[13px] font-semibold text-muted">
+                      TDEE, last {tdee.result.estimate.window_days} days
+                    </div>
+                    <div className="display mt-1">
+                      {fmt(tdee.result.estimate.tdee_kcal)}
+                      <span className="ml-1.5 text-[20px] font-medium text-muted">kcal</span>
+                    </div>
+                  </div>
+                  <div className="pb-1 text-right text-[14px] tabular text-muted">
+                    ±{fmt((tdee.result.estimate.ci_high - tdee.result.estimate.ci_low) / 2)}
+                    <span className="block text-[12px]">95% interval</span>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-4 text-center tabular">
+                  <Mini
+                    label="Logged"
+                    value={`${tdee.result.estimate.logged_days}/${tdee.result.estimate.window_days}`}
+                  />
+                  <Mini
+                    label="Weighed"
+                    value={`${tdee.result.estimate.weighed_days}/${tdee.result.estimate.window_days}`}
+                  />
+                  <Mini
+                    label="Data quality"
+                    value={`${Math.round(tdee.result.estimate.data_quality * 100)}%`}
+                  />
+                </div>
+                <p className="mt-3 text-[13px] leading-snug text-muted">
+                  {tdee.formula != null && `Formula said ${fmt(tdee.formula)}. `}
+                  {tdee.published
+                    ? `Targets run on ${fmt(tdee.published.tdee)} since ${fromDateKey(tdee.published.since).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}; each Monday moves it up to 150 kcal toward the measurement.`
+                    : tdee.pending
+                      ? 'On hold: more than 600 kcal from the formula — see Today.'
+                      : 'Formula kept this week; next check Monday.'}
+                </p>
+              </>
+            ) : tdee.result.status === 'calibrating' ? (
+              <>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[15px] font-semibold">Calibrating</span>
+                  <span className="text-[13px] text-muted tabular">
+                    day {tdee.result.day} of {tdee.result.first_estimate_day}
+                  </span>
+                </div>
+                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+                  <div
+                    className="h-full rounded-full bg-accent transition-[width] duration-700 ease-[var(--ease-out-soft)]"
+                    style={{
+                      width: `${Math.min(100, (tdee.result.day / tdee.result.first_estimate_day) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <p className="mt-3 text-[13px] leading-snug text-muted">
+                  The first ten days are water and glycogen, not fat, so they never count. From day{' '}
+                  {tdee.result.first_estimate_day} your real daily burn is measured from what you
+                  logged and how the trend moved — then it replaces the formula, 150 kcal a week at
+                  most.
+                </p>
+              </>
+            ) : (
+              <>
+                <span className="text-[15px] font-semibold">Not enough data yet</span>
+                <p className="mt-2 text-[13px] leading-snug text-muted tabular">
+                  In the last {tdee.result.window_days} days: {tdee.result.logged_days} fully logged
+                  days of {tdee.result.need_logged} needed, {tdee.result.weighed_days} weigh-ins of{' '}
+                  {tdee.result.need_weighed}. Log whole days and weigh in daily and it fills in.
+                </p>
+              </>
+            )}
+          </Card>
+        </section>
+      )}
+
       {weighIns && weighIns.length > 0 && (
         <section className="mt-7">
           <SectionHeading>Weigh-ins</SectionHeading>
@@ -130,6 +222,15 @@ export default function Trend() {
         previous={weighIns?.filter((w) => editDate != null && w.date < editDate).at(-1)?.weight_kg}
         onClose={() => setEditDate(null)}
       />
+    </div>
+  );
+}
+
+function Mini({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[12px] font-semibold text-muted">{label}</div>
+      <div className="mt-0.5 text-[16px] font-bold tracking-[-0.01em]">{value}</div>
     </div>
   );
 }

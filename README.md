@@ -17,8 +17,11 @@ targets you keep missing. Progressive web app, works offline, costs nothing to r
 - **Logging in seconds** — offline USDA database (7 k foods), packaged products from Open Food
   Facts by search or **barcode photo** (decoded on-device), your own foods, a custom number pad
   (no OS keyboard), one-tap "log again" tiles, quick manual entry.
-- **Targets that calibrate to you** — formula targets for two weeks, then a measured TDEE from
-  the weight trend and logged intake (SPEC §4). Fiber is a first-class target next to protein.
+- **Targets that calibrate to you** — formula targets while calibrating, then from day 24 a
+  measured TDEE from the weight trend and logged intake over a 28-day window, with a 95 %
+  interval, guard rails (±150 kcal per weekly step, a hold-and-explain card when the measurement
+  is >600 kcal from the formula) and a synthetic 90-day ground-truth test behind it (SPEC §4).
+  Fiber is a first-class target next to protein.
 - **Weekly banking** — a big day is spread across the week within bounds (never more than
   300 kcal off a day, never below the safety floor, one rollover then forgiven); an under-day
   rolls forward. The ring runs on the banked target.

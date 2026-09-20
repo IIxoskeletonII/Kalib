@@ -184,6 +184,34 @@ TDEE. Therefore:
 Recompute daily; publish a revised `kcal_target` weekly (Sunday night). Daily target
 churn is psychologically destabilising and statistically unjustified.
 
+### 4.5 Implementation notes (added 20 Sep 2026)
+- **First estimate is day 24, not day 15.** With days 1–10 excluded, a minimum 14-day
+  window and ≥10 logged days / weigh-ins inside it, day 24 is the earliest every rule holds
+  at once; "day 15" in §4.2 predates the guard rails. The UI counts calibration to day 24.
+- Window `[start, today]` with `start = max(day 11, today − 27)` — **28 days, not 21**: on
+  the synthetic benchmark a 21-day window's week-to-week noise (RMS ≈ 145 kcal) matched the
+  ±150 publish cap, so targets would have bounced; 28 days halves the variance and TDEE
+  drifts far too slowly (≈ 15 kcal per kg lost) for the extra week to matter. `delta_trend`
+  is taken between the trend on `start` and on `today`, over `span = today − start` days.
+- Known, accepted: the trend on day 11 still remembers days 1–10, so the first estimates run
+  ≈ 200 kcal high, decaying to zero by day ~45. It sits inside the interval and the ±150 cap
+  clips it. Alternatives (regression on raw weigh-ins) remove the bias but are 2× noisier.
+- Realistic scale noise (σ ≈ 0.7 kg/day) bounds the 95 % interval near **±250 kcal** for a
+  28-day window; the §14 "under ±200 by mid-October" criterion is not reachable by any
+  estimator on 21–28 days of data and is read as "under ±300 with the truth inside".
+- A day counts as **logged** when its intake is ≥ 60 % of that day's target (the §16 rule);
+  half-logged days are gaps, not low-intake days. Gaps are neither interpolated nor counted;
+  the mean is over logged days, recency-weighted with a half-life of one window.
+- **Confidence interval** (95 %): intake noise (10 % of intake per high-confidence day,
+  30 % per low-confidence day, √n), trend noise (raw weigh-in σ 0.7 kg through the EMA,
+  inflated by gaps), and the energy density of the change (7,700 ± 1,000 kcal/kg — a cut
+  with adequate protein and training is mostly fat). Coverage on the benchmark: 0.96.
+  `data_quality` = logged share × weighed share × (1 − low-confidence share / 2).
+- **Publishing**: the Monday view after each Sunday publishes the latest estimate, moved at
+  most ±150 kcal from the previously published TDEE (the formula TDEE before the first
+  publish). A measured value more than 600 kcal from the formula is not applied; the card
+  explains why and offers to apply it deliberately.
+
 ---
 
 ## 5. Weekly calorie banking
