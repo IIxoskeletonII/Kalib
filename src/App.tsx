@@ -10,6 +10,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router';
 import { ensureSeeded, type SeedProgress } from '@/db/seed';
 import { useProfile } from '@/hooks/useData';
+import { useSync } from '@/hooks/useSync';
 import { useTheme } from '@/hooks/useTheme';
 import { startSync } from '@/services/sync/manager';
 import Today from '@/screens/Today';
@@ -23,11 +24,13 @@ const QuickAdd = lazy(() => import('@/screens/QuickAdd'));
 const Onboarding = lazy(() => import('@/screens/Onboarding'));
 const MyFoods = lazy(() => import('@/screens/MyFoods'));
 const FoodEditor = lazy(() => import('@/screens/FoodEditor'));
+const PasswordReset = lazy(() => import('@/screens/PasswordReset'));
 
 export default function App() {
   const profile = useProfile();
   const location = useLocation();
   const [seed, setSeed] = useState<SeedProgress | 'error' | null>(null);
+  const { recovery, session } = useSync();
   useTheme();
 
   useEffect(() => {
@@ -46,6 +49,16 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  // A password-reset link lands here (often in Safari, with no profile): handle it before
+  // any onboarding redirect.
+  if (recovery) {
+    return (
+      <Suspense fallback={null}>
+        <PasswordReset email={session?.user.email} />
+      </Suspense>
+    );
+  }
 
   if (profile === undefined) return null; // first paint waits for one IndexedDB read
   const onboarding = location.pathname === '/onboarding';

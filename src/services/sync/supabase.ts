@@ -39,8 +39,9 @@ export async function signInWithPassword(email: string, password: string): Promi
 
 /** Sends the reset link through Supabase's built-in mailer (rate-limited, but no SMTP setup). */
 export async function sendPasswordReset(email: string): Promise<void> {
+  // The site root is always an allowed redirect; the app shows the reset screen wherever it lands.
   const { error } = await supabase().auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/settings`,
+    redirectTo: window.location.origin,
   });
   if (error) throw new Error(friendlyAuthError(error.message));
 }
