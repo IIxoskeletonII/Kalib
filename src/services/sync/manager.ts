@@ -36,6 +36,8 @@ function emit() {
 
 export function clearRecovery(): void {
   recovery = false;
+  // Drop the token fragment so a reload does not re-enter the reset screen.
+  if (window.location.hash) history.replaceState(null, '', window.location.pathname);
   emit();
 }
 
@@ -90,6 +92,13 @@ function scheduleSoon() {
 export async function startSync(): Promise<void> {
   if (started || !syncConfigured) return;
   started = true;
+  // A password-reset link arrives as `#access_token=…&type=recovery`. supabase-js emits
+  // PASSWORD_RECOVERY while it initialises — before anyone can subscribe — so read the marker
+  // from the URL directly and show the reset screen from the first render.
+  if (/[#&?]type=recovery\b/.test(window.location.hash + window.location.search)) {
+    recovery = true;
+    emit();
+  }
   // supabase-js is ~40 KB gzipped; it loads after first paint, only when sync is configured.
   const { getSession, supabase } = await import('./supabase');
   session = await getSession();
