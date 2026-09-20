@@ -25,7 +25,7 @@ import { listWaterForDate } from '@/db/repo/water';
 import { listWeighIns } from '@/db/repo/weighIns';
 import { personFor } from '@/services/supplements';
 import { computeWeekBanking } from '@/services/banking';
-import { computeCoach, type CoachState } from '@/services/coach';
+import { computeCoach, weekOverview, type CoachState, type WeekOverview } from '@/services/coach';
 import { ensureTargetForDate, weightFor } from '@/services/targets';
 import { tdeeState, type TdeeState } from '@/services/tdee';
 
@@ -219,5 +219,29 @@ export function useTdee(): TdeeState | undefined {
       cancelled = true;
     };
   }, [today, profile, stamp]);
+  return state;
+}
+
+/** v2 week in review for the 7 days ending on `date`; live with the log, takes and weigh-ins. */
+export function useWeekOverview(date: string): WeekOverview | undefined {
+  const profile = useProfile();
+  const weighIns = useWeighIns();
+  const entries = useLiveQuery(() => listEntriesSince(addDays(date, -6)), [date]);
+  const takes = useLiveQuery(() => listSupplementLogsSince(addDays(date, -6)), [date]);
+  const [state, setState] = useState<WeekOverview | undefined>(undefined);
+  const stamp =
+    entries && takes && weighIns
+      ? [...entries, ...takes, ...weighIns].map((e) => e.updated_at).join('|')
+      : undefined;
+  useEffect(() => {
+    if (!profile || stamp === undefined) return;
+    let cancelled = false;
+    void weekOverview(date, profile.sex).then((s) => {
+      if (!cancelled) setState(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [date, profile, stamp]);
   return state;
 }

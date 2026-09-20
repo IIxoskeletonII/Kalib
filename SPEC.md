@@ -326,6 +326,12 @@ Every `log_entry` carries a `confidence` value. The daily view must show:
 Without this, the vitamin panel is actively misleading — a gyro contributes 800 kcal and
 zero vitamin data, and a naive UI would render the day as "deficient in everything."
 
+*Implementation note (20 Sep 2026):* coverage is judged **per nutrient**, not per entry. A
+Foundation food that carries 8 of the 22 tracked nutrients must not read as zero on the other
+14; each nutrient's weekly average, and each coach gap, is computed only over full days whose
+food carried that nutrient for ≥ 70 % of the day's calories. Nutrients with no such day are
+shown as "no data yet", never as 0 %.
+
 ---
 
 ## 8. Logging paths and friction budgets

@@ -78,6 +78,9 @@ card opens the detail sheet.
 glyph in `accent` and carries its portions-left line in `accent` — the only place a rail tile
 uses colour, because it is a count that changes.
 
+Provenance meters (§7.4) sit inside the ring card under the stats: label, percentage, a 4 pt
+bar toned `accent` ≥ 85 %, `kcal` ≥ 60 %, `fat` below. Tone here is information, not decoration.
+
 ## Icons
 
 Lucide, 2 px stroke, 22 px in icon buttons, 24 px in the tab bar, `aria-hidden` beside text,

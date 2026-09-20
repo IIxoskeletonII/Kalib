@@ -1,6 +1,6 @@
 // Scaling per-100 g data to a logged amount, summing a day, and the §7.4 provenance metrics.
 import { MICRO_KEYS } from './nutrients';
-import type { Confidence, Food, MacroTotals, Micros } from './types';
+import type { Confidence, Food, MacroTotals, MicroKey, Micros } from './types';
 
 export interface ScaledFood extends MacroTotals {
   micros: Micros;
@@ -56,6 +56,23 @@ export function calorieConfidence(
   return total > 0 ? high / total : null;
 }
 
+/**
+ * §7.4 per nutrient — fraction of the day's kcal from entries that carry a value for `key`.
+ * A food with 8 of 22 nutrients recorded must not read as zero on the other 14.
+ */
+export function nutrientCoverage(
+  entries: readonly { kcal: number; micros?: Micros | undefined }[],
+  key: MicroKey,
+): number | null {
+  let total = 0;
+  let covered = 0;
+  for (const e of entries) {
+    total += e.kcal;
+    if (typeof e.micros?.[key] === 'number') covered += e.kcal;
+  }
+  return total > 0 ? covered / total : null;
+}
+
 export function hasAnyMicros(micros: Micros | undefined): boolean {
   if (!micros) return false;
   for (const k of MICRO_KEYS) if (typeof micros[k] === 'number') return true;
@@ -64,7 +81,7 @@ export function hasAnyMicros(micros: Micros | undefined): boolean {
 
 /** §7.4 — fraction of the day's kcal that carried any micronutrient data. null when empty. */
 export function microCoverage(
-  entries: readonly { kcal: number; micros?: Micros }[],
+  entries: readonly { kcal: number; micros?: Micros | undefined }[],
 ): number | null {
   let total = 0;
   let covered = 0;

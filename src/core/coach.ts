@@ -1,8 +1,8 @@
 // SPEC §16 — gap-aware recommendations. Pure: takes day summaries and a food list, returns
 // the leading gap and foods that close it. The UI decides when and how to show it.
 import { MICRO_DEFS, MICRO_KEYS } from './nutrients';
-import { microCoverage } from './nutrition';
-import type { Food, MacroTotals, MicroKey, Micros, Sex } from './types';
+import { nutrientCoverage } from './nutrition';
+import type { Confidence, Food, MacroTotals, MicroKey, Micros, Sex } from './types';
 
 export type GapNutrient = 'protein_g' | 'fiber_g' | MicroKey;
 
@@ -10,8 +10,8 @@ export interface DaySummary {
   date: string;
   totals: MacroTotals & { micros: Micros };
   target: MacroTotals;
-  /** Entries for §7.4 coverage; only needed when judging micronutrients. */
-  entries?: readonly { kcal: number; micros?: Micros }[];
+  /** Entries for §7.4 coverage and confidence; only needed when judging micronutrients. */
+  entries?: readonly { kcal: number; micros?: Micros | undefined; confidence?: Confidence }[];
 }
 
 export interface Gap {
@@ -80,16 +80,17 @@ export function findGaps(days: readonly DaySummary[], sex: Sex): Gap[] {
   macro('protein_g', 'Protein');
   macro('fiber_g', 'Fiber');
 
-  const covered = complete.filter((d) => {
-    if (!d.entries) return false;
-    const c = microCoverage(d.entries);
-    return c != null && c >= MICRO_COVERAGE_FLOOR;
-  });
-  if (covered.length >= COACH_MIN_COMPLETE_DAYS) {
-    for (const k of MICRO_KEYS) {
-      const def = MICRO_DEFS[k];
-      const target = def.rda?.[sex];
-      if (!target) continue;
+  for (const k of MICRO_KEYS) {
+    const def = MICRO_DEFS[k];
+    const target = def.rda?.[sex];
+    if (!target) continue;
+    // Judged only on days whose food actually carried this nutrient (§7.4, per nutrient).
+    const covered = complete.filter((d) => {
+      if (!d.entries) return false;
+      const c = nutrientCoverage(d.entries, k);
+      return c != null && c >= MICRO_COVERAGE_FLOOR;
+    });
+    if (covered.length >= COACH_MIN_COMPLETE_DAYS) {
       const avg = mean(covered.map((d) => d.totals.micros[k] ?? 0));
       if (avg < GAP_RATIO * target) {
         gaps.push({

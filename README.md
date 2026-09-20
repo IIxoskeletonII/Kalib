@@ -28,6 +28,10 @@ targets you keep missing. Progressive web app, works offline, costs nothing to r
 - **Weight trend, not scale noise** — exponentially smoothed trend, raw readings hidden by default.
 - **Coach** — after a few full days it finds what is running short (protein, fiber, then
   micronutrients when the data is good enough) and names everyday foods that close the gap.
+  The same tab carries the week in review (calories, protein, fiber, trend, adherence) and a
+  micronutrient panel that judges each nutrient only on days whose food carried data for it.
+- **Honest numbers** — every day shows how much of its calories were weighed and how much
+  carried vitamin data (SPEC §7.4), and names the entries behind the uncertainty.
 - **Recipes and batches** — weigh ingredients as you cook, weigh the pot, say how many portions;
   every recipe becomes one of your foods, and a cooked batch logs a portion in one tap from
   Today with the count of portions left.

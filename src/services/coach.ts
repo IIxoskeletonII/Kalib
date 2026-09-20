@@ -10,12 +10,15 @@ import {
 } from '@/core/coach';
 import { selectEverydayPool } from '@/core/coachFoods';
 import { addDays } from '@/core/dates';
+import { microPanel, weekReview, type MicroPanel, type WeekReview } from '@/core/review';
+import { computeTrend } from '@/core/trend';
 import { dayTotals } from '@/core/nutrition';
 import type { Food, LogEntry, MicroKey, Micros, Sex } from '@/core/types';
 import { listDailyTargets } from '@/db/repo/dailyTargets';
 import { listCandidateFoods } from '@/db/repo/foods';
 import { foodUsageCounts, listEntriesSince } from '@/db/repo/logEntries';
 import { getSetting, setSetting } from '@/db/repo/settings';
+import { listWeighIns } from '@/db/repo/weighIns';
 import { listAllSupplements, listSupplementLogsSince } from '@/db/repo/supplements';
 
 export interface CoachResult {
@@ -108,4 +111,24 @@ export async function computeCoach(date: string, sex: Sex): Promise<CoachState> 
   });
   if (!last || last.nutrient !== gap.nutrient) await setSetting(LAST_GAP_KEY, gap);
   return { kind: 'gap', result: { gap, recommendations } };
+}
+
+export interface WeekOverview {
+  from: string;
+  to: string;
+  review: WeekReview;
+  panel: MicroPanel;
+}
+
+/** v2 week in review + §7.4 micronutrient panel for the 7 days ending on `date`. */
+export async function weekOverview(date: string, sex: Sex): Promise<WeekOverview> {
+  const from = addDays(date, -(COACH_WINDOW_DAYS - 1));
+  const [days, weighIns] = await Promise.all([buildWeek(date), listWeighIns()]);
+  const trend = computeTrend(weighIns, undefined, date);
+  return {
+    from,
+    to: date,
+    review: weekReview(days, trend, from, date),
+    panel: microPanel(days, sex),
+  };
 }

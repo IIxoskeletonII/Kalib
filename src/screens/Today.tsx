@@ -18,6 +18,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AccountChip } from '@/components/AccountChip';
 import { AmountSheet, SLOT_LABEL } from '@/components/AmountSheet';
 import { MacroTile } from '@/components/MacroTile';
+import { ProvenanceRow } from '@/components/Provenance';
 import { Ring } from '@/components/Ring';
 import { Sparkline } from '@/components/Sparkline';
 import { SupplementsCard } from '@/components/SupplementsCard';
@@ -194,6 +195,7 @@ export default function Today() {
                 align="right"
               />
             </div>
+            {entries && entries.length > 0 && <ProvenanceRow entries={entries} />}
             <p className="mt-3 text-center text-[12px] text-muted">{provisionalNote}</p>
           </Card>
 
