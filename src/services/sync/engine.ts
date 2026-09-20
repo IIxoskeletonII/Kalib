@@ -10,7 +10,9 @@ export type SyncTable =
   | 'settings'
   | 'water_logs'
   | 'supplements'
-  | 'supplement_logs';
+  | 'supplement_logs'
+  | 'recipes'
+  | 'batches';
 
 export const SYNC_TABLES: SyncTable[] = [
   'profiles',
@@ -23,6 +25,8 @@ export const SYNC_TABLES: SyncTable[] = [
   'water_logs',
   'supplements',
   'supplement_logs',
+  'recipes',
+  'batches',
 ];
 
 export type Row = Record<string, unknown> & { updated_at: string; user_id: string };

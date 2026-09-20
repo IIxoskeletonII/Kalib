@@ -3,9 +3,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
 import { addDays, todayKey } from '@/core/dates';
+import type { Batch, Food, Recipe } from '@/core/types';
 import { rankFavourites } from '@/core/favourites';
 import { getDailyTarget } from '@/db/repo/dailyTargets';
-import { listSearchDocs, listUserFoods } from '@/db/repo/foods';
+import { getFood, getFoods, listSearchDocs, listUserFoods } from '@/db/repo/foods';
 import {
   firstActivityDate,
   foodUsageCounts,
@@ -13,6 +14,7 @@ import {
   listEntriesSince,
 } from '@/db/repo/logEntries';
 import { getCurrentProfile } from '@/db/repo/profiles';
+import { getRecipe, listActiveBatches, listBatchesForRecipe, listRecipes } from '@/db/repo/recipes';
 import { getSetting } from '@/db/repo/settings';
 import {
   listSupplementLogsForDate,
@@ -150,4 +152,46 @@ export function usePerson() {
     () => (profile ? personFor(profile, weightFor(weighIns ?? [], todayKey())) : undefined),
     [profile, weighIns],
   );
+}
+
+/** §8.2 recipes, newest first. */
+export function useRecipes() {
+  return useLiveQuery(listRecipes, []);
+}
+
+/** undefined = loading; null = no such recipe. */
+export function useRecipe(id: string | undefined) {
+  return useLiveQuery(async () => (id ? ((await getRecipe(id)) ?? null) : null), [id]);
+}
+
+/** The foods behind a recipe's ingredients, keyed by id. */
+export function useRecipeFoods(items: readonly { food_id: string }[] | undefined) {
+  const key = items?.map((i) => i.food_id).join('|') ?? '';
+  return useLiveQuery(() => (key ? getFoods(key.split('|')) : Promise.resolve(new Map())), [key]);
+}
+
+/** Batches with portions left, with their recipe and food, most recently cooked first. */
+export function useActiveBatches() {
+  return useLiveQuery(async () => {
+    const batches = await listActiveBatches();
+    const out: { batch: Batch; recipe: Recipe; food: Food }[] = [];
+    for (const batch of batches) {
+      const recipe = await getRecipe(batch.recipe_id);
+      const food = recipe ? await getFood(recipe.food_id) : undefined;
+      if (recipe && food) out.push({ batch, recipe, food });
+    }
+    return out;
+  }, []);
+}
+
+export function useBatchesForRecipe(recipe_id: string | undefined) {
+  return useLiveQuery(
+    () => (recipe_id ? listBatchesForRecipe(recipe_id) : Promise.resolve([])),
+    [recipe_id],
+  );
+}
+
+/** undefined = loading; null = missing. */
+export function useFood(id: string | undefined) {
+  return useLiveQuery(async () => (id ? ((await getFood(id)) ?? null) : null), [id]);
 }

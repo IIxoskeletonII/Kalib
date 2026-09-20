@@ -7,6 +7,8 @@ export interface SearchDoc {
   name: string;
   brand?: string;
   source: FoodSource;
+  /** Materialised recipe (SPEC §8.2). */
+  recipe?: boolean;
   tokens: string[];
 }
 
@@ -36,6 +38,7 @@ export function buildSearchDoc(f: {
   name: string;
   brand?: string | undefined;
   source: FoodSource;
+  recipe_id?: string | undefined;
 }): SearchDoc {
   const doc: SearchDoc = {
     id: f.id,
@@ -44,6 +47,7 @@ export function buildSearchDoc(f: {
     tokens: tokenize(f.brand ? `${f.name} ${f.brand}` : f.name),
   };
   if (f.brand) doc.brand = f.brand;
+  if (f.recipe_id) doc.recipe = true;
   return doc;
 }
 

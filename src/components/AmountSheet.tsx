@@ -1,11 +1,20 @@
-// Grams → entry, for a database food. Used by search, favourites and entry editing.
+// Grams → entry, for a database food. Used by search, favourites, entry editing, batch
+// portions (SPEC §8.2) and, in recipe mode, adding an ingredient instead of logging.
 import { Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { useMemo, useState } from 'react';
 import { scaleFood } from '@/core/nutrition';
-import { MEAL_SLOTS, type EntryMethod, type Food, type MealSlot } from '@/core/types';
-import { deleteEntry } from '@/db/repo/logEntries';
+import { formatPortions } from '@/core/recipes';
+import {
+  MEAL_SLOTS,
+  type Batch,
+  type EntryMethod,
+  type Food,
+  type MealSlot,
+  type Recipe,
+} from '@/core/types';
 import { logFood, rescaleEntry } from '@/services/logging';
+import { addRecipeItem, logBatchPortion, removeEntry } from '@/services/recipes';
 import { NumberPad } from './NumberPad';
 import { Badge, Button, Chip, IconButton, Segmented, Sheet, fmt } from './ui';
 
@@ -17,7 +26,11 @@ export interface AmountSheetProps {
   initialSlot: MealSlot;
   /** When set, saves update this entry instead of creating one. */
   entryId?: string | undefined;
-  entryMethod: Extract<EntryMethod, 'search' | 'favourite' | 'barcode'>;
+  entryMethod: Extract<EntryMethod, 'search' | 'favourite' | 'barcode' | 'batch'>;
+  /** Logging a portion of a cooked batch: portions come off the batch (§8.2). */
+  batch?: { batch: Batch; recipe: Recipe } | undefined;
+  /** Recipe mode: the amount becomes an ingredient of this recipe, nothing is logged. */
+  recipe?: { id: string; name: string } | undefined;
   /** Dismissed without saving. */
   onClose: () => void;
   /** Saved or deleted; defaults to onClose. */
@@ -71,12 +84,16 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
   const g = Number(grams) || 0;
   const preview = useMemo(() => scaleFood(p.food, g), [p.food, g]);
   const done = p.onSaved ?? p.onClose;
+  const portion = p.batch ? p.batch.batch.total_g / p.batch.batch.portions_total : undefined;
 
   const save = async () => {
     if (g <= 0 || busy) return;
     setBusy(true);
     try {
-      if (p.entryId) await rescaleEntry(p.entryId, p.food, g, slot);
+      if (p.recipe) await addRecipeItem(p.recipe.id, p.food, g);
+      else if (p.entryId) await rescaleEntry(p.entryId, p.food, g, slot);
+      else if (p.batch)
+        await logBatchPortion({ ...p.batch, grams: g, meal_slot: slot, date: p.date });
       else
         await logFood({
           food: p.food,
@@ -93,29 +110,50 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
 
   const remove = async () => {
     if (!p.entryId) return;
-    await deleteEntry(p.entryId);
+    await removeEntry(p.entryId);
     done();
   };
 
-  const presets = [
-    { label: '100 g', grams: 100 },
-    ...p.food.portions.map((po) => ({
-      label: `${po.label} · ${fmt(po.grams)} g`,
-      grams: po.grams,
-    })),
-  ];
+  const presets = portion
+    ? [
+        { label: `1 portion · ${fmt(portion)} g`, grams: Math.round(portion) },
+        { label: '½ portion', grams: Math.round(portion / 2) },
+        { label: '2 portions', grams: Math.round(portion * 2) },
+      ]
+    : [
+        { label: '100 g', grams: 100 },
+        ...p.food.portions.map((po) => ({
+          label: `${po.label} · ${fmt(po.grams)} g`,
+          grams: po.grams,
+        })),
+      ];
+
+  const editHref = p.food.recipe_id
+    ? `/recipes/${p.food.recipe_id}`
+    : p.food.source === 'custom'
+      ? `/foods/${p.food.id}`
+      : undefined;
 
   return (
     <div className="space-y-5">
       <div>
         <div className="flex items-center gap-2">
-          <Badge tone={p.food.source === 'custom' ? 'accent' : 'muted'}>
-            {SOURCE_LABEL[p.food.source]}
-          </Badge>
+          {p.recipe ? (
+            <Badge tone="accent">Adding to {p.recipe.name}</Badge>
+          ) : (
+            <Badge tone={p.food.source === 'custom' ? 'accent' : 'muted'}>
+              {p.food.recipe_id ? 'Recipe' : SOURCE_LABEL[p.food.source]}
+            </Badge>
+          )}
+          {p.batch && (
+            <span className="text-[13px] text-muted tabular">
+              {formatPortions(p.batch.batch.portions_remaining)} left
+            </span>
+          )}
           {p.food.brand && <span className="truncate text-[13px] text-muted">{p.food.brand}</span>}
-          {p.food.source === 'custom' && (
+          {editHref && !p.recipe && (
             <Link
-              to={`/foods/${p.food.id}`}
+              to={editHref}
               className="ml-auto inline-flex h-8 items-center gap-1 rounded-full bg-surface-2 px-3 text-[13px] font-medium text-ink-2"
             >
               <Pencil size={13} aria-hidden /> Edit
@@ -152,7 +190,7 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
         ))}
       </div>
 
-      <Segmented value={slot} options={SLOT_OPTIONS} onChange={setSlot} />
+      {!p.recipe && <Segmented value={slot} options={SLOT_OPTIONS} onChange={setSlot} />}
 
       <NumberPad onChange={type} onSubmit={save} decimal maxDigits={4} />
 
@@ -172,7 +210,7 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
           disabled={g <= 0 || busy}
           className="flex-1"
         >
-          {p.entryId ? 'Update' : 'Log'}
+          {p.recipe ? 'Add ingredient' : p.entryId ? 'Update' : 'Log'}
           {g > 0 ? ` · ${fmt(preview.kcal)} kcal` : ''}
         </Button>
       </div>

@@ -1,10 +1,12 @@
 // SPEC §12 — full JSON backup and restore. Everything the user created; never the USDA seed.
 // Restore is a merge: rows with the same id are overwritten, nothing else is touched.
 import type {
+  Batch,
   DailyTarget,
   Food,
   LogEntry,
   Profile,
+  Recipe,
   Setting,
   Supplement,
   SupplementLog,
@@ -15,6 +17,7 @@ import { bulkPutDailyTargets, listDailyTargets } from '@/db/repo/dailyTargets';
 import { bulkPutFoods, listUserFoods } from '@/db/repo/foods';
 import { bulkPutEntries, listAllEntries } from '@/db/repo/logEntries';
 import { bulkPutProfiles, listProfiles } from '@/db/repo/profiles';
+import { bulkPutBatches, bulkPutRecipes, listAllBatches, listAllRecipes } from '@/db/repo/recipes';
 import { bulkPutSettings, listSettings } from '@/db/repo/settings';
 import {
   bulkPutSupplementLogs,
@@ -28,7 +31,7 @@ import { exportFiles } from '@/platform/exportFile';
 
 export interface Backup {
   app: 'kalib';
-  format: 3;
+  format: 4;
   exported_at: string;
   profiles: Profile[];
   foods: Food[];
@@ -39,10 +42,13 @@ export interface Backup {
   water_logs: WaterLog[];
   supplements: Supplement[];
   supplement_logs: SupplementLog[];
+  recipes: Recipe[];
+  batches: Batch[];
 }
 
 // Format 1 (first v0 builds) carried a single `profile` and no foods or settings; format 2
-// added those; format 3 (SPEC §17) adds water and supplements. parseBackup upgrades in place.
+// added those; format 3 (SPEC §17) adds water and supplements; format 4 (SPEC §8.2) recipes
+// and batches. parseBackup upgrades in place.
 
 /** Device-specific keys that must not travel between installs. */
 const LOCAL_ONLY_SETTING = /^seed_version:/;
@@ -58,6 +64,8 @@ export async function buildBackup(): Promise<Backup> {
     water_logs,
     supplements,
     supplement_logs,
+    recipes,
+    batches,
   ] = await Promise.all([
     listProfiles(),
     listUserFoods(),
@@ -68,10 +76,12 @@ export async function buildBackup(): Promise<Backup> {
     listAllWater(),
     listAllSupplements(),
     listAllSupplementLogs(),
+    listAllRecipes(),
+    listAllBatches(),
   ]);
   return {
     app: 'kalib',
-    format: 3,
+    format: 4,
     exported_at: new Date().toISOString(),
     profiles,
     foods,
@@ -82,6 +92,8 @@ export async function buildBackup(): Promise<Backup> {
     water_logs,
     supplements,
     supplement_logs,
+    recipes,
+    batches,
   };
 }
 
@@ -128,6 +140,8 @@ export function parseBackup(raw: unknown): Backup {
     water_logs?: unknown;
     supplements?: unknown;
     supplement_logs?: unknown;
+    recipes?: unknown;
+    batches?: unknown;
   };
   if (b.app !== 'kalib') throw new Error('Not a Kalib backup file.');
   if (!isArray<WeighIn>(b.weigh_ins) || !isArray<LogEntry>(b.log_entries)) {
@@ -137,7 +151,7 @@ export function parseBackup(raw: unknown): Backup {
   if (b.format === 1) {
     return {
       app: 'kalib',
-      format: 3,
+      format: 4,
       exported_at: typeof b.exported_at === 'string' ? b.exported_at : '',
       profiles: b.profile ? [b.profile] : [],
       foods: [],
@@ -148,13 +162,15 @@ export function parseBackup(raw: unknown): Backup {
       water_logs: [],
       supplements: [],
       supplement_logs: [],
+      recipes: [],
+      batches: [],
     };
   }
-  if (b.format !== 2 && b.format !== 3)
+  if (typeof b.format !== 'number' || b.format < 2 || b.format > 4)
     throw new Error(`Backup format ${String(b.format)} is newer than this app.`);
   return {
     app: 'kalib',
-    format: 3,
+    format: 4,
     exported_at: typeof b.exported_at === 'string' ? b.exported_at : '',
     profiles: isArray<Profile>(b.profiles) ? b.profiles : [],
     foods: isArray<Food>(b.foods) ? b.foods : [],
@@ -167,6 +183,8 @@ export function parseBackup(raw: unknown): Backup {
     water_logs: isArray<WaterLog>(b.water_logs) ? b.water_logs : [],
     supplements: isArray<Supplement>(b.supplements) ? b.supplements : [],
     supplement_logs: isArray<SupplementLog>(b.supplement_logs) ? b.supplement_logs : [],
+    recipes: isArray<Recipe>(b.recipes) ? b.recipes : [],
+    batches: isArray<Batch>(b.batches) ? b.batches : [],
   };
 }
 
@@ -192,4 +210,6 @@ export async function restoreBackup(b: Backup): Promise<void> {
   await bulkPutWater(b.water_logs);
   await bulkPutSupplements(b.supplements);
   await bulkPutSupplementLogs(b.supplement_logs);
+  await bulkPutRecipes(b.recipes);
+  await bulkPutBatches(b.batches);
 }

@@ -97,6 +97,8 @@ export interface Food extends SyncMeta {
   portions: Portion[];
   density_g_per_ml?: number;
   verified: boolean;
+  /** Set when this food is the materialised form of a recipe (SPEC §8.2). */
+  recipe_id?: string;
 }
 
 export interface MacroTotals {
@@ -184,4 +186,32 @@ export interface SupplementLog extends SyncMeta {
   taken_at: string; // ISO timestamp
   dose: number;
   unit: SupplementUnit;
+}
+
+// SPEC §8.2 — recipes and batches.
+
+export interface RecipeItem {
+  food_id: string;
+  /** Denormalised for display; survives food edits. */
+  name: string;
+  grams: number;
+}
+
+export interface Recipe extends SyncMeta {
+  name: string;
+  items: RecipeItem[];
+  /** Cooked weight in grams; absent until weighed (raw total stands in). */
+  yield_g?: number;
+  portions: number;
+  /** The materialised custom food (foods.recipe_id points back). */
+  food_id: string;
+  notes?: string;
+}
+
+export interface Batch extends SyncMeta {
+  recipe_id: string;
+  cooked_on: string; // YYYY-MM-DD
+  total_g: number;
+  portions_total: number;
+  portions_remaining: number;
 }

@@ -74,6 +74,10 @@ Checklists (supplements): a 28 pt circle, 2 pt `surface-3` ring when open, `acce
 actions that repeat (water) are a 48 pt filled circle at the card's right edge; the rest of the
 card opens the detail sheet.
 
+"Log again" tiles are 156 pt cards in a horizontal rail; a batch tile leads with the chef-hat
+glyph in `accent` and carries its portions-left line in `accent` — the only place a rail tile
+uses colour, because it is a count that changes.
+
 ## Icons
 
 Lucide, 2 px stroke, 22 px in icon buttons, 24 px in the tab bar, `aria-hidden` beside text,

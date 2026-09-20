@@ -31,6 +31,10 @@ function table(name: SyncTable) {
       return db.supplements;
     case 'supplement_logs':
       return db.supplement_logs;
+    case 'recipes':
+      return db.recipes;
+    case 'batches':
+      return db.batches;
   }
 }
 

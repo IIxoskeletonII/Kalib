@@ -2,10 +2,12 @@
 // Postgres migration. Index strings list indexed fields only; rows carry the full types.
 import Dexie, { type EntityTable } from 'dexie';
 import type {
+  Batch,
   DailyTarget,
   Food,
   LogEntry,
   Profile,
+  Recipe,
   Setting,
   Supplement,
   SupplementLog,
@@ -30,6 +32,8 @@ export class KalibDB extends Dexie {
   water_logs!: EntityTable<WaterLog, 'id'>;
   supplements!: EntityTable<Supplement, 'id'>;
   supplement_logs!: EntityTable<SupplementLog, 'id'>;
+  recipes!: EntityTable<Recipe, 'id'>;
+  batches!: EntityTable<Batch, 'id'>;
 
   constructor(name: string = DB_NAME) {
     super(name);
@@ -47,6 +51,11 @@ export class KalibDB extends Dexie {
       water_logs: 'id, [user_id+date], date',
       supplements: 'id, [user_id+sort_order]',
       supplement_logs: 'id, [user_id+date], [supplement_id+date], date',
+    });
+    // v3 (SPEC §8.2): recipes and batches.
+    this.version(3).stores({
+      recipes: 'id, food_id',
+      batches: 'id, recipe_id, cooked_on',
     });
   }
 }

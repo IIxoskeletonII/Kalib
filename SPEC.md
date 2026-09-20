@@ -322,6 +322,28 @@ corrected once and promoted to a custom food. Over ~3 weeks, the user's real rot
 their gyro, their Deliveroo order, their batch lunches — becomes a set of one-tap,
 high-confidence entries. **This, not the photo AI, is the actual solution to eating out.**
 
+### 8.2 Recipes and batches (added 20 Sep 2026)
+The meal-prep path from §8 ("log 1 portion of Sunday's chicken & rice", ≤ 3 s).
+
+- A **recipe** is a named list of weighed ingredients (database foods, own foods or packaged
+  products, in grams), a cooked weight (**yield**) and a portion count. Ingredients are stored
+  on the recipe row (`items` JSON) rather than in a `recipe_items` table: they change together
+  and sync together, like `portions` on a food. Deviation from §6, flagged.
+- Every recipe is **materialised as a custom food** (`foods.recipe_id`) whose per-100 g values
+  are the ingredient totals divided by the yield, with "1 portion = yield ÷ portions" as its
+  first portion. Nothing else in the app knows about recipes: search, favourites, the coach
+  and the amount sheet see a food. Editing the recipe rewrites the food; deleting soft-deletes both.
+- Until a yield is entered, the raw ingredient weight stands in for it. Cooking changes weight
+  (water lost or absorbed) but not nutrients, so weighing the finished pot is what makes the
+  per-100 g figure honest; the editor asks for it and the last batch's weight becomes the default.
+- A **batch** is one cooked instance: cooked weight, portions, portions remaining. Logging a
+  portion is one tap from Today's "Log again" rail (batches with portions left come first),
+  through the normal amount sheet prefilled with one portion; ½ and 2 portion chips are offered.
+  `portions_remaining` falls by `grams ÷ portion grams` and is restored if the entry is deleted.
+  Entries carry `batch_id`, `recipe_id`, `entry_method = batch`, confidence high.
+- Ingredients are added through the ordinary search screen (so scan and packaged search work),
+  which in recipe mode adds to the recipe instead of the log.
+
 ---
 
 ## 9. Photo estimation (v3)

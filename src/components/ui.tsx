@@ -174,7 +174,7 @@ export function Sheet({
 }: {
   open: boolean;
   onClose: () => void;
-  title?: string;
+  title?: string | undefined;
   children: ReactNode;
 }) {
   if (!open) return null;
@@ -218,7 +218,7 @@ export function ListRow({
   valueSub?: ReactNode;
   icon?: LucideIcon;
   iconTone?: 'muted' | 'accent' | 'kcal' | 'protein' | 'fiber' | 'carb' | 'fat';
-  onClick?: () => void;
+  onClick?: (() => void) | undefined;
   badge?: ReactNode;
   /** Two-line titles for long database names, where the tail carries meaning (raw vs cooked). */
   wrapTitle?: boolean;

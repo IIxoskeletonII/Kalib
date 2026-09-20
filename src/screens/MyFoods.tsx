@@ -50,7 +50,7 @@ export default function MyFoods() {
               title={f.name}
               badge={
                 f.source === 'custom' ? (
-                  <Badge tone="accent">Mine</Badge>
+                  <Badge tone="accent">{f.recipe_id ? 'Recipe' : 'Mine'}</Badge>
                 ) : (
                   <Badge>{SOURCE_LABEL[f.source]}</Badge>
                 )

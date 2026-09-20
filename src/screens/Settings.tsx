@@ -8,6 +8,7 @@ import {
   Moon,
   RefreshCw,
   CalendarClock,
+  ChefHat,
   Cloud,
   CloudOff,
   LogOut,
@@ -496,6 +497,14 @@ export default function Settings() {
             subtitle="Custom foods and scanned products"
             chevron
             onClick={() => navigate('/foods')}
+          />
+          <ListRow
+            icon={ChefHat}
+            iconTone="accent"
+            title="Recipes"
+            subtitle="Batch cooking, portions in one tap"
+            chevron
+            onClick={() => navigate('/recipes')}
           />
           <ListRow
             icon={Pill}

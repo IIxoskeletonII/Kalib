@@ -47,6 +47,11 @@ export default function FoodEditor() {
         navigate(-1);
         return;
       }
+      if (food.recipe_id) {
+        // A recipe's food is edited through its recipe (SPEC §8.2).
+        navigate(`/recipes/${food.recipe_id}`, { replace: true });
+        return;
+      }
       const v = fromFood(food);
       setName(v.name);
       setBrand(v.brand ?? '');

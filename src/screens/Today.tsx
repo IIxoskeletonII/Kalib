@@ -1,5 +1,6 @@
 import {
   Beef,
+  ChefHat,
   Cookie,
   Droplets,
   Leaf,
@@ -43,10 +44,19 @@ import {
 } from '@/core/dates';
 import { dayTotals } from '@/core/nutrition';
 import { CALIBRATION_DAYS } from '@/core/targets';
+import { formatPortions } from '@/core/recipes';
 import { computeTrend, trendDelta } from '@/core/trend';
-import { MEAL_SLOTS, type Food, type LogEntry, type MealSlot } from '@/core/types';
+import {
+  MEAL_SLOTS,
+  type Batch,
+  type Food,
+  type LogEntry,
+  type MealSlot,
+  type Recipe,
+} from '@/core/types';
 import { getFood } from '@/db/repo/foods';
 import {
+  useActiveBatches,
   useBanking,
   useCoach,
   useDailyTarget,
@@ -64,7 +74,8 @@ interface SheetState {
   grams?: number | undefined;
   slot: MealSlot;
   entryId?: string | undefined;
-  method: 'search' | 'favourite';
+  method: 'search' | 'favourite' | 'batch';
+  batch?: { batch: Batch; recipe: Recipe } | undefined;
 }
 
 const SLOT_ICON: Record<MealSlot, LucideIcon> = {
@@ -85,7 +96,14 @@ export default function Today() {
   const target = useDailyTarget(date);
   const banking = useBanking(date);
   const weighIns = useWeighIns();
-  const favourites = useFavourites();
+  const allFavourites = useFavourites();
+  const batches = useActiveBatches();
+  // A batch tile already stands for its food; do not show it twice.
+  const favourites = useMemo(() => {
+    if (!allFavourites) return undefined;
+    const covered = new Set(batches?.map((b) => b.food.id));
+    return allFavourites.filter((f) => !covered.has(f.food_id));
+  }, [allFavourites, batches]);
   const firstDate = useFirstActivityDate();
   const coach = useCoach(date);
   const loggedDates = useLoggedDates(addDays(today, -6), today);
@@ -405,11 +423,48 @@ export default function Today() {
         </p>
       )}
 
-      {favourites && favourites.length > 0 && (
+      {((favourites && favourites.length > 0) || (batches && batches.length > 0)) && (
         <section className="mt-7">
           <SectionHeading>Log again</SectionHeading>
           <div className="rail -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
-            {favourites.map((f) => (
+            {batches?.map(({ batch, recipe, food }) => {
+              const portion = batch.total_g / batch.portions_total;
+              return (
+                <button
+                  key={batch.id}
+                  type="button"
+                  onClick={() =>
+                    setSheet({
+                      food,
+                      grams: Math.round(portion),
+                      slot: mealSlotForTime(new Date()),
+                      method: 'batch',
+                      batch: { batch, recipe },
+                    })
+                  }
+                  className="card flex w-[156px] shrink-0 snap-start flex-col justify-between p-4 text-left transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-[0.97]"
+                >
+                  <span className="flex items-start gap-1.5">
+                    <ChefHat
+                      size={15}
+                      strokeWidth={2.2}
+                      aria-hidden
+                      className="mt-0.5 shrink-0 text-accent"
+                    />
+                    <span className="line-clamp-2 text-[15px] font-semibold leading-snug">
+                      {recipe.name}
+                    </span>
+                  </span>
+                  <span className="mt-3 text-[13px] text-muted tabular">
+                    1 portion · {fmt((food.per_100g.kcal * portion) / 100)} kcal
+                    <span className="block text-accent">
+                      {formatPortions(batch.portions_remaining)} left
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+            {favourites?.map((f) => (
               <button
                 key={f.food_id}
                 type="button"
@@ -486,6 +541,7 @@ export default function Today() {
         initialSlot={sheet?.slot ?? 'snack'}
         entryId={sheet?.entryId}
         entryMethod={sheet?.method ?? 'search'}
+        batch={sheet?.batch}
         onClose={() => setSheet(null)}
       />
     </div>

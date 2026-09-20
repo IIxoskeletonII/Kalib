@@ -1,6 +1,7 @@
 // SPEC §8 weighed-ingredient path: search → number pad → done, ≤10 s.
 import {
   Camera,
+  ChefHat,
   ChevronLeft,
   Globe,
   PenLine,
@@ -28,7 +29,7 @@ import { searchFoods, type SearchHit } from '@/core/search';
 import type { Food, MealSlot } from '@/core/types';
 import { getFood, getFoods } from '@/db/repo/foods';
 import { lastGramsForFood } from '@/db/repo/logEntries';
-import { useFoodUsage, useSearchDocs } from '@/hooks/useData';
+import { useFoodUsage, useRecipe, useSearchDocs } from '@/hooks/useData';
 import { captureImage } from '@/platform/camera';
 import { decodeBarcode } from '@/services/barcode';
 import { cacheOffProduct, lookupBarcode, searchPackaged, type OffProduct } from '@/services/off';
@@ -49,6 +50,9 @@ export default function LogFood() {
   const navigate = useNavigate();
   const date = params.get('d') ?? todayKey();
   const slot = (params.get('slot') as MealSlot | null) ?? mealSlotForTime(new Date());
+  // Recipe mode (SPEC §8.2): a picked amount becomes an ingredient, nothing is logged.
+  const recipeId = params.get('recipe') ?? undefined;
+  const recipe = useRecipe(recipeId);
 
   const docs = useSearchDocs();
   const usage = useFoodUsage();
@@ -186,7 +190,9 @@ export default function LogFood() {
             autoCorrect="off"
             autoCapitalize="none"
             spellCheck={false}
-            placeholder={docs ? 'Search foods' : 'Loading food database…'}
+            placeholder={
+              !docs ? 'Loading food database…' : recipe ? 'Add an ingredient' : 'Search foods'
+            }
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -214,15 +220,22 @@ export default function LogFood() {
         <Chip icon={Camera} onClick={runScan} disabled={scan.state === 'busy'}>
           Scan
         </Chip>
-        <Chip icon={PenLine} onClick={() => navigate(`/quick?d=${date}`)}>
-          Quick add
-        </Chip>
+        {!recipe && (
+          <Chip icon={PenLine} onClick={() => navigate(`/quick?d=${date}`)}>
+            Quick add
+          </Chip>
+        )}
         <Chip icon={Globe} onClick={runOnline} disabled={q.length < 2}>
           Packaged foods
         </Chip>
         <Chip icon={Plus} onClick={() => navigate(`/foods/new?d=${date}`)}>
           New food
         </Chip>
+        {!recipe && (
+          <Chip icon={ChefHat} onClick={() => navigate('/recipes')}>
+            Recipes
+          </Chip>
+        )}
       </div>
 
       <div className="-mx-4 flex-1 overflow-y-auto pb-6">
@@ -277,7 +290,7 @@ export default function LogFood() {
                   subtitle={h.brand ?? SOURCE_LABEL[h.source]}
                   badge={
                     h.source === 'custom' ? (
-                      <Badge tone="accent">Mine</Badge>
+                      <Badge tone="accent">{h.recipe ? 'Recipe' : 'Mine'}</Badge>
                     ) : h.source === 'off' ? (
                       <Badge>OFF</Badge>
                     ) : undefined
@@ -383,8 +396,13 @@ export default function LogFood() {
         initialGrams={picked?.grams}
         initialSlot={slot}
         entryMethod="search"
+        recipe={recipe ? { id: recipe.id, name: recipe.name } : undefined}
         onClose={() => setPicked(null)}
-        onSaved={() => navigate(`/?d=${date}`, { replace: true })}
+        onSaved={() =>
+          recipe
+            ? navigate(`/recipes/${recipe.id}`, { replace: true })
+            : navigate(`/?d=${date}`, { replace: true })
+        }
       />
     </div>
   );
