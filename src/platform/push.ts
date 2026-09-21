@@ -1,6 +1,9 @@
 // Platform adapter for reminders (Web Push). On iOS this only works from the Home Screen app
 // (16.4+); the browser tab has no push. Under Capacitor: the Push Notifications plugin.
 
+/** Extra request headers (the session token) the caller supplies; see services/apiAuth.ts. */
+export type AuthHeaders = Record<string, string>;
+
 export interface ReminderPrefs {
   weighAt: string | null;
   logAt: string | null;
@@ -56,6 +59,7 @@ export interface SubscribeState {
 export async function enableReminders(
   prefs: ReminderPrefs,
   state: SubscribeState,
+  auth: AuthHeaders,
 ): Promise<'ok' | 'denied' | 'unavailable'> {
   const cfg = await serverConfig();
   if (!cfg.enabled || !cfg.publicKey) return 'unavailable';
@@ -68,7 +72,7 @@ export async function enableReminders(
       userVisibleOnly: true,
       applicationServerKey: toKey(cfg.publicKey) as BufferSource,
     }));
-  await registerSubscription(sub, prefs, state);
+  await registerSubscription(sub, prefs, state, auth);
   return 'ok';
 }
 
@@ -76,10 +80,11 @@ export async function registerSubscription(
   sub: PushSubscription,
   prefs: ReminderPrefs,
   state: SubscribeState,
+  auth: AuthHeaders,
 ): Promise<void> {
   const res = await fetch('/api/push/subscribe', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...auth },
     body: JSON.stringify({
       subscription: sub.toJSON(),
       prefs,
@@ -87,27 +92,28 @@ export async function registerSubscription(
       ...state,
     }),
   });
+  if (res.status === 401) throw new Error('Sign in (Settings → Sync) to use reminders.');
   if (!res.ok) throw new Error('Could not save the reminder on the server.');
 }
 
-export async function disableReminders(): Promise<void> {
+export async function disableReminders(auth: AuthHeaders): Promise<void> {
   const sub = await currentSubscription();
   if (!sub) return;
   await fetch('/api/push/subscribe', {
     method: 'DELETE',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...auth },
     body: JSON.stringify({ endpoint: sub.endpoint }),
   }).catch(() => undefined);
   await sub.unsubscribe();
 }
 
 /** Tells the Worker what has been done today, so a due reminder is not sent needlessly. */
-export async function pingReminders(state: SubscribeState): Promise<void> {
+export async function pingReminders(state: SubscribeState, auth: AuthHeaders): Promise<void> {
   const sub = await currentSubscription();
   if (!sub) return;
   await fetch('/api/push/ping', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...auth },
     body: JSON.stringify({ endpoint: sub.endpoint, ...state }),
   }).catch(() => undefined);
 }

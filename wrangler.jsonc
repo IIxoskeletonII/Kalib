@@ -9,21 +9,33 @@
     "directory": "dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*"],
   },
-  // SPEC §9.3: the vision model is swappable here. The OpenRouter key is a secret:
-  //   npx wrangler secret put OPENROUTER_API_KEY
+  // Secrets (never in this file; `npx wrangler secret put <NAME>`), see SECURITY.md:
+  //   OPENROUTER_API_KEY   pays for /api/estimate (SPEC §9.3)
+  //   VAPID_PRIVATE_KEY    signs Web Push (reminders)
+  //   SUPABASE_URL         the project the Worker asks "whose session is this?"
+  //   SUPABASE_ANON_KEY    its publishable key (public, but kept out of the repo like the app's)
+  //                        — or simply `npx wrangler secret bulk .env.local` (VITE_ names work)
   "vars": {
     "VISION_MODEL": "google/gemini-3.1-flash-lite",
-    // Reminders (Web Push). Public half of the VAPID pair; the private half is a secret:
-    //   npx wrangler secret put VAPID_PRIVATE_KEY
+    // Daily caps on estimation, per signed-in user and across everyone (worker/guard.ts).
+    "ESTIMATE_DAILY_USER": "30",
+    "ESTIMATE_DAILY_TOTAL": "100",
+    // Reminders (Web Push). Public half of the VAPID pair; the private half is a secret.
     "VAPID_PUBLIC_KEY": "BICboEhUpK6WeD5834AfZ2kfDsDY2_AEOgbq1okYfpu2vSN3tkf1cstmSe3l4mmmkgWzp5T0sw4RJRrkZAOJ8y8",
-    "VAPID_SUBJECT": "mailto:allameliya@gmail.com"
+    "VAPID_SUBJECT": "https://kalib.kalib.workers.dev",
   },
-  // Push subscriptions live in KV. Create once with `npx wrangler kv namespace create PUSH`
-  // and paste the id here; without the binding the reminders UI says so and does nothing.
+  // Push subscriptions and daily quota counters live in KV. Create once with
+  // `npx wrangler kv namespace create PUSH` and paste the id here; without the binding the
+  // reminders UI says so and estimation is off.
   "kv_namespaces": [{ "binding": "PUSH", "id": "079cc1615c694a8a8afcef454dad7ad4" }],
+  // Per-minute burst limits (free on every plan). The daily quotas above bound the total.
+  "ratelimits": [
+    { "name": "ESTIMATE_LIMIT", "namespace_id": "1001", "simple": { "limit": 6, "period": 60 } },
+    { "name": "API_LIMIT", "namespace_id": "1002", "simple": { "limit": 60, "period": 60 } },
+  ],
   // The cron sends due reminders; a 10-minute grid is fine for "around 07:30".
   "triggers": { "crons": ["*/10 * * * *"] },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
 }

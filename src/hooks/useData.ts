@@ -1,7 +1,9 @@
 // Reactive reads. useLiveQuery re-runs whenever the underlying Dexie tables change, so every
 // write through a repo function updates every screen with no manual invalidation.
+import { toast } from '@/components/Toast';
+import { drainBarcodeQueue } from '@/services/barcodeQueue';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, todayKey } from '@/core/dates';
 import type { Batch, Food, Recipe } from '@/core/types';
 import { rankFavourites } from '@/core/favourites';
@@ -260,6 +262,37 @@ export function useReminderPing() {
     if (entries === undefined || weighIns === undefined) return;
     void pingIfEnabled({ lastLoggedDate: logged, lastWeighedDate: weighed });
   }, [entries, weighIns, logged, weighed]);
+}
+
+/**
+ * Replays barcodes scanned offline whenever the connection is back (SPEC §12), telling the
+ * user what was found with a one-tap way to log it.
+ */
+export function useBarcodeReplay(open: (date: string, name: string) => void) {
+  const openRef = useRef(open);
+  useEffect(() => {
+    openRef.current = open;
+  });
+  useEffect(() => {
+    const run = () => {
+      void drainBarcodeQueue().then((outcomes) => {
+        for (const o of outcomes) {
+          if (o.kind === 'unknown') {
+            toast(`${o.code} is not in Open Food Facts. Add it from the label instead.`);
+          } else {
+            const { food, date } = o;
+            toast(`Found ${food.name} from the barcode you scanned offline.`, {
+              label: 'Log it',
+              run: () => openRef.current(date, food.name),
+            });
+          }
+        }
+      });
+    };
+    run();
+    window.addEventListener('online', run);
+    return () => window.removeEventListener('online', run);
+  }, []);
 }
 
 /** §18 the week's plan with everything derived; live with plans, recipes, prices and the log. */

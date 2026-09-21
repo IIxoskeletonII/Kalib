@@ -1,5 +1,6 @@
 // SPEC §9.4 — describe-to-log. Downscale the optional photo, call the Worker, validate,
 // ground each item in the offline database, and log the result as `photo` entries.
+import { authHeaders } from '@/services/apiAuth';
 import {
   groundItems,
   matchItems,
@@ -40,9 +41,15 @@ export async function estimateMeal(description: string, photo?: File | null) {
   const m = mock();
   if (m) raw = m(body);
   else {
+    const auth = await authHeaders();
+    if (!('authorization' in auth)) {
+      throw new Error(
+        'Sign in first (Settings → Sync). Estimation runs on the server and belongs to an account.',
+      );
+    }
     const res = await fetch('/api/estimate', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...auth },
       body: JSON.stringify(body),
     });
     const data = (await res.json().catch(() => ({}))) as {

@@ -66,6 +66,24 @@ export async function signOut(): Promise<void> {
   await supabase().auth.signOut();
 }
 
+/**
+ * Deletes the account and every row it owns on the server (supabase/migrations/0005_erasure.sql),
+ * then ends the session. The phone's copy is the caller's decision.
+ */
+export async function deleteAccount(): Promise<void> {
+  const { error } = await supabase().rpc('delete_my_account');
+  if (error) {
+    throw new Error(
+      /function .* does not exist|schema cache/i.test(error.message)
+        ? 'The server is missing migration 0005_erasure.sql — run it in the Supabase SQL editor first.'
+        : error.message,
+    );
+  }
+  await supabase()
+    .auth.signOut({ scope: 'local' })
+    .catch(() => undefined);
+}
+
 /** Postgres returns `+00:00` timestamps; the local store compares ISO strings, so normalise. */
 const TIMESTAMPS = ['created_at', 'updated_at', 'deleted_at', 'logged_at'];
 function normalize(row: Record<string, unknown>): Row {

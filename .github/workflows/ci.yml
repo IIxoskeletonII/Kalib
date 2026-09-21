@@ -1,0 +1,42 @@
+# Every push and pull request: the same four checks `npm run deploy` runs locally, plus a
+# dependency audit. No secrets are needed — the build has no keys, and deploys stay manual.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+      - run: npm run lint -- --max-warnings 0
+      - run: npx prettier --check .
+      - run: npm test
+      - run: npm run build
+
+      - name: Worker config validates
+        run: npx wrangler deploy --dry-run --outdir /tmp/wrangler-dry
+
+      - name: Dependency audit (production)
+        run: npm audit --omit=dev --audit-level=high

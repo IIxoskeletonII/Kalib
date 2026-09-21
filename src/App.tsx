@@ -7,11 +7,11 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router';
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { ensureSeeded, type SeedProgress } from '@/db/seed';
 import { useProfile } from '@/hooks/useData';
 import { ToastHost } from '@/components/Toast';
-import { useReminderPing } from '@/hooks/useData';
+import { useBarcodeReplay, useReminderPing } from '@/hooks/useData';
 import { useSync } from '@/hooks/useSync';
 import { useTheme } from '@/hooks/useTheme';
 import { startSync } from '@/services/sync/manager';
@@ -40,13 +40,21 @@ const Cook = lazy(() => import('@/screens/Cook'));
 export default function App() {
   const profile = useProfile();
   const location = useLocation();
+  const navigate = useNavigate();
   const [seed, setSeed] = useState<SeedProgress | 'error' | null>(null);
   const { recovery, session } = useSync();
   useReminderPing();
+  useBarcodeReplay((date, name) =>
+    navigate(`/log?d=${date}&q=${encodeURIComponent(name)}`, { viewTransition: true }),
+  );
   useTheme();
 
   useEffect(() => {
-    void startSync();
+    // The Supabase client is 200 KB of script the first paint does not need — unless this is
+    // a password-reset link arriving, which it must handle before anything else renders.
+    const urgent = /access_token|type=recovery/.test(window.location.hash);
+    const t = setTimeout(() => void startSync(), urgent ? 0 : 1200);
+    return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {

@@ -26,13 +26,27 @@ export async function isSeeded(source: FoodSource): Promise<boolean> {
   return (await getSetting<number>(seedKey(source))) === SEED_VERSION;
 }
 
+/** Waits for a quiet moment on the main thread (Safari has no requestIdleCallback). */
+function idle(timeout = 1500): Promise<void> {
+  return new Promise((resolve) => {
+    const ric = (
+      globalThis as { requestIdleCallback?: (cb: () => void, o: { timeout: number }) => void }
+    ).requestIdleCallback;
+    if (ric) ric(() => resolve(), { timeout });
+    else setTimeout(resolve, 600);
+  });
+}
+
 /**
  * Loads any seed file not yet at SEED_VERSION. Foundation first (small, highest quality),
  * SR Legacy second. Safe to call on every launch; resumes if a previous run was interrupted.
+ * Each file waits for an idle moment so the first screen paints and responds before the
+ * megabytes arrive.
  */
 export async function ensureSeeded(onProgress?: (p: SeedProgress) => void): Promise<void> {
   for (const f of SEED_FILES) {
     if (await isSeeded(f.source)) continue;
+    await idle();
     onProgress?.({ source: f.source, done: false });
     const res = await fetch(f.url);
     if (!res.ok) throw new Error(`Seed fetch failed: ${f.url} (${res.status})`);

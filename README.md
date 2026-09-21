@@ -1,5 +1,8 @@
 # Kalib
 
+[![CI](https://github.com/IIxoskeletonII/Kalib/actions/workflows/ci.yml/badge.svg)](https://github.com/IIxoskeletonII/Kalib/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A personal, local-first nutrition tracker that **measures** your maintenance calories from your
 own weigh-ins and logs instead of guessing them from a formula — and coaches you toward the
 targets you keep missing. Progressive web app, works offline, costs nothing to run.
@@ -9,16 +12,26 @@ targets you keep missing. Progressive web app, works offline, costs nothing to r
   <img src="docs/screenshots/today-light.png" width="200" alt="Today, light" />
   <img src="docs/screenshots/log-sheet.png" width="200" alt="Logging a food" />
   <img src="docs/screenshots/coach.png" width="200" alt="Coach" />
-  <img src="docs/screenshots/water-supplements.png" width="200" alt="Water and supplements" />
+  <img src="docs/screenshots/plan.png" width="200" alt="Plan the week" />
+  <img src="docs/screenshots/shopping.png" width="200" alt="Shopping list" />
 </p>
+
+## Why
+
+I built Kalib because I wanted logging and tracking my macros to be effortless, and I could not
+find a good free app that offered everything I wanted: a food database that works offline, a
+maintenance-calorie number that comes from *my* data rather than a formula, honest uncertainty
+instead of false precision, fiber treated as seriously as protein, and no subscription standing
+between me and my own numbers. So I built it myself. It runs on my phone and my wife's, on a
+free tier, and the source is here for anyone who wants the same.
 
 ## What it does
 
 - **Logging in seconds** — offline USDA database (13 k foods: Foundation, SR Legacy and FNDDS
   dishes as eaten), packaged products from Open Food Facts by search or **barcode photo**
-  (decoded on-device), your own foods, a custom number pad (no OS keyboard), amounts in g / ml /
-  oz / fl oz with liquids opening in ml, one-tap "log again" tiles, swipe to delete (with undo)
-  or to log again, quick manual entry.
+  (decoded on-device; scanned offline, looked up when the connection returns), your own foods,
+  a custom number pad (no OS keyboard), amounts in g / ml / oz / fl oz with liquids opening in
+  ml, one-tap "log again" tiles, swipe to delete (with undo) or to log again, quick manual entry.
 - **Targets that calibrate to you** — formula targets while calibrating, then from day 24 a
   measured TDEE from the weight trend and logged intake over a 28-day window, with a 95 %
   interval, guard rails (±150 kcal per weekly step, a hold-and-explain card when the measurement
@@ -56,22 +69,24 @@ targets you keep missing. Progressive web app, works offline, costs nothing to r
   every ingredient resolved (database foods by id, own foods embedded).
 - **Reminders** — a weigh-in nudge and an evening "nothing logged" check, each at your time and
   only when the thing is still undone, via Web Push from the Worker (Home Screen app on iOS 16.4+).
-- **Your data stays yours** — everything lives in IndexedDB on the device; CSV and JSON export.
+- **Your data stays yours** — everything lives in IndexedDB on the device; CSV and JSON export;
+  searches that found nothing are kept so the database grows from real use; one button deletes
+  the account and every row on the server.
 
 Product spec: [`SPEC.md`](SPEC.md) · design system: [`design-system/kalib/MASTER.md`](design-system/kalib/MASTER.md) ·
-code conventions: [`CLAUDE.md`](CLAUDE.md).
+code conventions: [`CLAUDE.md`](CLAUDE.md) · threat model: [`SECURITY.md`](SECURITY.md).
 
 ## Stack
 
 React 19 · Vite · TypeScript (strict) · Tailwind v4 · Dexie (IndexedDB) · uPlot · vite-plugin-pwa ·
-Cloudflare Workers (static assets + a small API proxy for Open Food Facts) · Supabase (auth + a
-row-per-row mirror for sync; optional).
+Cloudflare Workers (static assets + a small API: Open Food Facts proxy, meal estimation,
+Web Push) · Supabase (auth + a row-per-row mirror for sync; optional).
 
 ```
 src/core/       pure formulas + types, fully unit-tested      src/db/         Dexie schema, repos, seed
-src/services/   orchestration (targets, logging, coach, off)  src/platform/   camera / export adapters
+src/services/   orchestration (targets, logging, coach, off)  src/platform/   camera / share / push adapters
 src/hooks/      live queries                                  src/screens/, src/components/   UI
-worker/         Cloudflare Worker (assets + /api/off/*)        scripts/        USDA ETL, icons, screenshots
+worker/         Cloudflare Worker (assets + /api/*)           scripts/        USDA ETL, icons, screenshots
 ```
 
 ## Run
@@ -79,14 +94,29 @@ worker/         Cloudflare Worker (assets + /api/off/*)        scripts/        U
 ```sh
 npm install
 npm run dev          # http://localhost:5173 (add --host to test on a phone over LAN)
-npm test             # 115 unit tests: every formula in SPEC §3/§4/§16, repos, worker ranking
+npm test             # 226 unit tests: every formula in SPEC §3/§4/§5/§16/§18, repos, the Worker
 npm run build        # typecheck + production build → dist/
 ```
 
+CI runs typecheck, lint, Prettier, tests, the build, a Worker config dry-run and a production
+dependency audit on every push. Deploys stay manual.
+
+## Performance
+
+Lighthouse 12, mobile emulation against the production build, returning visit:
+
+| Throttle                                            | Interactive | LCP    | Blocking | Score |
+| --------------------------------------------------- | ----------- | ------ | -------- | ----- |
+| Regular 4G (70 ms RTT, 10 Mbps, 2× CPU slowdown)    | 0.84 s      | 0.84 s | 0 ms     | 100   |
+| Lighthouse "slow 4G" (150 ms, 1.6 Mbps, 4× slowdown) | 2.6 s       | 2.6 s  | 6 ms     | 95    |
+
+The first launch also downloads the food database (~1.2 MB compressed) and writes 13 k rows;
+that runs in small chunks after the first screen is interactive, so it does not move the numbers.
+
 ## Food database
 
-`public/data/foods-*.json` is generated from USDA FoodData Central (Foundation Foods + a filtered
-slice of SR Legacy) and committed. Regenerate after changing `scripts/seed-usda.ts` or
+`public/data/foods-*.json` is generated from USDA FoodData Central (Foundation Foods, a filtered
+slice of SR Legacy, and FNDDS) and committed. Regenerate after changing `scripts/seed-usda.ts` or
 `src/core/nutrients.ts`, then bump `SEED_VERSION` in `src/db/seed.ts` so installed clients reload:
 
 ```sh
@@ -104,36 +134,47 @@ its own rows (RLS), and a phone binds to the first account it syncs with. Withou
 environment variables the build runs local-only and Settings says so.
 
 1. Create a free Supabase project, open the SQL editor and run every file in
-   `supabase/migrations/` in order (`0001_init.sql` … `0004_planner.sql`).
+   `supabase/migrations/` in order (`0001_init.sql` … `0005_erasure.sql`).
 2. Authentication → Providers → Email: turn **Confirm email** off (accounts sign in immediately).
 3. Authentication → URL configuration: Site URL = the app's URL; add it to Redirect URLs (password reset).
 4. Copy `.env.example` to `.env.local` with the project URL and publishable key, then `npm run deploy`.
+5. Create the accounts you need, then Authentication → Sign In / Providers: turn **Allow new
+   users to sign up** off. The project stays yours; nobody else can register against it.
+
+The Worker needs the same two values to verify sessions (estimation and reminders are for
+signed-in users only). Upload `.env.local` as it is — the Worker accepts the `VITE_` names:
+
+```sh
+npx wrangler secret bulk .env.local
+```
 
 ## Meal estimation (optional)
 
-`/api/estimate` calls a vision model through OpenRouter; the key lives only on the Worker.
+`/api/estimate` calls a vision model through OpenRouter; the key lives only on the Worker, and
+the endpoint requires a signed-in user, is rate-limited, and stops at 30 estimates per person and
+100 in total per day (`ESTIMATE_DAILY_*` in `wrangler.jsonc`).
 
-1. Create an OpenRouter account, add a few dollars of credit and create an API key.
+1. Create an OpenRouter account, add a few euros of credit and create an API key.
 2. `npx wrangler secret put OPENROUTER_API_KEY` and paste the key when prompted.
 3. The model id is `VISION_MODEL` in `wrangler.jsonc` (default `google/gemini-3.1-flash-lite`,
-   about $0.001 per estimate). Without the secret the screen explains what is missing.
+   about €0.0007 per estimate with a photo). Without the secret the screen explains what is missing.
 
 ## Reminders (optional)
 
-Web Push, sent by the Worker's cron every 10 minutes to subscriptions kept in KV.
+Web Push, sent by the Worker's cron every 10 minutes to subscriptions kept in KV. Subscribing
+requires a signed-in user; the Worker only ever posts to the browsers' own push services.
 
 1. `npx wrangler kv namespace create PUSH` and paste the printed `id` into `kv_namespaces` in
-   `wrangler.jsonc` (uncomment the line).
-2. Generate a VAPID key pair (any Web Push tool, or the snippet in the repo history); put the
-   public key in `wrangler.jsonc` → `VAPID_PUBLIC_KEY` and the private `d` value in a secret:
-   `npx wrangler secret put VAPID_PRIVATE_KEY`.
+   `wrangler.jsonc`.
+2. Generate a VAPID key pair (any Web Push tool); put the public key in `wrangler.jsonc` →
+   `VAPID_PUBLIC_KEY` and the private `d` value in a secret: `npx wrangler secret put VAPID_PRIVATE_KEY`.
 3. Deploy. Settings → Reminders turns on from the installed app.
 
 ## Deploy
 
 One-time: `npx wrangler login`. Then `npm run deploy` builds and uploads `dist/` plus the Worker.
 On the iPhone: open the URL in Safari → Share → **Add to Home Screen**. Installed, it runs
-standalone and offline; the food database downloads once on first launch (~4 MB, cached).
+standalone and offline; the food database downloads once on first launch and is cached.
 
 ## Verifying without a phone
 
@@ -159,6 +200,6 @@ npx skills add vercel-labs/agent-skills --skill web-design-guidelines
 ## Data sources
 
 U.S. Department of Agriculture, Agricultural Research Service — FoodData Central (Foundation
-Foods, SR Legacy). Open Food Facts — Open Database License (ODbL).
+Foods, SR Legacy, FNDDS). Open Food Facts — Open Database License (ODbL).
 
 Not medical advice. Targets are general-population formulas.

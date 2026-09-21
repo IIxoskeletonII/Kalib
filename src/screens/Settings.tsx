@@ -5,6 +5,7 @@ import {
   FolderOpen,
   Monitor,
   Pill,
+  SearchX,
   Moon,
   RefreshCw,
   CalendarClock,
@@ -39,6 +40,9 @@ import {
   type BackupSummary,
 } from '@/services/backup';
 import { exportCsv } from '@/services/exportData';
+import { SwipeRow } from '@/components/SwipeRow';
+import { shareText } from '@/platform/share';
+import { clearMisses, forgetMiss, MISSES_KEY, type SearchMiss } from '@/services/misses';
 import { clearRecovery, resetThisPhone, syncNow } from '@/services/sync/manager';
 import { syncConfigured } from '@/services/sync/config';
 import { MODE_SCHEDULE_KEY, refreshTargetForDate, setModeSchedule } from '@/services/targets';
@@ -92,6 +96,11 @@ export default function Settings() {
   const [authNote, setAuthNote] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
+  const [eraseOpen, setEraseOpen] = useState(false);
+  const [missesOpen, setMissesOpen] = useState(false);
+  const misses = useSetting<SearchMiss[]>(MISSES_KEY, []);
+  const [eraseWord, setEraseWord] = useState('');
+  const [eraseBusy, setEraseBusy] = useState(false);
   const name = useSetting<string>('name', '');
 
   const submitAuth = async () => {
@@ -529,8 +538,64 @@ export default function Settings() {
             chevron
             onClick={() => navigate('/supplements')}
           />
+          <ListRow
+            icon={SearchX}
+            iconTone="accent"
+            title="Foods you couldn’t find"
+            subtitle={
+              misses.length === 0
+                ? 'Nothing missing so far'
+                : `${misses.length} ${misses.length === 1 ? 'search' : 'searches'} came up empty`
+            }
+            chevron
+            onClick={() => setMissesOpen(true)}
+          />
         </Card>
       </section>
+
+      <Sheet open={missesOpen} onClose={() => setMissesOpen(false)} title="Foods you couldn’t find">
+        {misses.length === 0 ? (
+          <p className="text-[14px] text-muted">
+            When a search finds nothing, offline or in Open Food Facts, it is remembered here so the
+            database can grow from what you actually eat.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-[14px] text-muted">
+              Add these as custom foods from the label, or send the list along so they can be seeded
+              properly.
+            </p>
+            <Card className="divide-y divide-line">
+              {misses.map((m) => (
+                <SwipeRow key={m.q} onDelete={() => void forgetMiss(m.q)}>
+                  <div className="flex items-center justify-between gap-3 px-4 py-3">
+                    <span className="min-w-0 flex-1 truncate text-[16px]">{m.q}</span>
+                    <span className="shrink-0 text-[13px] text-muted tabular">
+                      {m.count > 1 ? `×${m.count} · ` : ''}
+                      {m.date}
+                    </span>
+                  </div>
+                </SwipeRow>
+              ))}
+            </Card>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                icon={FileSpreadsheet}
+                onClick={() =>
+                  void shareText(
+                    'Kalib — foods not found',
+                    misses.map((m) => m.q).join(String.fromCharCode(10)),
+                  )
+                }
+              >
+                Share list
+              </Button>
+              <Button onClick={() => void clearMisses()}>Clear</Button>
+            </div>
+          </div>
+        )}
+      </Sheet>
 
       <Sheet open={signOutOpen} onClose={() => setSignOutOpen(false)} title="Sign out">
         <div className="space-y-3">
@@ -560,6 +625,56 @@ export default function Settings() {
             }}
           >
             Sign out and remove this phone’s data
+          </Button>
+          <button
+            type="button"
+            className="block w-full pt-1 text-center text-[13px] text-muted underline-offset-2 hover:underline"
+            onClick={() => {
+              setSignOutOpen(false);
+              setEraseWord('');
+              setEraseOpen(true);
+            }}
+          >
+            Delete my account and everything in it
+          </button>
+        </div>
+      </Sheet>
+
+      <Sheet open={eraseOpen} onClose={() => setEraseOpen(false)} title="Delete account">
+        <div className="space-y-3">
+          <p className="text-[14px] text-muted">
+            This removes your account and every weigh-in, entry, recipe and setting from the server,
+            right away and for good. Export a backup first if you want to keep any of it. The copy
+            on this phone is removed too.
+          </p>
+          <input
+            type="text"
+            autoCapitalize="characters"
+            autoComplete="off"
+            placeholder="Type DELETE to confirm"
+            value={eraseWord}
+            onChange={(e) => setEraseWord(e.target.value)}
+            className="h-12 w-full rounded-full bg-surface px-5 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-danger"
+          />
+          <Button
+            variant="danger"
+            size="lg"
+            className="w-full bg-danger/10"
+            disabled={eraseWord.trim().toUpperCase() !== 'DELETE' || eraseBusy}
+            onClick={async () => {
+              setEraseBusy(true);
+              try {
+                const m = await import('@/services/sync/supabase');
+                await m.deleteAccount();
+                await resetThisPhone();
+              } catch (err) {
+                setNote((err as Error).message);
+                setEraseBusy(false);
+                setEraseOpen(false);
+              }
+            }}
+          >
+            {eraseBusy ? 'Deleting…' : 'Delete account'}
           </Button>
         </div>
       </Sheet>

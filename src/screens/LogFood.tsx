@@ -34,6 +34,8 @@ import { lastGramsForFood } from '@/db/repo/logEntries';
 import { useFoodUsage, useRecipe, useSearchDocs } from '@/hooks/useData';
 import { captureImage } from '@/platform/camera';
 import { decodeBarcode } from '@/services/barcode';
+import { queueBarcode } from '@/services/barcodeQueue';
+import { recordMiss } from '@/services/misses';
 import { cacheOffProduct, lookupBarcode, searchPackaged, type OffProduct } from '@/services/off';
 
 type Online =
@@ -97,6 +99,12 @@ export default function LogFood() {
   }, [hits, kcalById]);
 
   const q = deferred.trim();
+  // A query that finds nothing offline and sits there is a gap in the database worth knowing.
+  useEffect(() => {
+    if (!docs || q.length < 3 || hits.length > 0) return;
+    const t = setTimeout(() => void recordMiss(q), 2500);
+    return () => clearTimeout(t);
+  }, [docs, q, hits.length]);
   // Online results belong to the query they were fetched for.
   const onlineState: Online = online.q === q ? online.r : { state: 'idle' };
 
@@ -130,7 +138,11 @@ export default function LogFood() {
         return;
       }
       if (!navigator.onLine) {
-        setScan({ state: 'error', message: `Read ${code}, but looking it up needs a connection.` });
+        await queueBarcode(code, date);
+        setScan({
+          state: 'error',
+          message: `Read ${code}. No connection right now — Kalib will look it up the moment you are back online and offer to log it.`,
+        });
         return;
       }
       setScan({ state: 'busy', step: `Looking up ${code}…` });
@@ -167,7 +179,9 @@ export default function LogFood() {
     }
     setOnline({ q: term, r: { state: 'loading' } });
     try {
-      setOnline({ q: term, r: { state: 'done', items: await searchPackaged(term) } });
+      const items = await searchPackaged(term);
+      if (items.length === 0) void recordMiss(term);
+      setOnline({ q: term, r: { state: 'done', items } });
     } catch (err) {
       setOnline({ q: term, r: { state: 'error', message: (err as Error).message } });
     }

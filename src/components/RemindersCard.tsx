@@ -55,6 +55,8 @@ export function RemindersCard() {
         const r = await turnOn({ weighAt: settings.weighAt, logAt: settings.logAt }, done);
         if (r === 'denied') setNote('Notifications are blocked for Kalib in iOS Settings.');
         if (r === 'unavailable') setNote('Reminders are not set up on the server yet.');
+        if (r === 'signin')
+          setNote('Sign in first (Sync, above) — reminders belong to an account.');
       }
     } catch (err) {
       setNote((err as Error).message);

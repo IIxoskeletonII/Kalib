@@ -15,9 +15,14 @@ export async function getFoods(ids: readonly string[]): Promise<Map<string, Food
 }
 
 /** Bulk insert/replace; used by the USDA seed loader. Chunked so a phone stays responsive. */
-export async function bulkPutFoods(foods: readonly Food[], chunk = 500): Promise<void> {
+/**
+ * Small chunks with a yield between them: the seed runs while the first screen is being used,
+ * and a 150-row put stays under a frame even on a slow phone.
+ */
+export async function bulkPutFoods(foods: readonly Food[], chunk = 150): Promise<void> {
   for (let i = 0; i < foods.length; i += chunk) {
     await db.foods.bulkPut(foods.slice(i, i + chunk));
+    if (i + chunk < foods.length) await new Promise((r) => setTimeout(r, 0));
   }
 }
 

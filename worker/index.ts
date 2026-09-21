@@ -2,7 +2,20 @@
 // The proxy exists because OFF's search service has no CORS and its legacy endpoint is flaky;
 // doing it server-side also lets us send the User-Agent OFF asks for, re-rank for completeness,
 // and cache. Everything else falls through to static assets.
+//
+// Trust model (SECURITY.md): the OFF proxy is public but rate-limited and cached; anything
+// that spends money (estimate) or writes durable state (push subscriptions) needs a Supabase
+// session and sits behind daily quotas.
 import { runEstimate, type EstimateEnv, type EstimateRequest } from './estimate';
+import {
+  admitEstimate,
+  authConfigured,
+  isPushEndpoint,
+  requireUser,
+  underLimit,
+  type GuardEnv,
+  type Limiter,
+} from './guard';
 import { normalizeOffProduct, rankOffProducts, type OffProduct, type OffHit } from './off';
 import {
   dueReminders,
@@ -14,10 +27,20 @@ import {
   type StoredSubscription,
 } from './push';
 
-export interface Env extends EstimateEnv, PushEnv {
+export interface Env extends EstimateEnv, PushEnv, GuardEnv {
   ASSETS: Fetcher;
-  /** Push subscriptions (reminders). Optional: without the binding the feature is off. */
+  /** Push subscriptions and daily quota counters. Optional: without it reminders are off. */
   PUSH?: KVNamespace;
+  /** Rate Limiting bindings (wrangler.jsonc); absent under `wrangler dev`. */
+  ESTIMATE_LIMIT?: Limiter;
+  API_LIMIT?: Limiter;
+}
+
+/** A phone or two per person is normal; more than this is not a person. */
+const MAX_DEVICES_PER_USER = 5;
+
+function clientIp(request: Request): string {
+  return request.headers.get('cf-connecting-ip') ?? 'unknown';
 }
 
 async function subKey(endpoint: string): Promise<string> {
@@ -37,56 +60,98 @@ function cleanPrefs(raw: unknown): ReminderPrefs {
 /** POST /api/push/subscribe, DELETE /api/push/subscribe, POST /api/push/ping, GET /api/push/config */
 async function handlePush(request: Request, url: URL, env: Env): Promise<Response> {
   if (url.pathname === '/api/push/config') {
-    const on = Boolean(env.PUSH && env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
+    const on = Boolean(
+      env.PUSH && env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && authConfigured(env),
+    );
     return json({ enabled: on, publicKey: on ? env.VAPID_PUBLIC_KEY : null });
   }
-  if (!env.PUSH || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) {
+  if (!env.PUSH || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !authConfigured(env)) {
     return json({ error: 'Reminders are not set up on the server.' }, 503);
+  }
+  if (request.method !== 'POST' && request.method !== 'DELETE') {
+    return json({ error: 'method' }, 405);
   }
   const origin = request.headers.get('origin') ?? '';
   if (origin && origin !== url.origin) return json({ error: 'forbidden' }, 403);
+  if (!(await underLimit(env.API_LIMIT, `push:${clientIp(request)}`))) {
+    return json({ error: 'Too many requests. Try again in a minute.' }, 429);
+  }
+  const user = await requireUser(request, env);
+  if (!user) return json({ error: 'Sign in to use reminders.' }, 401);
+
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
   } catch {
     return json({ error: 'bad request' }, 400);
   }
+  const devicesKey = `devices:${user.id}`;
+  const devices = ((await env.PUSH.get(devicesKey, 'json')) as string[] | null) ?? [];
 
   if (url.pathname === '/api/push/subscribe' && request.method === 'POST') {
     const sub = body.subscription as PushSubscriptionJson | undefined;
-    if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
+    if (
+      !sub ||
+      !isPushEndpoint(sub.endpoint) ||
+      typeof sub.keys?.p256dh !== 'string' ||
+      typeof sub.keys?.auth !== 'string' ||
+      sub.keys.p256dh.length > 200 ||
+      sub.keys.auth.length > 64
+    ) {
       return json({ error: 'bad subscription' }, 400);
     }
     const key = await subKey(sub.endpoint);
     const existing = (await env.PUSH.get(key, 'json')) as StoredSubscription | null;
+    if (existing?.user_id && existing.user_id !== user.id) {
+      return json({ error: 'forbidden' }, 403);
+    }
+    if (!devices.includes(key)) {
+      if (devices.length >= MAX_DEVICES_PER_USER) {
+        return json({ error: 'Too many devices have reminders on this account.' }, 429);
+      }
+      await env.PUSH.put(devicesKey, JSON.stringify([...devices, key]));
+    }
     const stored: StoredSubscription = {
-      subscription: sub,
+      subscription: {
+        endpoint: sub.endpoint,
+        keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth },
+      },
       prefs: cleanPrefs(body.prefs),
-      tz: typeof body.tz === 'string' ? body.tz : 'UTC',
+      tz: typeof body.tz === 'string' && body.tz.length <= 64 ? body.tz : 'UTC',
       ...(typeof body.lastLoggedDate === 'string' ? { lastLoggedDate: body.lastLoggedDate } : {}),
       ...(typeof body.lastWeighedDate === 'string'
         ? { lastWeighedDate: body.lastWeighedDate }
         : {}),
       ...(existing?.sent ? { sent: existing.sent } : {}),
+      user_id: user.id,
       updated_at: new Date().toISOString(),
     };
     await env.PUSH.put(key, JSON.stringify(stored));
     return json({ ok: true });
   }
+
+  const endpoint = body.endpoint;
+  if (!isPushEndpoint(endpoint)) return json({ error: 'bad request' }, 400);
+  const key = await subKey(endpoint);
+  const existing = (await env.PUSH.get(key, 'json')) as StoredSubscription | null;
+
   if (url.pathname === '/api/push/subscribe' && request.method === 'DELETE') {
-    const endpoint = body.endpoint;
-    if (typeof endpoint !== 'string') return json({ error: 'bad request' }, 400);
-    await env.PUSH.delete(await subKey(endpoint));
+    if (existing?.user_id && existing.user_id !== user.id) {
+      return json({ error: 'forbidden' }, 403);
+    }
+    await env.PUSH.delete(key);
+    if (devices.includes(key)) {
+      await env.PUSH.put(devicesKey, JSON.stringify(devices.filter((d) => d !== key)));
+    }
     return json({ ok: true });
   }
   if (url.pathname === '/api/push/ping' && request.method === 'POST') {
-    const endpoint = body.endpoint;
-    if (typeof endpoint !== 'string') return json({ error: 'bad request' }, 400);
-    const key = await subKey(endpoint);
-    const existing = (await env.PUSH.get(key, 'json')) as StoredSubscription | null;
     if (!existing) return json({ error: 'unknown subscription' }, 404);
+    if (existing.user_id && existing.user_id !== user.id) return json({ error: 'forbidden' }, 403);
     if (typeof body.lastLoggedDate === 'string') existing.lastLoggedDate = body.lastLoggedDate;
     if (typeof body.lastWeighedDate === 'string') existing.lastWeighedDate = body.lastWeighedDate;
+    // Subscriptions from before sign-in was required are adopted by the first owner to ping.
+    existing.user_id = user.id;
     existing.updated_at = new Date().toISOString();
     await env.PUSH.put(key, JSON.stringify(existing));
     return json({ ok: true });
@@ -105,8 +170,10 @@ export async function runReminders(
   do {
     const page: KVNamespaceListResult<unknown> = await env.PUSH.list(cursor ? { cursor } : {});
     for (const k of page.keys) {
+      if (k.name.includes(':')) continue; // quota counters and device indexes, not subscriptions
       const s = (await env.PUSH.get(k.name, 'json')) as StoredSubscription | null;
-      if (!s) continue;
+      // Never POST anywhere but a browser push service, whatever is in the store.
+      if (!s?.subscription || !isPushEndpoint(s.subscription.endpoint)) continue;
       const due = dueReminders(s, now);
       if (due.length === 0) continue;
       const { date } = localClockFor(s, now);
@@ -158,6 +225,7 @@ const json = (body: unknown, status = 200, cacheSeconds = 0): Response =>
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
+      'x-content-type-options': 'nosniff',
       // Browsers keep it an hour; the edge cache keeps it for the full window.
       'cache-control': cacheSeconds ? `public, max-age=3600, s-maxage=${cacheSeconds}` : 'no-store',
     },
@@ -242,25 +310,55 @@ export default {
 
     if (url.pathname.startsWith('/api/push/')) return handlePush(request, url, env);
 
-    // SPEC §9.4 — estimation. POST only, from the app's own origin, never cached.
+    // SPEC §9.4 — estimation. It costs money, so: signed in, rate-limited, daily-capped.
     if (url.pathname === '/api/estimate') {
       if (request.method !== 'POST') return json({ error: 'method' }, 405);
       const origin = request.headers.get('origin') ?? '';
       if (origin && origin !== url.origin) return json({ error: 'forbidden' }, 403);
+      if (!authConfigured(env) || !env.PUSH) {
+        return json({ error: 'Estimation is not set up on the server yet.' }, 503);
+      }
+      const user = await requireUser(request, env);
+      if (!user) return json({ error: 'Sign in (Settings → Sync) to estimate meals.' }, 401);
+      if (!(await underLimit(env.ESTIMATE_LIMIT, user.id))) {
+        return json({ error: 'One at a time — try again in a minute.' }, 429);
+      }
+      const size = Number(request.headers.get('content-length') ?? 0);
+      if (size > 2_500_000) return json({ error: 'Photo too large.' }, 413);
       let req: EstimateRequest;
       try {
         req = (await request.json()) as EstimateRequest;
       } catch {
         return json({ error: 'bad request' }, 400);
       }
+      const admitted = await admitEstimate(env.PUSH, user.id, env);
+      if (!admitted.ok) {
+        return json(
+          {
+            error:
+              admitted.reason === 'user'
+                ? 'You have used today’s estimates. Tomorrow is a new day.'
+                : 'Estimation is paused until tomorrow.',
+          },
+          429,
+        );
+      }
       const out = await runEstimate(req, env);
       return out.ok
-        ? json({ result: out.result, model: out.model })
+        ? json({
+            result: out.result,
+            model: out.model,
+            used: admitted.usedToday,
+            cap: admitted.capUser,
+          })
         : json({ error: out.error }, out.status);
     }
 
     if (url.pathname.startsWith('/api/')) {
       if (request.method !== 'GET') return json({ error: 'method' }, 405);
+      if (!(await underLimit(env.API_LIMIT, `off:${clientIp(request)}`))) {
+        return json({ error: 'Too many requests. Try again in a minute.' }, 429);
+      }
       const cache = caches.default;
       const cacheKey = new Request(
         `${url.origin}${url.pathname}?${url.searchParams}&_r=${RANK_VERSION}`,
@@ -282,8 +380,8 @@ export default {
         } else {
           return json({ error: 'not found' }, 404);
         }
-      } catch (err) {
-        return json({ error: (err as Error).message }, 502);
+      } catch {
+        return json({ error: 'Open Food Facts is unavailable right now.' }, 502);
       }
       if (response.ok) ctx.waitUntil(cache.put(cacheKey, response.clone()));
       return response;

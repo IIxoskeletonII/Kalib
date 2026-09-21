@@ -21,6 +21,8 @@ export interface StoredSubscription {
   lastWeighedDate?: string;
   /** Local date each reminder was last sent, so it fires once a day. */
   sent?: { weigh?: string; log?: string };
+  /** Supabase user the subscription belongs to (records from before auth was required lack it). */
+  user_id?: string;
   updated_at: string;
 }
 

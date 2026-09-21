@@ -564,11 +564,17 @@ list grouped by aisle, step-by-step recipe instructions.
 
 - **Offline:** all logging works offline. Only barcode lookup (uncached) and photo
   estimation require network. Queue and replay on reconnect.
-- **Cold start:** interactive in <1.5s on a mid-range phone over 4G.
+- **Cold start:** interactive in <1.5s on a mid-range phone over 4G. *Measured 21 Sep 2026
+  (Lighthouse 12, production build, returning visit): 0.84 s interactive under a regular-4G
+  throttle (70 ms RTT, 10 Mbps, 2× CPU slowdown); 2.6 s under Lighthouse's "slow 4G" preset.
+  The first-run food seed (~1.2 MB compressed, 13 k rows) waits for an idle moment and writes
+  in 150-row chunks so it never blocks the first screen.*
 - **Privacy:** this is health data. Single-user for now. **Before any multi-user
   release, GDPR Article 9 (special category data) obligations apply** — explicit consent,
   lawful basis, retention policy, export and erasure. Treat opening this up as a gated
-  decision, not a feature flag.
+  decision, not a feature flag. *Erasure exists since 21 Sep 2026 (Settings → Sign out →
+  Delete my account; `0005_erasure.sql`). The server-side trust model — what is public, what
+  needs a session, daily spending caps — is in `SECURITY.md`.*
 - **Data export:** CSV export of all log entries and weigh-ins from v0. Non-negotiable —
   the user must never be locked into their own app.
 - **Testing:** unit tests on every formula in §3, §4 and §5. These are the product. Seed
