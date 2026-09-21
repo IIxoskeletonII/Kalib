@@ -98,3 +98,13 @@ export async function listAllBatches(): Promise<Batch[]> {
 export async function bulkPutBatches(rows: readonly Batch[]): Promise<void> {
   await db.batches.bulkPut([...rows]);
 }
+
+export async function restoreBatch(id: string): Promise<void> {
+  const ts = nowIso();
+  await db.batches.update(id, { deleted_at: null, updated_at: ts });
+}
+
+export async function restoreRecipe(id: string): Promise<void> {
+  const ts = nowIso();
+  await db.recipes.update(id, { deleted_at: null, updated_at: ts });
+}

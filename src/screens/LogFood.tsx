@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useBack } from '@/hooks/useBack';
 import { useNavigate, useSearchParams } from 'react-router';
 import { AmountSheet, SOURCE_LABEL } from '@/components/AmountSheet';
 import {
@@ -49,6 +50,7 @@ if (import.meta.env.DEV) {
 export default function LogFood() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const back = useBack('/');
   const date = params.get('d') ?? todayKey();
   const slot = (params.get('slot') as MealSlot | null) ?? mealSlotForTime(new Date());
   // Recipe mode (SPEC §8.2): a picked amount becomes an ingredient, nothing is logged.
@@ -174,7 +176,7 @@ export default function LogFood() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-1 pb-3">
-        <IconButton icon={ChevronLeft} label="Back" onClick={() => navigate(-1)} />
+        <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <div className="relative flex-1">
           <Search
             size={18}
@@ -404,11 +406,7 @@ export default function LogFood() {
         entryMethod="search"
         recipe={recipe ? { id: recipe.id, name: recipe.name } : undefined}
         onClose={() => setPicked(null)}
-        onSaved={() =>
-          recipe
-            ? navigate(`/recipes/${recipe.id}`, { replace: true })
-            : navigate(`/?d=${date}`, { replace: true })
-        }
+        onSaved={() => (recipe ? back() : navigate(`/?d=${date}`, { replace: true }))}
       />
     </div>
   );

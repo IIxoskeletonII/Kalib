@@ -91,3 +91,8 @@ export async function bulkPutSupplements(rows: readonly Supplement[]): Promise<v
 export async function bulkPutSupplementLogs(rows: readonly SupplementLog[]): Promise<void> {
   await db.supplement_logs.bulkPut([...rows]);
 }
+
+export async function restoreSupplement(id: string): Promise<void> {
+  const ts = nowIso();
+  await db.supplements.update(id, { deleted_at: null, updated_at: ts });
+}

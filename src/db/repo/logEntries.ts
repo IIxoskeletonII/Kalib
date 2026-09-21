@@ -87,3 +87,8 @@ export async function foodUsageCounts(): Promise<Map<string, number>> {
 export async function bulkPutEntries(rows: readonly LogEntry[]): Promise<void> {
   await db.log_entries.bulkPut([...rows]);
 }
+
+/** Undo of a soft delete. */
+export async function restoreEntry(id: string): Promise<void> {
+  await db.log_entries.update(id, { deleted_at: null, updated_at: nowIso() });
+}

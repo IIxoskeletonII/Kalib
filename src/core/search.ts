@@ -21,6 +21,8 @@ const SOURCE_BOOST: Record<FoodSource, number> = {
   usda_foundation: 1.25,
   off: 1,
   photo: 0.5,
+  // FNDDS is "as eaten" (cooked dishes, restaurant items): a touch above SR's raw ingredients.
+  usda_fndds: 0.25,
   usda_sr: 0,
 };
 
@@ -62,9 +64,12 @@ function singular(q: string): string | undefined {
 
 function matchOne(q: string, t: string): number {
   if (t === q) return 3;
-  if (t.startsWith(q)) return 2;
+  // Plural either way is as good as exact: "banana" ↔ "bananas", "eggs" ↔ "egg".
+  if (t === q + 's' || t === q + 'es') return 2.9;
   const sg = singular(q);
-  if (sg && (t === sg || t.startsWith(sg))) return 2.5;
+  if (sg && t === sg) return 2.9;
+  if (t.startsWith(q)) return 2;
+  if (sg && t.startsWith(sg)) return 2.5;
   return 0;
 }
 

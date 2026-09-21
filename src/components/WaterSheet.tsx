@@ -10,8 +10,10 @@ import {
   sumWater,
 } from '@/core/water';
 import { setSetting } from '@/db/repo/settings';
-import { addWater, deleteWater } from '@/db/repo/water';
+import { addWater, deleteWater, restoreWater } from '@/db/repo/water';
 import { NumberPad } from './NumberPad';
+import { SwipeRow } from './SwipeRow';
+import { toast } from './Toast';
 import { Button, Chip, IconButton, Sheet, fmt } from './ui';
 
 export function WaterSheet({
@@ -100,22 +102,31 @@ export function WaterSheet({
           <p className="mb-2 px-1 text-[13px] font-semibold text-muted">Today</p>
           <div className="card divide-y divide-line">
             {logs.map((l) => (
-              <div key={l.id} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="flex-1 text-[15px] tabular">{formatWater(l.ml)}</span>
-                <span className="text-[13px] text-muted tabular">
-                  {new Date(l.logged_at).toLocaleTimeString(undefined, {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })}
-                </span>
-                <IconButton
-                  icon={Trash2}
-                  label={`Remove ${formatWater(l.ml)}`}
-                  size={18}
-                  className="-mr-2 h-9 w-9 text-muted"
-                  onClick={() => void deleteWater(l.id)}
-                />
-              </div>
+              <SwipeRow
+                key={l.id}
+                onDelete={() => {
+                  void deleteWater(l.id).then(() =>
+                    toast('Glass removed', { label: 'Undo', run: () => restoreWater(l.id) }),
+                  );
+                }}
+              >
+                <div className="flex items-center gap-3 px-4 py-2.5">
+                  <span className="flex-1 text-[15px] tabular">{formatWater(l.ml)}</span>
+                  <span className="text-[13px] text-muted tabular">
+                    {new Date(l.logged_at).toLocaleTimeString(undefined, {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                  <IconButton
+                    icon={Trash2}
+                    label={`Remove ${formatWater(l.ml)}`}
+                    size={18}
+                    className="-mr-2 h-9 w-9 text-muted"
+                    onClick={() => void deleteWater(l.id)}
+                  />
+                </div>
+              </SwipeRow>
             ))}
           </div>
         </div>

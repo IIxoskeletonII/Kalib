@@ -4,7 +4,7 @@
 export type Sex = 'male' | 'female';
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'heavy';
 export type Mode = 'CUT' | 'MAINTAIN' | 'RECOMP';
-export type FoodSource = 'usda_foundation' | 'usda_sr' | 'off' | 'custom' | 'photo';
+export type FoodSource = 'usda_foundation' | 'usda_sr' | 'usda_fndds' | 'off' | 'custom' | 'photo';
 export type EntryMethod = 'favourite' | 'search' | 'barcode' | 'batch' | 'photo' | 'manual';
 export type Confidence = 'high' | 'medium' | 'low';
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';

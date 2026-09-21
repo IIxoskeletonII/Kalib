@@ -4,13 +4,14 @@ import { todayKey } from '@/core/dates';
 import { encodeShare, packRecipe, type SharedRecipe } from '@/core/recipeShare';
 import { portionGrams, recipeFoodFields, servingsOf } from '@/core/recipes';
 import type { Batch, Food, MealSlot, Recipe, RecipeItem } from '@/core/types';
-import { addFood, getFood, getFoods, updateFood, deleteFood } from '@/db/repo/foods';
-import { addEntry, deleteEntry, getEntry } from '@/db/repo/logEntries';
+import { addFood, getFood, getFoods, restoreFood, updateFood, deleteFood } from '@/db/repo/foods';
+import { addEntry, deleteEntry, getEntry, restoreEntry } from '@/db/repo/logEntries';
 import {
   addBatch,
   addRecipe,
   adjustBatchPortions,
   getRecipe,
+  restoreRecipe as restoreRecipeRow,
   updateRecipe,
   deleteRecipe as deleteRecipeRow,
 } from '@/db/repo/recipes';
@@ -151,6 +152,19 @@ export async function removeEntry(id: string): Promise<void> {
   if (!e) return;
   await deleteEntry(id);
   if (e.batch_id) await adjustBatchPortions(e.batch_id, e.servings);
+}
+
+/** Undo of removeEntry: the entry returns and its batch portion is taken again. */
+export async function undoRemoveEntry(id: string): Promise<void> {
+  await restoreEntry(id);
+  const e = await getEntry(id);
+  if (e?.batch_id) await adjustBatchPortions(e.batch_id, -e.servings);
+}
+
+/** Undo of deleteRecipe: recipe and its food come back together. */
+export async function undoDeleteRecipe(recipeId: string, foodId: string): Promise<void> {
+  await restoreRecipeRow(recipeId);
+  await restoreFood(foodId);
 }
 
 /** Grams of one portion for the amount sheet, from the batch when there is one. */

@@ -39,12 +39,32 @@ const DATASETS: Dataset[] = [
     zip: 'sr_legacy.zip',
     jsonKey: 'SRLegacyFoods',
     out: 'foods-sr.json',
+    // Fast food, restaurant dishes and ready meals are exactly what gets eaten out; only baby
+    // food and the regional survey set are noise here.
+    dropCategories: ['Baby Foods', 'American Indian/Alaska Native Foods'],
+  },
+  {
+    // FNDDS "survey foods": ~5,500 foods as eaten — mixed dishes, takeaway, cooked variants —
+    // with the full nutrient panel. The natural target for describe-to-log grounding (§9.4).
+    source: 'usda_fndds',
+    url: 'https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_survey_food_json_2024-10-31.zip',
+    zip: 'survey.zip',
+    jsonKey: 'SurveyFoods',
+    out: 'foods-fndds.json',
     dropCategories: [
-      'Fast Foods',
-      'Restaurant Foods',
-      'Baby Foods',
-      'American Indian/Alaska Native Foods',
-      'Meals, Entrees, and Side Dishes',
+      'Baby food: yogurt',
+      'Baby food: cereals',
+      'Baby food: fruit',
+      'Baby food: vegetables',
+      'Baby food: meat and dinners',
+      'Baby food: mixtures',
+      'Baby food: snacks and sweets',
+      'Baby juice',
+      'Baby water',
+      'Formula, ready-to-feed',
+      'Formula, prepared from powder',
+      'Formula, prepared from concentrate',
+      'Human milk',
     ],
   },
 ];
@@ -60,11 +80,15 @@ interface FdcPortion {
   modifier?: string;
   sequenceNumber?: number;
   measureUnit?: { name?: string; abbreviation?: string };
+  /** FNDDS: a ready-made label ("1 cup", "1 slice"), no measure unit. */
+  portionDescription?: string;
 }
 interface FdcFood {
   fdcId: number;
   description: string;
   foodCategory?: { description?: string };
+  /** FNDDS category ("Pizza", "Chicken, whole pieces"). */
+  wweiaFoodCategory?: { wweiaFoodCategoryDescription?: string };
   foodNutrients: FdcNutrient[];
   foodPortions?: FdcPortion[];
 }
@@ -143,6 +167,14 @@ function toPortions(ps: FdcPortion[] | undefined): Portion[] {
   for (const p of sorted) {
     const g = p.gramWeight;
     if (!g || g <= 0) continue;
+    if (p.portionDescription) {
+      const label = p.portionDescription.trim();
+      if (!label || /not specified/i.test(label) || seen.has(label)) continue;
+      seen.add(label);
+      out.push({ label, grams: round(g, 1) });
+      if (out.length === 4) break;
+      continue;
+    }
     const unit = p.measureUnit?.abbreviation || p.measureUnit?.name || '';
     if (unit === 'RACC') continue;
     const amount = p.amount ?? 1;
@@ -174,7 +206,8 @@ function transform(
   const dropped: Record<string, number> = {};
   const out: SeedFood[] = [];
   for (const f of foods) {
-    const cat = f.foodCategory?.description ?? '';
+    const cat =
+      f.foodCategory?.description ?? f.wweiaFoodCategory?.wweiaFoodCategoryDescription ?? '';
     if (ds.dropCategories.includes(cat)) {
       dropped[cat] = (dropped[cat] ?? 0) + 1;
       continue;

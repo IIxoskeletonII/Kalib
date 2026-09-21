@@ -2,8 +2,10 @@
 // this person, with its basis) or by hand; edit dose, unit and timing; remove.
 import { ChevronLeft, Pill, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useBack } from '@/hooks/useBack';
 import { NumberPad } from '@/components/NumberPad';
+import { SwipeRow } from '@/components/SwipeRow';
+import { toast } from '@/components/Toast';
 import { Button, Card, EmptyState, IconButton, ListRow, Segmented, Sheet } from '@/components/ui';
 import {
   SUPPLEMENT_CATALOGUE,
@@ -18,7 +20,7 @@ import {
   type Person,
 } from '@/core/supplements';
 import type { Supplement, SupplementTiming, SupplementUnit } from '@/core/types';
-import { deleteSupplement } from '@/db/repo/supplements';
+import { deleteSupplement, restoreSupplement } from '@/db/repo/supplements';
 import { usePerson, useSupplements } from '@/hooks/useData';
 import { createSupplement, editSupplement, type SupplementDraft } from '@/services/supplements';
 
@@ -31,7 +33,7 @@ const TIMING_OPTIONS = (Object.keys(TIMING_LABEL) as SupplementTiming[]).map((t)
 }));
 
 export default function Supplements() {
-  const navigate = useNavigate();
+  const back = useBack('/settings');
   const supplements = useSupplements();
   const person = usePerson();
   const [picking, setPicking] = useState(false);
@@ -41,7 +43,7 @@ export default function Supplements() {
   return (
     <div className="pb-32">
       <div className="flex items-center gap-1 pt-1">
-        <IconButton icon={ChevronLeft} label="Back" onClick={() => navigate(-1)} />
+        <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <div className="flex-1">
           <h1 className="text-[22px] leading-tight font-bold tracking-[-0.01em]">Supplements</h1>
           <p className="text-[13px] text-muted">Tap one to change its dose.</p>
@@ -70,21 +72,32 @@ export default function Supplements() {
             const guide = person ? catalogueItem(s.catalogue_id)?.recommend(person) : undefined;
             const warn = guide ? doseWarning(s.dose, guide) : undefined;
             return (
-              <ListRow
+              <SwipeRow
                 key={s.id}
-                onClick={() => setEditing({ kind: 'edit', supplement: s })}
-                icon={Pill}
-                iconTone="accent"
-                title={s.name}
-                subtitle={
-                  warn ??
-                  (guide && guide.dose !== s.dose
-                    ? `${TIMING_LABEL[s.timing]} · suggested ${formatDose(guide.dose, guide.unit)}`
-                    : TIMING_LABEL[s.timing])
-                }
-                value={formatDose(s.dose, s.unit)}
-                chevron
-              />
+                onDelete={() => {
+                  void deleteSupplement(s.id).then(() =>
+                    toast(`${s.name} removed`, {
+                      label: 'Undo',
+                      run: () => restoreSupplement(s.id),
+                    }),
+                  );
+                }}
+              >
+                <ListRow
+                  onClick={() => setEditing({ kind: 'edit', supplement: s })}
+                  icon={Pill}
+                  iconTone="accent"
+                  title={s.name}
+                  subtitle={
+                    warn ??
+                    (guide && guide.dose !== s.dose
+                      ? `${TIMING_LABEL[s.timing]} · suggested ${formatDose(guide.dose, guide.unit)}`
+                      : TIMING_LABEL[s.timing])
+                  }
+                  value={formatDose(s.dose, s.unit)}
+                  chevron
+                />
+              </SwipeRow>
             );
           })}
         </Card>

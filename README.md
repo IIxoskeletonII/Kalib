@@ -14,9 +14,11 @@ targets you keep missing. Progressive web app, works offline, costs nothing to r
 
 ## What it does
 
-- **Logging in seconds** — offline USDA database (7 k foods), packaged products from Open Food
-  Facts by search or **barcode photo** (decoded on-device), your own foods, a custom number pad
-  (no OS keyboard), one-tap "log again" tiles, quick manual entry.
+- **Logging in seconds** — offline USDA database (13 k foods: Foundation, SR Legacy and FNDDS
+  dishes as eaten), packaged products from Open Food Facts by search or **barcode photo**
+  (decoded on-device), your own foods, a custom number pad (no OS keyboard), amounts in g / ml /
+  oz / fl oz with liquids opening in ml, one-tap "log again" tiles, swipe to delete (with undo)
+  or to log again, quick manual entry.
 - **Targets that calibrate to you** — formula targets while calibrating, then from day 24 a
   measured TDEE from the weight trend and logged intake over a 28-day window, with a 95 %
   interval, guard rails (±150 kcal per weekly step, a hold-and-explain card when the measurement

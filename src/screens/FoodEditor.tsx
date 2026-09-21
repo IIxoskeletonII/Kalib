@@ -2,6 +2,7 @@
 // becomes the food's first portion so it logs in one tap.
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useBack } from '@/hooks/useBack';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { NumberPad } from '@/components/NumberPad';
 import { Button, IconButton } from '@/components/ui';
@@ -32,6 +33,7 @@ export default function FoodEditor() {
   const { id } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const back = useBack('/foods');
   const date = params.get('d') ?? todayKey();
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
@@ -106,7 +108,7 @@ export default function FoodEditor() {
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center gap-1">
-        <IconButton icon={ChevronLeft} label="Back" onClick={() => navigate(-1)} />
+        <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <div className="flex-1">
           <h1 className="text-[22px] leading-tight font-bold tracking-[-0.01em]">
             {id ? 'Edit food' : 'New food'}

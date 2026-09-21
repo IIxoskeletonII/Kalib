@@ -5,6 +5,7 @@ import {
   Cookie,
   Moon,
   Plus,
+  RotateCcw,
   Scale,
   Sparkles,
   Sun,
@@ -17,6 +18,8 @@ import { AccountChip } from '@/components/AccountChip';
 import { AmountSheet, SLOT_LABEL } from '@/components/AmountSheet';
 import { DailyChecks } from '@/components/DailyChecks';
 import { DayHero } from '@/components/DayHero';
+import { SwipeRow } from '@/components/SwipeRow';
+import { toast } from '@/components/Toast';
 import {
   Badge,
   Button,
@@ -55,6 +58,8 @@ import {
   useWeighIns,
 } from '@/hooks/useData';
 import { recordChoice } from '@/services/banking';
+import { repeatEntry } from '@/services/logging';
+import { removeEntry, undoRemoveEntry } from '@/services/recipes';
 import { acceptPendingTdee, dismissPendingTdee, type TdeeState } from '@/services/tdee';
 
 interface SheetState {
@@ -324,24 +329,37 @@ export default function Today() {
             <SectionHeading trailing={`${fmt(kcal)} kcal`}>{SLOT_LABEL[slot]}</SectionHeading>
             <Card className="divide-y divide-line">
               {list.map((e, i) => (
-                <div
+                <SwipeRow
                   key={e.id}
                   className="rise-in"
-                  style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}
+                  onDelete={() => {
+                    void removeEntry(e.id).then(() =>
+                      toast('Entry deleted', { label: 'Undo', run: () => undoRemoveEntry(e.id) }),
+                    );
+                  }}
+                  leading={{
+                    label: 'Again',
+                    icon: RotateCcw,
+                    onAction: () => {
+                      void repeatEntry(e).then(() => toast(`${shortName(e.name)} logged again`));
+                    },
+                  }}
                 >
-                  <ListRow
-                    onClick={() => openEntry(e)}
-                    icon={Icon}
-                    iconTone="kcal"
-                    title={e.name}
-                    badge={
-                      e.confidence !== 'high' ? <Badge tone="kcal">estimate</Badge> : undefined
-                    }
-                    subtitle={entryMeta(e)}
-                    value={fmt(e.kcal)}
-                    valueSub="kcal"
-                  />
-                </div>
+                  <div style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}>
+                    <ListRow
+                      onClick={() => openEntry(e)}
+                      icon={Icon}
+                      iconTone="kcal"
+                      title={e.name}
+                      badge={
+                        e.confidence !== 'high' ? <Badge tone="kcal">estimate</Badge> : undefined
+                      }
+                      subtitle={entryMeta(e)}
+                      value={fmt(e.kcal)}
+                      valueSub="kcal"
+                    />
+                  </div>
+                </SwipeRow>
               ))}
             </Card>
           </section>

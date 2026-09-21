@@ -12,9 +12,12 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useBack } from '@/hooks/useBack';
 import { useNavigate, useParams } from 'react-router';
 import { AmountSheet } from '@/components/AmountSheet';
 import { NumberPad } from '@/components/NumberPad';
+import { SwipeRow } from '@/components/SwipeRow';
+import { toast } from '@/components/Toast';
 import { Button, Card, IconButton, ListRow, SectionHeading, Sheet, fmt } from '@/components/ui';
 import { fromDateKey, mealSlotForTime, todayKey } from '@/core/dates';
 import { scaleFood } from '@/core/nutrition';
@@ -26,6 +29,7 @@ import {
   recipeTotals,
 } from '@/core/recipes';
 import type { Batch, Recipe } from '@/core/types';
+import { deleteBatch, restoreBatch } from '@/db/repo/recipes';
 import {
   useActiveBatches,
   useBatchesForRecipe,
@@ -35,6 +39,7 @@ import {
 } from '@/hooks/useData';
 import { shareText } from '@/platform/share';
 import {
+  addRecipeItem,
   cookBatch,
   deleteRecipe,
   removeRecipeItem,
@@ -59,6 +64,7 @@ export default function RecipeEditor() {
 
 function Editor({ recipe }: { recipe: Recipe }) {
   const navigate = useNavigate();
+  const back = useBack('/recipes');
   const foods = useRecipeFoods(recipe.items);
   const food = useFood(recipe.food_id);
   const batches = useBatchesForRecipe(recipe.id);
@@ -101,7 +107,7 @@ function Editor({ recipe }: { recipe: Recipe }) {
   return (
     <div className="pb-32">
       <div className="flex items-center gap-1 pt-1">
-        <IconButton icon={ChevronLeft} label="Back" onClick={() => navigate('/recipes')} />
+        <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <input
           type="text"
           value={name}
@@ -153,15 +159,29 @@ function Editor({ recipe }: { recipe: Recipe }) {
             const f = foods?.get(it.food_id);
             const kcal = f ? scaleFood(f, it.grams).kcal : undefined;
             return (
-              <ListRow
+              <SwipeRow
                 key={`${it.food_id}:${i}`}
-                onClick={() => setEditingItem(i)}
-                wrapTitle
-                title={it.name}
-                subtitle={f ? undefined : 'Food no longer available'}
-                value={`${fmt(it.grams)} g`}
-                valueSub={kcal != null ? `${fmt(kcal)} kcal` : undefined}
-              />
+                deleteLabel="Remove"
+                onDelete={() => {
+                  void removeRecipeItem(recipe.id, i).then(() =>
+                    toast(`${it.name.split(',')[0]} removed`, {
+                      label: 'Undo',
+                      run: async () => {
+                        if (f) await addRecipeItem(recipe.id, f, it.grams);
+                      },
+                    }),
+                  );
+                }}
+              >
+                <ListRow
+                  onClick={() => setEditingItem(i)}
+                  wrapTitle
+                  title={it.name}
+                  subtitle={f ? undefined : 'Food no longer available'}
+                  value={`${fmt(it.grams)} g`}
+                  valueSub={kcal != null ? `${fmt(kcal)} kcal` : undefined}
+                />
+              </SwipeRow>
             );
           })}
           <ListRow
@@ -238,21 +258,29 @@ function Editor({ recipe }: { recipe: Recipe }) {
           <SectionHeading>Batches</SectionHeading>
           <Card className="divide-y divide-line">
             {batches.slice(0, 5).map((b) => (
-              <ListRow
+              <SwipeRow
                 key={b.id}
-                onClick={b.portions_remaining > 0 ? () => setLogging(b) : undefined}
-                title={`Cooked ${fromDateKey(b.cooked_on).toLocaleDateString(undefined, {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short',
-                })}`}
-                subtitle={`${fmt(b.total_g)} g · ${b.portions_total} portions`}
-                value={
-                  b.portions_remaining > 0
-                    ? `${formatPortions(b.portions_remaining)} left`
-                    : 'Finished'
-                }
-              />
+                onDelete={() => {
+                  void deleteBatch(b.id).then(() =>
+                    toast('Batch deleted', { label: 'Undo', run: () => restoreBatch(b.id) }),
+                  );
+                }}
+              >
+                <ListRow
+                  onClick={b.portions_remaining > 0 ? () => setLogging(b) : undefined}
+                  title={`Cooked ${fromDateKey(b.cooked_on).toLocaleDateString(undefined, {
+                    weekday: 'short',
+                    day: 'numeric',
+                    month: 'short',
+                  })}`}
+                  subtitle={`${fmt(b.total_g)} g · ${b.portions_total} portions`}
+                  value={
+                    b.portions_remaining > 0
+                      ? `${formatPortions(b.portions_remaining)} left`
+                      : 'Finished'
+                  }
+                />
+              </SwipeRow>
             ))}
           </Card>
         </section>

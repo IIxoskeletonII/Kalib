@@ -1,6 +1,7 @@
 // SPEC §9.4 — describe a meal (photo optional), get grounded items back, adjust, log.
 import { Camera, ChevronLeft, Sparkles, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useBack } from '@/hooks/useBack';
 import { useNavigate, useSearchParams } from 'react-router';
 import { SLOT_LABEL } from '@/components/AmountSheet';
 import { NumberPad } from '@/components/NumberPad';
@@ -22,6 +23,7 @@ type Phase =
 export default function Estimate() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const back = useBack('/');
   const date = params.get('d') ?? todayKey();
   const [description, setDescription] = useState('');
   const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
@@ -77,7 +79,7 @@ export default function Estimate() {
   return (
     <div className="flex h-full flex-col pb-6">
       <div className="flex items-center gap-1 pt-1">
-        <IconButton icon={ChevronLeft} label="Back" onClick={() => navigate(-1)} />
+        <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <div className="flex-1">
           <h1 className="text-[22px] leading-tight font-bold tracking-[-0.01em]">
             Describe a meal

@@ -6,6 +6,15 @@ import { useMemo, useState } from 'react';
 import { scaleFood } from '@/core/nutrition';
 import { formatPortions } from '@/core/recipes';
 import {
+  UNIT_LABEL,
+  densityFor,
+  fromGrams,
+  isLiquid,
+  roundIn,
+  toGrams,
+  type AmountUnit,
+} from '@/core/units';
+import {
   MEAL_SLOTS,
   type Batch,
   type EntryMethod,
@@ -47,6 +56,7 @@ export const SLOT_LABEL: Record<MealSlot, string> = {
 export const SOURCE_LABEL: Record<Food['source'], string> = {
   usda_foundation: 'USDA',
   usda_sr: 'USDA SR',
+  usda_fndds: 'USDA FNDDS',
   off: 'Open Food Facts',
   custom: 'My food',
   photo: 'Photo estimate',
@@ -66,22 +76,40 @@ export function AmountSheet(p: AmountSheetProps) {
 }
 
 function AmountForm(p: AmountSheetProps & { food: Food }) {
-  const [grams, setGrams] = useState(p.initialGrams != null ? String(p.initialGrams) : '');
+  // Amounts are typed in the chosen unit and stored in grams (SPEC §6). Liquids open in ml.
+  const density = useMemo(() => densityFor(p.food), [p.food]);
+  const startUnit: AmountUnit = !p.batch && !p.recipe && isLiquid(p.food) ? 'ml' : 'g';
+  const [unit, setUnit] = useState<AmountUnit>(startUnit);
+  const [amount, setAmount] = useState(() =>
+    p.initialGrams != null
+      ? String(roundIn(fromGrams(p.initialGrams, startUnit, density.g_per_ml), startUnit))
+      : '',
+  );
   // A prefilled amount (last time's grams, or a portion chip) is replaced by the first key
   // press rather than appended to — "150" → tap 2 → "2", not "1502".
   const [pristine, setPristine] = useState(p.initialGrams != null);
   const [slot, setSlot] = useState<MealSlot>(p.initialSlot);
   const type = (u: (prev: string) => string) => {
-    setGrams((prev) => u(pristine ? '' : prev));
+    setAmount((prev) => u(pristine ? '' : prev));
     setPristine(false);
   };
-  const preset = (v: number) => {
-    setGrams(String(v));
+  const preset = (gramsValue: number) => {
+    setAmount(String(roundIn(fromGrams(gramsValue, unit, density.g_per_ml), unit)));
     setPristine(true);
+  };
+  const switchUnit = (next: AmountUnit) => {
+    if (next === unit) return;
+    const current = Number(amount) || 0;
+    if (current > 0) {
+      const gramsNow = toGrams(current, unit, density.g_per_ml);
+      setAmount(String(roundIn(fromGrams(gramsNow, next, density.g_per_ml), next)));
+      setPristine(true);
+    }
+    setUnit(next);
   };
   const [busy, setBusy] = useState(false);
 
-  const g = Number(grams) || 0;
+  const g = Math.round(toGrams(Number(amount) || 0, unit, density.g_per_ml) * 10) / 10;
   const preview = useMemo(() => scaleFood(p.food, g), [p.food, g]);
   const done = p.onSaved ?? p.onClose;
   const portion = p.batch ? p.batch.batch.total_g / p.batch.batch.portions_total : undefined;
@@ -165,8 +193,8 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
 
       <div className="flex items-end justify-between gap-4">
         <div className="display">
-          {grams === '' ? <span className="text-surface-3">0</span> : grams}
-          <span className="ml-1.5 text-[22px] font-medium text-muted">g</span>
+          {amount === '' ? <span className="text-surface-3">0</span> : amount}
+          <span className="ml-1.5 text-[22px] font-medium text-muted">{UNIT_LABEL[unit]}</span>
         </div>
         <div className="text-right">
           <div className="tabular text-[22px] font-semibold leading-none">
@@ -182,9 +210,39 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
         </div>
       </div>
 
+      <div className="flex items-center gap-1.5" role="radiogroup" aria-label="Unit">
+        {(['g', 'ml', 'oz', 'floz'] as AmountUnit[]).map((u) => (
+          <button
+            key={u}
+            type="button"
+            role="radio"
+            aria-checked={u === unit}
+            onClick={() => switchUnit(u)}
+            className={`h-8 rounded-full px-3 text-[13px] transition-[background-color,color] duration-200 ${
+              u === unit ? 'bg-primary font-semibold text-on-primary' : 'bg-surface-2 text-ink-2'
+            }`}
+          >
+            {UNIT_LABEL[u]}
+          </button>
+        ))}
+        {(unit === 'ml' || unit === 'floz') && (
+          <span className="ml-auto text-[12px] text-muted tabular">
+            {g > 0 ? `= ${fmt(g)} g` : ''}
+            {density.basis === 'assumed' ? ' · 1 ml ≈ 1 g assumed' : ''}
+          </span>
+        )}
+        {unit === 'oz' && g > 0 && (
+          <span className="ml-auto text-[12px] text-muted tabular">= {fmt(g)} g</span>
+        )}
+      </div>
+
       <div className="rail -mx-5 flex gap-2 overflow-x-auto px-5">
         {presets.map((po) => (
-          <Chip key={po.label} onClick={() => preset(po.grams)} active={g === po.grams}>
+          <Chip
+            key={po.label}
+            onClick={() => preset(po.grams)}
+            active={Math.abs(g - po.grams) < 0.5}
+          >
             {po.label}
           </Chip>
         ))}

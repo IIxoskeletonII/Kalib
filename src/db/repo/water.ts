@@ -25,3 +25,8 @@ export async function listAllWater(): Promise<WaterLog[]> {
 export async function bulkPutWater(rows: readonly WaterLog[]): Promise<void> {
   await db.water_logs.bulkPut([...rows]);
 }
+
+export async function restoreWater(id: string): Promise<void> {
+  const ts = nowIso();
+  await db.water_logs.update(id, { deleted_at: null, updated_at: ts });
+}

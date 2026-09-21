@@ -3,6 +3,7 @@
 import { Check, ChefHat, ChevronLeft, Copy } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
+import { useBack } from '@/hooks/useBack';
 import { Badge, Button, Card, IconButton, ListRow, fmt } from '@/components/ui';
 import { decodeShare, extractShareCode, type SharedRecipe } from '@/core/recipeShare';
 import { useProfile } from '@/hooks/useData';
@@ -10,6 +11,7 @@ import { importRecipe, previewImport, type ImportPreview } from '@/services/reci
 
 export default function RecipeImport() {
   const navigate = useNavigate();
+  const back = useBack('/recipes');
   const location = useLocation();
   const profile = useProfile();
   const [text, setText] = useState('');
@@ -78,11 +80,7 @@ export default function RecipeImport() {
   return (
     <div className="pb-32">
       <div className="flex items-center gap-1 pt-1">
-        <IconButton
-          icon={ChevronLeft}
-          label="Back"
-          onClick={() => navigate(profile ? '/recipes' : '/')}
-        />
+        <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <div className="flex-1">
           <h1 className="text-[22px] leading-tight font-bold tracking-[-0.01em]">
             Import a recipe

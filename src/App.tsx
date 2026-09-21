@@ -10,6 +10,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router';
 import { ensureSeeded, type SeedProgress } from '@/db/seed';
 import { useProfile } from '@/hooks/useData';
+import { ToastHost } from '@/components/Toast';
 import { useReminderPing } from '@/hooks/useData';
 import { useSync } from '@/hooks/useSync';
 import { useTheme } from '@/hooks/useTheme';
@@ -127,6 +128,7 @@ export default function App() {
         </div>
       )}
 
+      <ToastHost />
       {!hideNav && (
         <nav
           className="relative border-t border-line bg-bg/90 backdrop-blur-md safe-bottom"
@@ -158,6 +160,7 @@ function Tab({ to, label, icon: Icon }: { to: string; label: string; icon: Lucid
     <NavLink
       to={to}
       end={to === '/'}
+      replace
       viewTransition
       className={({ isActive }) =>
         `flex h-full flex-col items-center justify-center gap-1 text-[11px] font-semibold transition-colors duration-200 ${

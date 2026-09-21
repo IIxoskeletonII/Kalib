@@ -64,3 +64,8 @@ export async function deleteFood(id: string): Promise<void> {
   const ts = new Date().toISOString();
   await db.foods.update(id, { deleted_at: ts, updated_at: ts });
 }
+
+export async function restoreFood(id: string): Promise<void> {
+  const ts = new Date().toISOString();
+  await db.foods.update(id, { deleted_at: null, updated_at: ts });
+}

@@ -1,7 +1,7 @@
 // Week in review as a page of its own: readable in one screen, shareable as text.
 import { Check, ChevronLeft, Share2 } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useBack } from '@/hooks/useBack';
 import { Button, Card, IconButton, fmt } from '@/components/ui';
 import { addDays, fromDateKey, todayKey } from '@/core/dates';
 import type { MicroStat, WeekReview } from '@/core/review';
@@ -10,7 +10,7 @@ import { computeTrend } from '@/core/trend';
 import { shareText } from '@/platform/share';
 
 export default function Review() {
-  const navigate = useNavigate();
+  const back = useBack('/coach');
   const today = todayKey();
   const from = addDays(today, -6);
   const week = useWeekOverview(today);
@@ -72,7 +72,7 @@ export default function Review() {
   return (
     <div className="pb-32">
       <div className="flex items-center gap-1 pt-1">
-        <IconButton icon={ChevronLeft} label="Back" onClick={() => navigate(-1)} />
+        <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <div className="flex-1">
           <h1 className="text-[22px] leading-tight font-bold tracking-[-0.01em]">Week in review</h1>
           <p className="text-[13px] text-muted">{range}</p>

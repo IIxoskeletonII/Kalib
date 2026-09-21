@@ -1,15 +1,19 @@
 // SPEC §8.2 — the user's recipes. New ones get a name here and are built on the editor.
 import { ChefHat, ChevronLeft, Download, Plus } from 'lucide-react';
 import { useState } from 'react';
+import { useBack } from '@/hooks/useBack';
 import { useNavigate } from 'react-router';
 import { Button, Card, EmptyState, IconButton, ListRow, Sheet, fmt } from '@/components/ui';
+import { SwipeRow } from '@/components/SwipeRow';
+import { toast } from '@/components/Toast';
 import { formatPortions, portionGrams } from '@/core/recipes';
 import type { Batch, Recipe } from '@/core/types';
 import { useActiveBatches, useRecipes, useUserFoods } from '@/hooks/useData';
-import { createRecipe } from '@/services/recipes';
+import { createRecipe, deleteRecipe, undoDeleteRecipe } from '@/services/recipes';
 
 export default function Recipes() {
   const navigate = useNavigate();
+  const back = useBack('/settings');
   const recipes = useRecipes();
   const foods = useUserFoods();
   const active = useActiveBatches();
@@ -37,7 +41,7 @@ export default function Recipes() {
   return (
     <div className="pb-32">
       <div className="flex items-center gap-1 pt-1">
-        <IconButton icon={ChevronLeft} label="Back" onClick={() => navigate(-1)} />
+        <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <div className="flex-1">
           <h1 className="text-[22px] leading-tight font-bold tracking-[-0.01em]">Recipes</h1>
           <p className="text-[13px] text-muted">Cook once, log a portion in a tap.</p>
@@ -71,21 +75,32 @@ export default function Recipes() {
             const kcal = kcalPerPortion(r);
             const b = batchFor(r);
             return (
-              <ListRow
+              <SwipeRow
                 key={r.id}
-                onClick={() => navigate(`/recipes/${r.id}`)}
-                icon={ChefHat}
-                iconTone="accent"
-                title={r.name}
-                subtitle={
-                  b
-                    ? `${formatPortions(b.portions_remaining)} of ${b.portions_total} portions left`
-                    : `${r.items.length} ${r.items.length === 1 ? 'ingredient' : 'ingredients'} · ${r.portions} portions`
-                }
-                value={kcal != null ? fmt(kcal) : undefined}
-                valueSub={kcal != null ? 'kcal / portion' : undefined}
-                chevron
-              />
+                onDelete={() => {
+                  void deleteRecipe(r.id).then(() =>
+                    toast(`${r.name} deleted`, {
+                      label: 'Undo',
+                      run: () => undoDeleteRecipe(r.id, r.food_id),
+                    }),
+                  );
+                }}
+              >
+                <ListRow
+                  onClick={() => navigate(`/recipes/${r.id}`)}
+                  icon={ChefHat}
+                  iconTone="accent"
+                  title={r.name}
+                  subtitle={
+                    b
+                      ? `${formatPortions(b.portions_remaining)} of ${b.portions_total} portions left`
+                      : `${r.items.length} ${r.items.length === 1 ? 'ingredient' : 'ingredients'} · ${r.portions} portions`
+                  }
+                  value={kcal != null ? fmt(kcal) : undefined}
+                  valueSub={kcal != null ? 'kcal / portion' : undefined}
+                  chevron
+                />
+              </SwipeRow>
             );
           })}
         </Card>

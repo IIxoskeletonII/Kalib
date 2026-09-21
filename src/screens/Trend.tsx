@@ -3,6 +3,9 @@ import { useMemo, useState } from 'react';
 import { TrendChart } from '@/components/TrendChart';
 import { Card, Chip, EmptyState, ListRow, Row, SectionHeading, Segmented } from '@/components/ui';
 import { WeighInSheet } from '@/components/WeighInSheet';
+import { SwipeRow } from '@/components/SwipeRow';
+import { toast } from '@/components/Toast';
+import { deleteWeighIn, upsertWeighIn } from '@/db/repo/weighIns';
 import { addDays, fromDateKey, todayKey } from '@/core/dates';
 import { computeTrend, trendDelta } from '@/core/trend';
 import { fmt } from '@/components/ui';
@@ -200,16 +203,29 @@ export default function Trend() {
               .reverse()
               .slice(0, 14)
               .map((w) => (
-                <ListRow
+                <SwipeRow
                   key={w.id}
-                  onClick={() => setEditDate(w.date)}
-                  title={fromDateKey(w.date).toLocaleDateString(undefined, {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                  })}
-                  value={`${w.weight_kg.toFixed(1)} kg`}
-                />
+                  onDelete={() => {
+                    void deleteWeighIn(w.date).then(() =>
+                      toast('Weigh-in deleted', {
+                        label: 'Undo',
+                        run: async () => {
+                          await upsertWeighIn(w.date, w.weight_kg);
+                        },
+                      }),
+                    );
+                  }}
+                >
+                  <ListRow
+                    onClick={() => setEditDate(w.date)}
+                    title={fromDateKey(w.date).toLocaleDateString(undefined, {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                    })}
+                    value={`${w.weight_kg.toFixed(1)} kg`}
+                  />
+                </SwipeRow>
               ))}
           </Card>
         </section>

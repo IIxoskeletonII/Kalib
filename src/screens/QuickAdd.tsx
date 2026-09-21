@@ -2,6 +2,7 @@
 // Logged as entry_method=manual, confidence=medium (SPEC §6, §7.4).
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useBack } from '@/hooks/useBack';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { SLOT_LABEL } from '@/components/AmountSheet';
 import { NumberPad } from '@/components/NumberPad';
@@ -29,6 +30,7 @@ export default function QuickAdd() {
   const [params] = useSearchParams();
   const { id } = useParams();
   const navigate = useNavigate();
+  const back = useBack('/');
   const date = params.get('d') ?? todayKey();
 
   const [name, setName] = useState('');
@@ -106,7 +108,7 @@ export default function QuickAdd() {
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center gap-1">
-        <IconButton icon={ChevronLeft} label="Back" onClick={() => navigate(-1)} />
+        <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <div className="flex-1">
           <h1 className="text-[22px] font-semibold leading-tight">
             {id ? 'Edit entry' : 'Quick add'}

@@ -299,6 +299,13 @@ static, and local lookup is instant — which matters for the friction budget.
 
 Fall back to SR Legacy for foods absent from Foundation.
 
+*Added 21 Sep 2026:* the offline set also carries **FNDDS** (USDA survey foods, ~5,300 items
+"as eaten" — mixed dishes, takeaway, cooked variants, coffees) and SR Legacy's fast-food and
+restaurant categories. FNDDS is what answers "latte", "lasagne" and "Big Mac", and what
+describe-to-log (§9.4) grounds against. Ranking prefers the head noun of a name, treats
+singular/plural as the same word, and demotes dried/powdered/baby forms; sources break ties
+(own foods, Foundation, packaged, FNDDS, SR). 12.9 k foods index in ~300 ms on a phone.
+
 ### 7.2 Open Food Facts — barcodes
 Free, ODbL-licensed, strong Italian and EU packaged-goods coverage. Two hard limits to
 design around:
@@ -346,6 +353,14 @@ Six paths. Each has a hard latency target from app-open to logged.
 | Weighed ingredient | ≤ 10s | Search → number pad (grams) → done |
 | Photo estimate | ≤ 15s | Includes the mandatory description prompt (§9) |
 | Weigh-in | ≤ 5s | Number pad on home screen, no navigation |
+
+Amounts are entered in **g, ml, oz or fl oz**; everything is stored in grams (§6). Liquids
+open in ml; ml converts through a density taken from the food's own fluid portion when the data
+has one, a category heuristic otherwise, and 1 g/ml with the assumption shown as a last resort.
+
+List rows **swipe**: left reveals Delete (a full swipe commits, with a five-second Undo), right
+reveals one contextual action (on a logged entry: *Again* — the same thing, now). Back on every
+sub-screen pops real history; tab switches never stack.
 
 **The number pad must be custom**, not the iOS keyboard. Keyboard summon/dismiss alone
 costs 1–2 seconds and is the single biggest avoidable latency in the whole app.

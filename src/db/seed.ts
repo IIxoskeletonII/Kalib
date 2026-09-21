@@ -5,11 +5,12 @@ import { bulkPutFoods } from './repo/foods';
 import { getSetting, setSetting } from './repo/settings';
 
 /** Bump when public/data/*.json is regenerated with different content. */
-export const SEED_VERSION = 2;
+export const SEED_VERSION = 3;
 
 export const SEED_FILES: { source: FoodSource; url: string }[] = [
   { source: 'usda_foundation', url: '/data/foods-foundation.json' },
   { source: 'usda_sr', url: '/data/foods-sr.json' },
+  { source: 'usda_fndds', url: '/data/foods-fndds.json' },
 ];
 
 export interface SeedProgress {

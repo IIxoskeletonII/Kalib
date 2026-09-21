@@ -90,6 +90,11 @@ card opens the detail sheet.
 glyph in `accent` and carries its portions-left line in `accent` — the only place a rail tile
 uses colour, because it is a count that changes.
 
+Swipe rows: 84 pt panes, `danger` on the trailing side with a drawn trash glyph, `accent` on the
+leading side with its verb; a full swipe commits and the row collapses in 200 ms; an Undo toast
+(`primary` pill above the tab bar, 5 s) replaces confirmation dialogs for everything that can be
+restored. Cards clip their content so a swiped row keeps the corner radius.
+
 Provenance meters (§7.4) sit inside the ring card under the stats: label, percentage, a 4 pt
 bar toned `accent` ≥ 85 %, `kcal` ≥ 60 %, `fat` below. Tone here is information, not decoration.
 
