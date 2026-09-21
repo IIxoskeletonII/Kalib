@@ -2,9 +2,10 @@
 // The proxy exists because OFF's search service has no CORS and its legacy endpoint is flaky;
 // doing it server-side also lets us send the User-Agent OFF asks for, re-rank for completeness,
 // and cache. Everything else falls through to static assets.
+import { runEstimate, type EstimateEnv, type EstimateRequest } from './estimate';
 import { normalizeOffProduct, rankOffProducts, type OffProduct, type OffHit } from './off';
 
-export interface Env {
+export interface Env extends EstimateEnv {
   ASSETS: Fetcher;
 }
 
@@ -103,6 +104,23 @@ async function productOff(code: string): Promise<OffProduct | null> {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    // SPEC §9.4 — estimation. POST only, from the app's own origin, never cached.
+    if (url.pathname === '/api/estimate') {
+      if (request.method !== 'POST') return json({ error: 'method' }, 405);
+      const origin = request.headers.get('origin') ?? '';
+      if (origin && origin !== url.origin) return json({ error: 'forbidden' }, 403);
+      let req: EstimateRequest;
+      try {
+        req = (await request.json()) as EstimateRequest;
+      } catch {
+        return json({ error: 'bad request' }, 400);
+      }
+      const out = await runEstimate(req, env);
+      return out.ok
+        ? json({ result: out.result, model: out.model })
+        : json({ error: out.error }, out.status);
+    }
 
     if (url.pathname.startsWith('/api/')) {
       if (request.method !== 'GET') return json({ error: 'method' }, 405);

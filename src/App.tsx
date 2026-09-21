@@ -28,6 +28,7 @@ const PasswordReset = lazy(() => import('@/screens/PasswordReset'));
 const Supplements = lazy(() => import('@/screens/Supplements'));
 const Recipes = lazy(() => import('@/screens/Recipes'));
 const RecipeEditor = lazy(() => import('@/screens/RecipeEditor'));
+const Estimate = lazy(() => import('@/screens/Estimate'));
 
 export default function App() {
   const profile = useProfile();
@@ -68,7 +69,9 @@ export default function App() {
   if (profile === null && !onboarding) return <Navigate to="/onboarding" replace />;
   if (profile && onboarding) return <Navigate to="/" replace />;
 
-  const hideNav = /^\/(log|quick|onboarding|foods|supplements|recipes)/.test(location.pathname);
+  const hideNav = /^\/(log|quick|onboarding|foods|supplements|recipes|estimate)/.test(
+    location.pathname,
+  );
   const screenKey = location.pathname.split('/')[1] ?? '';
 
   return (
@@ -90,6 +93,7 @@ export default function App() {
               <Route path="/supplements" element={<Supplements />} />
               <Route path="/recipes" element={<Recipes />} />
               <Route path="/recipes/:id" element={<RecipeEditor />} />
+              <Route path="/estimate" element={<Estimate />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

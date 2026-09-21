@@ -37,6 +37,7 @@ export default function QuickAdd() {
   const [focus, setFocus] = useState<Field>('kcal');
   const [loaded, setLoaded] = useState(!id);
   const [saveAsFood, setSaveAsFood] = useState(false);
+  const [entryGrams, setEntryGrams] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -47,6 +48,7 @@ export default function QuickAdd() {
       }
       setName(e.name === 'Quick add' ? '' : e.name);
       setSlot(e.meal_slot);
+      setEntryGrams(e.grams);
       setValues({
         kcal: String(Math.round(e.kcal)),
         protein_g: String(Math.round(e.protein_g)),
@@ -72,7 +74,19 @@ export default function QuickAdd() {
       fat_g: num('fat_g'),
       fiber_g: num('fiber_g'),
     };
-    if (id) await updateEntry(id, { ...macros, name: name || 'Quick add', meal_slot: slot });
+    if (id && saveAsFood) {
+      // SPEC §9.3 / §8.1: a corrected estimate becomes a reusable food and the entry now
+      // points at it — the numbers the user settled on, at medium confidence.
+      const food = await createCustomFood({ name, serving_g: entryGrams || 100, ...macros });
+      await updateEntry(id, {
+        ...macros,
+        name,
+        meal_slot: slot,
+        food_id: food.id,
+        grams: entryGrams || 100,
+        confidence: 'medium',
+      });
+    } else if (id) await updateEntry(id, { ...macros, name: name || 'Quick add', meal_slot: slot });
     else if (saveAsFood) {
       // SPEC §8.1: the entry becomes a reusable food (one nominal 100 g serving) and is logged
       // against it, so it shows up in search and in "Log again".
@@ -136,7 +150,7 @@ export default function QuickAdd() {
 
       <Segmented value={slot} options={SLOT_OPTIONS} onChange={setSlot} />
 
-      {!id && (
+      {
         <button
           type="button"
           role="switch"
@@ -147,7 +161,9 @@ export default function QuickAdd() {
           <span>
             <span className="block text-[15px] font-semibold">Save as a food</span>
             <span className="block text-[13px] text-muted">
-              Reusable next time — one tap from Today.
+              {id
+                ? 'Keep these corrected numbers as one of your foods.'
+                : 'Reusable next time — one tap from Today.'}
             </span>
           </span>
           <span
@@ -158,7 +174,7 @@ export default function QuickAdd() {
             />
           </span>
         </button>
-      )}
+      }
 
       <div className="mt-auto space-y-3 pb-2">
         <NumberPad

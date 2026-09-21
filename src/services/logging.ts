@@ -9,7 +9,7 @@ export interface FoodEntryOpts {
   grams: number;
   meal_slot: MealSlot;
   date: string;
-  entry_method: Extract<EntryMethod, 'search' | 'favourite' | 'barcode' | 'batch'>;
+  entry_method: Extract<EntryMethod, 'search' | 'favourite' | 'barcode' | 'batch' | 'photo'>;
   now?: Date;
 }
 

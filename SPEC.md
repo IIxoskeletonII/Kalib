@@ -427,6 +427,29 @@ This single field is worth more than any model upgrade.
 - Display the range. Log the midpoint. Flag `confidence: low`.
 - Every photo entry is editable and promotable to a custom food (§8.1).
 
+### 9.4 Describe-to-log and grounding (added 21 Sep 2026)
+§9.2's finding — one sentence of description is worth more than any model upgrade — makes
+the description the primary input, not an add-on to the photo:
+
+- **One screen, two inputs.** A text field, pre-focused, is always there; the photo is
+  optional evidence attached to it. "2 eggs, toast with butter, a latte" with no photo is a
+  valid estimate. With a photo the field is prompted as in §9.2 and may be left empty.
+- **Grounding.** Each item the model names is searched in the offline database (the user's
+  own foods and recipes first, then USDA). A confident match takes the database's per-100 g
+  values at the model's gram estimate: the food is known, only the portion is estimated, so
+  the entry is `confidence: medium` and carries micronutrients. Only unmatched items keep the
+  model's macros, `confidence: low`, no micronutrients, and the +10 % bias.
+- **The user sees both.** Matched items are labelled with their source; unmatched ones show
+  a range. Every item's grams can be changed before logging; items can be removed.
+- **Logging.** One tap logs all items into the chosen meal, `entry_method = photo` for both
+  kinds so the provenance line (§7.4) and the engine's low-confidence share stay honest;
+  `photo_assumptions` keeps the model's item, the description and the hidden ingredients
+  it assumed. The image is discarded after estimation (§13.3 default).
+- **Cost and keys.** `/api/estimate` on the Worker; the OpenRouter key is a Worker secret,
+  the model id a Worker variable (default `google/gemini-3.1-flash-lite`, ≈ $0.001 per
+  estimate). Requests must come from the app's own origin; images are capped at 1024 px.
+- Classified as **differentiator #4** (§15); the grounding step is what no competitor does.
+
 ---
 
 ## 10. Platform and stack

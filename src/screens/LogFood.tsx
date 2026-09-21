@@ -4,6 +4,7 @@ import {
   ChefHat,
   ChevronLeft,
   Globe,
+  MessageSquareText,
   PenLine,
   Plus,
   Search,
@@ -220,6 +221,11 @@ export default function LogFood() {
         <Chip icon={Camera} onClick={runScan} disabled={scan.state === 'busy'}>
           Scan
         </Chip>
+        {!recipe && (
+          <Chip icon={MessageSquareText} onClick={() => navigate(`/estimate?d=${date}`)}>
+            Describe
+          </Chip>
+        )}
         {!recipe && (
           <Chip icon={PenLine} onClick={() => navigate(`/quick?d=${date}`)}>
             Quick add

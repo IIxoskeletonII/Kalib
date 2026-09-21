@@ -69,6 +69,23 @@ function tokenScore(q: string, tokens: readonly string[]): number {
 }
 
 /**
+ * Match quality alone, 0–3.5 per token averaged, 0 if any token misses — used by §9.4
+ * grounding to decide whether a model's item really is this food, independent of the usage
+ * and source boosts that rank search results.
+ */
+export function matchQuality(doc: SearchDoc, query: string): number {
+  const q = tokenize(query);
+  if (q.length === 0) return 0;
+  let sum = 0;
+  for (const qt of q) {
+    const s = tokenScore(qt, doc.tokens);
+    if (s === 0) return 0;
+    sum += s;
+  }
+  return sum / q.length;
+}
+
+/**
  * Every query token must prefix-match some document token. Score = match quality +
  * source boost + log2(1 + usage) + a small bonus for short names.
  */

@@ -39,6 +39,11 @@ targets you keep missing. Progressive web app, works offline, costs nothing to r
   for creatine, vitamins and minerals with a suggested dose worked out from sex, age and weight
   (NIH ODS / EFSA / ISSN references, shown with their basis). Micronutrient supplements count
   toward the coach's gap detection.
+- **Describe a meal** — type "2 eggs, toast with butter, a latte" (photo optional) and get
+  it back as items: anything that exists in your offline database is grounded in real USDA or
+  own-food numbers at the model's portion; only the rest stays a model estimate with a range
+  and a deliberate +10 % bias. Adjust grams, log all in one tap, promote a corrected estimate
+  to a food of your own (SPEC §9).
 - **Your data stays yours** — everything lives in IndexedDB on the device; CSV and JSON export.
 
 Product spec: [`SPEC.md`](SPEC.md) · design system: [`design-system/kalib/MASTER.md`](design-system/kalib/MASTER.md) ·
@@ -91,6 +96,15 @@ environment variables the build runs local-only and Settings says so.
 2. Authentication → Providers → Email: turn **Confirm email** off (accounts sign in immediately).
 3. Authentication → URL configuration: Site URL = the app's URL; add it to Redirect URLs (password reset).
 4. Copy `.env.example` to `.env.local` with the project URL and publishable key, then `npm run deploy`.
+
+## Meal estimation (optional)
+
+`/api/estimate` calls a vision model through OpenRouter; the key lives only on the Worker.
+
+1. Create an OpenRouter account, add a few dollars of credit and create an API key.
+2. `npx wrangler secret put OPENROUTER_API_KEY` and paste the key when prompted.
+3. The model id is `VISION_MODEL` in `wrangler.jsonc` (default `google/gemini-3.1-flash-lite`,
+   about $0.001 per estimate). Without the secret the screen explains what is missing.
 
 ## Deploy
 

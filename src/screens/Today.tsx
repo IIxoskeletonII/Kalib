@@ -354,12 +354,20 @@ export default function Today() {
           title="Nothing logged yet"
           body="Search a food, or type the calories for something off-menu."
           action={
-            <Link
-              to={`/log?d=${date}`}
-              className="inline-flex h-12 items-center gap-2 rounded-full bg-surface-2 px-6 font-semibold active:bg-surface-3"
-            >
-              Log food
-            </Link>
+            <div className="flex gap-2">
+              <Link
+                to={`/log?d=${date}`}
+                className="inline-flex h-12 items-center gap-2 rounded-full bg-primary px-6 font-semibold text-on-primary"
+              >
+                Log food
+              </Link>
+              <Link
+                to={`/estimate?d=${date}`}
+                className="inline-flex h-12 items-center gap-2 rounded-full bg-surface-2 px-6 font-semibold active:bg-surface-3"
+              >
+                Describe a meal
+              </Link>
+            </div>
           }
         />
       )}
