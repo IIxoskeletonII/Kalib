@@ -22,6 +22,10 @@
     // Daily caps on estimation, per signed-in user and across everyone (worker/guard.ts).
     "ESTIMATE_DAILY_USER": "30",
     "ESTIMATE_DAILY_TOTAL": "100",
+    // Optional: comma-separated emails allowed to estimate. Leave empty for any signed-in
+    // user; set it (here, or as a secret of the same name) to keep sign-ups open while the
+    // OpenRouter credit stays with the household.
+    "ESTIMATE_ALLOWED_EMAILS": "",
     // Reminders (Web Push). Public half of the VAPID pair; the private half is a secret.
     "VAPID_PUBLIC_KEY": "BICboEhUpK6WeD5834AfZ2kfDsDY2_AEOgbq1okYfpu2vSN3tkf1cstmSe3l4mmmkgWzp5T0sw4RJRrkZAOJ8y8",
     "VAPID_SUBJECT": "https://kalib.kalib.workers.dev",

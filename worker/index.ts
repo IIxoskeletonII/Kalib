@@ -11,6 +11,7 @@ import {
   admitEstimate,
   authConfigured,
   isPushEndpoint,
+  mayEstimate,
   requireUser,
   underLimit,
   type GuardEnv,
@@ -320,6 +321,9 @@ export default {
       }
       const user = await requireUser(request, env);
       if (!user) return json({ error: 'Sign in (Settings → Sync) to estimate meals.' }, 401);
+      if (!mayEstimate(user, env)) {
+        return json({ error: 'Meal estimation is switched on for household accounts only.' }, 403);
+      }
       if (!(await underLimit(env.ESTIMATE_LIMIT, user.id))) {
         return json({ error: 'One at a time — try again in a minute.' }, 429);
       }

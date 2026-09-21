@@ -1,7 +1,7 @@
 # Security
 
-Kalib is a personal health-data app whose source is public and whose deployment serves two
-people. This file is the threat model the code is written against and how to report a hole.
+Kalib is a personal health-data app whose source is public and whose deployment is open for
+anyone to try. This file is the threat model the code is written against and how to report a hole.
 
 ## What is public, and why that is fine
 
@@ -10,8 +10,9 @@ people. This file is the threat model the code is written against and how to rep
 - **The Supabase project URL and publishable ("anon") key.** They ship in every Supabase app's
   bundle by design. Data access is decided by **row-level security**: every table has one policy,
   `user_id = auth.uid()` for select, insert, update and delete (`supabase/migrations/*`). A valid
-  session sees exactly its own rows. **Sign-ups are switched off** in the Supabase dashboard once
-  the household's accounts exist, so the key cannot be used to register.
+  session sees exactly its own rows. **Sign-ups are open on purpose**: a stranger's account holds
+  a stranger's data and nothing else, and one button deletes it. (A private deployment can turn
+  sign-ups off in the Supabase dashboard.)
 - **The Open Food Facts proxy** (`/api/off/*`). Read-only, GET-only, results cached at the edge,
   query length capped, and rate-limited per IP (60/min). Abusing it costs the abuser more than
   the project.
@@ -21,7 +22,7 @@ people. This file is the threat model the code is written against and how to rep
 
 | Asset                              | Where it lives                                    | Guard                                                                                                                                       |
 | ---------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| OpenRouter key (costs money)       | Worker secret only                                | `/api/estimate` requires a Supabase session verified server-side, per-user rate limit (6/min), daily caps per user (30) and global (100)      |
+| OpenRouter key (costs money)       | Worker secret only                                | `/api/estimate` requires a Supabase session verified server-side, per-user rate limit (6/min), daily caps per user (30) and global (100), optional email allow-list; the balance behind it is small and prepaid, so the worst case is a paused feature, never a bill |
 | VAPID private key                  | Worker secret only                                | Never leaves the Worker; push messages are encrypted per RFC 8291 and signed per RFC 8292                                                   |
 | Push subscriptions (KV)            | Worker KV                                         | Writes require a session; a subscription belongs to the user who created it; ≤ 5 devices per user; endpoints must be a browser push service |
 | Supabase `service_role` key        | Nowhere in this project                           | Never needed: erasure is a `security definer` function callable only by the row's own user (`0005_erasure.sql`)                             |

@@ -18,6 +18,11 @@ export interface GuardEnv {
   /** Daily caps for estimation; defaults below. */
   ESTIMATE_DAILY_USER?: string;
   ESTIMATE_DAILY_TOTAL?: string;
+  /**
+   * Optional comma-separated emails. When set, only these accounts may estimate (sign-ups can
+   * stay open without strangers spending the OpenRouter credit). Unset = any signed-in user.
+   */
+  ESTIMATE_ALLOWED_EMAILS?: string;
 }
 
 export interface AuthUser {
@@ -77,6 +82,16 @@ export async function requireUser(
   if (cache.size > 200) cache.clear();
   cache.set(token, { user, until: now + CACHE_MS });
   return user;
+}
+
+/** Whether this account may spend on estimation under ESTIMATE_ALLOWED_EMAILS. */
+export function mayEstimate(user: AuthUser, env: GuardEnv): boolean {
+  const list = (env.ESTIMATE_ALLOWED_EMAILS ?? '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (list.length === 0) return true;
+  return user.email != null && list.includes(user.email.toLowerCase());
 }
 
 // ---- daily quotas (KV counters; eventual consistency may over-admit by one or two) ----

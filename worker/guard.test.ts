@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { admitEstimate, isPushEndpoint, requireUser, underLimit, type QuotaStore } from './guard';
+import {
+  admitEstimate,
+  isPushEndpoint,
+  mayEstimate,
+  requireUser,
+  underLimit,
+  type QuotaStore,
+} from './guard';
 
 const env = { SUPABASE_URL: 'https://proj.supabase.co', SUPABASE_ANON_KEY: 'sb_publishable_x' };
 const jwt = 'aaa.bbb.ccc';
@@ -110,6 +117,20 @@ describe('admitEstimate', () => {
     expect(r).toEqual({ ok: true, usedToday: 1, capUser: 30 });
     const next = await admitEstimate(store, 'u1', bad, new Date('2026-09-22T00:01:00Z'));
     expect(next).toEqual({ ok: true, usedToday: 1, capUser: 30 });
+  });
+});
+
+describe('mayEstimate', () => {
+  it('is open to any signed-in user unless an allow-list is set', () => {
+    const me = { id: 'u1', email: 'Me@Example.com' };
+    const stranger = { id: 'u2', email: 'x@y.z' };
+    const noEmail = { id: 'u3', email: null };
+    expect(mayEstimate(stranger, {})).toBe(true);
+    expect(mayEstimate(noEmail, { ESTIMATE_ALLOWED_EMAILS: ' ' })).toBe(true);
+    const env = { ESTIMATE_ALLOWED_EMAILS: 'me@example.com, partner@example.com' };
+    expect(mayEstimate(me, env)).toBe(true);
+    expect(mayEstimate(stranger, env)).toBe(false);
+    expect(mayEstimate(noEmail, env)).toBe(false);
   });
 });
 

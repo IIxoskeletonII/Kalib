@@ -16,6 +16,22 @@ targets you keep missing. Progressive web app, works offline, costs nothing to r
   <img src="docs/screenshots/shopping.png" width="200" alt="Shopping list" />
 </p>
 
+## Try it
+
+**[kalib.kalib.workers.dev](https://kalib.kalib.workers.dev)** — open it on a phone, go through
+the one-screen onboarding, and log. Everything works without an account; it all stays in your
+browser. Sign-up is open: create an account under Settings → Sync if you want your data mirrored
+between phones (each account only ever sees its own rows), and delete it from the same place
+whenever you like.
+
+**Describe a meal** runs on a real vision model, and there is **$5 of OpenRouter credit loaded
+for anyone who wants to try it** — go ahead. Hard caps on the server (30 estimates per account
+per day, 100 per day in total, ~€0.0007 each) mean the credit lasts and nobody can run it dry
+in an afternoon. If it says "paused until tomorrow", the day's hundred are gone.
+
+It is a personal project on free tiers: no uptime promise, no support desk, and not medical
+advice. Install it to the Home Screen on iOS for offline use and reminders.
+
 ## Why
 
 I built Kalib because I wanted logging and tracking my macros to be effortless, and I could not
@@ -138,8 +154,8 @@ environment variables the build runs local-only and Settings says so.
 2. Authentication → Providers → Email: turn **Confirm email** off (accounts sign in immediately).
 3. Authentication → URL configuration: Site URL = the app's URL; add it to Redirect URLs (password reset).
 4. Copy `.env.example` to `.env.local` with the project URL and publishable key, then `npm run deploy`.
-5. Create the accounts you need, then Authentication → Sign In / Providers: turn **Allow new
-   users to sign up** off. The project stays yours; nobody else can register against it.
+5. Optional: Authentication → Sign In / Providers → **Allow new users to sign up** off, if the
+   deployment is meant for a fixed set of people. (The public deployment leaves it on.)
 
 The Worker needs the same two values to verify sessions (estimation and reminders are for
 signed-in users only). Upload `.env.local` as it is — the Worker accepts the `VITE_` names:
@@ -152,7 +168,10 @@ npx wrangler secret bulk .env.local
 
 `/api/estimate` calls a vision model through OpenRouter; the key lives only on the Worker, and
 the endpoint requires a signed-in user, is rate-limited, and stops at 30 estimates per person and
-100 in total per day (`ESTIMATE_DAILY_*` in `wrangler.jsonc`).
+100 in total per day (`ESTIMATE_DAILY_*` in `wrangler.jsonc`). Every account on the deployment
+shares the one key — the public deployment runs this way on a small, capped balance. To restrict
+it to particular people instead, list their emails in `ESTIMATE_ALLOWED_EMAILS` (a var in
+`wrangler.jsonc`, or a secret of that name).
 
 1. Create an OpenRouter account, add a few euros of credit and create an API key.
 2. `npx wrangler secret put OPENROUTER_API_KEY` and paste the key when prompted.
