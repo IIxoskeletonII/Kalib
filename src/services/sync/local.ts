@@ -35,6 +35,10 @@ function table(name: SyncTable) {
       return db.recipes;
     case 'batches':
       return db.batches;
+    case 'week_plans':
+      return db.week_plans;
+    case 'prices':
+      return db.prices;
   }
 }
 

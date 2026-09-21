@@ -33,6 +33,9 @@ const RecipeEditor = lazy(() => import('@/screens/RecipeEditor'));
 const Estimate = lazy(() => import('@/screens/Estimate'));
 const Review = lazy(() => import('@/screens/Review'));
 const RecipeImport = lazy(() => import('@/screens/RecipeImport'));
+const Plan = lazy(() => import('@/screens/Plan'));
+const Shopping = lazy(() => import('@/screens/Shopping'));
+const Cook = lazy(() => import('@/screens/Cook'));
 
 export default function App() {
   const profile = useProfile();
@@ -76,7 +79,7 @@ export default function App() {
   if (profile === null && !onboarding && !importing) return <Navigate to="/onboarding" replace />;
   if (profile && onboarding) return <Navigate to="/" replace />;
 
-  const hideNav = /^\/(log|quick|onboarding|foods|supplements|recipes|estimate|review)/.test(
+  const hideNav = /^\/(log|quick|onboarding|foods|supplements|recipes|estimate|review|plan)/.test(
     location.pathname,
   );
   const screenKey = location.pathname.split('/')[1] ?? '';
@@ -101,6 +104,9 @@ export default function App() {
               <Route path="/recipes" element={<Recipes />} />
               <Route path="/recipes/import" element={<RecipeImport />} />
               <Route path="/recipes/:id" element={<RecipeEditor />} />
+              <Route path="/recipes/:id/cook" element={<Cook />} />
+              <Route path="/plan" element={<Plan />} />
+              <Route path="/plan/shopping" element={<Shopping />} />
               <Route path="/estimate" element={<Estimate />} />
               <Route path="/review" element={<Review />} />
               <Route path="/onboarding" element={<Onboarding />} />

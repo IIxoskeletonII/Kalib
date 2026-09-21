@@ -13,6 +13,7 @@ import {
   listEntriesForDate,
   listEntriesSince,
 } from '@/db/repo/logEntries';
+import { listAllPlans, listAllPrices } from '@/db/repo/planner';
 import { getCurrentProfile } from '@/db/repo/profiles';
 import { getRecipe, listActiveBatches, listBatchesForRecipe, listRecipes } from '@/db/repo/recipes';
 import { getSetting } from '@/db/repo/settings';
@@ -27,6 +28,7 @@ import { personFor } from '@/services/supplements';
 import { computeWeekBanking } from '@/services/banking';
 import { computeCoach, weekOverview, type CoachState, type WeekOverview } from '@/services/coach';
 import { ensureTargetForDate, weightFor } from '@/services/targets';
+import { planContext, type PlanContext } from '@/services/planner';
 import { pingIfEnabled } from '@/services/reminders';
 import { tdeeState, type TdeeState } from '@/services/tdee';
 
@@ -258,4 +260,28 @@ export function useReminderPing() {
     if (entries === undefined || weighIns === undefined) return;
     void pingIfEnabled({ lastLoggedDate: logged, lastWeighedDate: weighed });
   }, [entries, weighIns, logged, weighed]);
+}
+
+/** §18 the week's plan with everything derived; live with plans, recipes, prices and the log. */
+export function usePlan(week_start: string): PlanContext | undefined {
+  const stamp = useLiveQuery(async () => {
+    const [plans, recipes, prices] = await Promise.all([
+      listAllPlans(),
+      listRecipes(),
+      listAllPrices(),
+    ]);
+    return [...plans, ...recipes, ...prices].map((r) => r.updated_at).join('|');
+  }, [week_start]);
+  const [ctx, setCtx] = useState<PlanContext | undefined>(undefined);
+  useEffect(() => {
+    if (stamp === undefined) return;
+    let cancelled = false;
+    void planContext(week_start).then((c) => {
+      if (!cancelled) setCtx(c);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [week_start, stamp]);
+  return ctx;
 }

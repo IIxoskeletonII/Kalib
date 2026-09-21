@@ -1,6 +1,6 @@
 // SPEC §16 — where the diet is short, and the foods that close the gap — plus the v2 week in
 // review and the §7.4 micronutrient panel, all over the same seven days.
-import { ChevronRight, Sparkles } from 'lucide-react';
+import { CalendarRange, ChevronRight, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { AmountSheet } from '@/components/AmountSheet';
@@ -24,6 +24,22 @@ export default function Coach() {
         <p className="text-[14px] font-medium text-muted">Last 7 days</p>
         <h1 className="mt-0.5 text-[34px] leading-none font-extrabold tracking-[-0.03em]">Coach</h1>
       </header>
+
+      <Link
+        to="/plan"
+        className="card mt-6 flex items-center gap-3.5 px-4 py-3.5 transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-[0.985]"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+          <CalendarRange size={18} strokeWidth={2.2} aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[16px] font-medium">Plan the week</span>
+          <span className="block text-[13px] text-muted">
+            Swipe through your recipes; portions and the shopping list follow.
+          </span>
+        </span>
+        <ChevronRight size={18} className="shrink-0 text-muted" aria-hidden />
+      </Link>
 
       {week && week.review.completeDays > 0 && (
         <>

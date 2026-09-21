@@ -4,7 +4,9 @@ import {
   Check,
   ChefHat,
   ChevronLeft,
+  CookingPot,
   Flame,
+  ListOrdered,
   Minus,
   Plus,
   Scale,
@@ -46,9 +48,17 @@ import {
   renameRecipe,
   setRecipeItemGrams,
   setRecipePortions,
+  setRecipeSteps,
   setRecipeYield,
   shareCodeFor,
 } from '@/services/recipes';
+
+const NEWLINE = String.fromCharCode(10);
+const STEPS_PLACEHOLDER = [
+  'Dice the onion',
+  'Brown the chicken in a hot pan',
+  'Add the rice and stock, simmer 18 minutes',
+].join(NEWLINE);
 
 export default function RecipeEditor() {
   const { id } = useParams();
@@ -76,6 +86,8 @@ function Editor({ recipe }: { recipe: Recipe }) {
   const [logging, setLogging] = useState<Batch | null | undefined>(undefined);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shared, setShared] = useState(false);
+  const [stepsOpen, setStepsOpen] = useState(false);
+  const [stepsText, setStepsText] = useState((recipe.steps ?? []).join(NEWLINE));
 
   const share = async () => {
     const code = await shareCodeFor(recipe);
@@ -234,15 +246,48 @@ function Editor({ recipe }: { recipe: Recipe }) {
         </Card>
       </section>
 
+      <section className="mt-6">
+        <SectionHeading
+          trailing={
+            <button type="button" className="text-accent" onClick={() => setStepsOpen(true)}>
+              {recipe.steps?.length ? 'Edit' : 'Add'}
+            </button>
+          }
+        >
+          Steps
+        </SectionHeading>
+        <Card>
+          {recipe.steps && recipe.steps.length > 0 ? (
+            <ol className="divide-y divide-line">
+              {recipe.steps.map((st, i) => (
+                <li key={i} className="flex gap-3 px-4 py-3 text-[15px] leading-snug">
+                  <span className="w-5 shrink-0 text-right font-semibold text-muted tabular">
+                    {i + 1}
+                  </span>
+                  <span>{st}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <ListRow
+              onClick={() => setStepsOpen(true)}
+              icon={ListOrdered}
+              title="Write the steps"
+              subtitle="One line each; cooking mode shows them one at a time"
+            />
+          )}
+        </Card>
+      </section>
+
       <div className="mt-6 grid grid-cols-2 gap-2">
         <Button
           variant="primary"
           size="lg"
-          icon={Flame}
+          icon={CookingPot}
           disabled={recipe.items.length === 0}
-          onClick={() => setCookOpen(true)}
+          onClick={() => navigate(`/recipes/${recipe.id}/cook`)}
         >
-          Cook batch
+          Cook
         </Button>
         <Button
           size="lg"
@@ -252,6 +297,38 @@ function Editor({ recipe }: { recipe: Recipe }) {
           Log portion
         </Button>
       </div>
+      <button
+        type="button"
+        className="mt-2 flex w-full items-center justify-center gap-1.5 text-[13px] font-semibold text-muted"
+        disabled={recipe.items.length === 0}
+        onClick={() => setCookOpen(true)}
+      >
+        <Flame size={14} aria-hidden />
+        Already cooked? Weigh the pot and start a batch
+      </button>
+
+      <Sheet open={stepsOpen} onClose={() => setStepsOpen(false)} title="Steps">
+        <p className="mb-3 text-[14px] text-muted">One step per line.</p>
+        <textarea
+          value={stepsText}
+          onChange={(e) => setStepsText(e.target.value)}
+          rows={8}
+          autoFocus
+          placeholder={STEPS_PLACEHOLDER}
+          className="w-full resize-none rounded-[20px] bg-surface-2 px-4 py-3 text-[15px] leading-snug outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+        />
+        <Button
+          variant="primary"
+          size="lg"
+          className="mt-3 w-full"
+          onClick={async () => {
+            await setRecipeSteps(recipe.id, stepsText.split(NEWLINE));
+            setStepsOpen(false);
+          }}
+        >
+          Save steps
+        </Button>
+      </Sheet>
 
       {batches && batches.length > 0 && (
         <section className="mt-6">

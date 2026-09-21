@@ -46,6 +46,10 @@ targets you keep missing. Progressive web app, works offline, costs nothing to r
   own-food numbers at the model's portion; only the rest stays a model estimate with a range
   and a deliberate +10 % bias. Adjust grams, log all in one tap, promote a corrected estimate
   to a food of your own (SPEC §9).
+- **Meal planner** — swipe through your recipes (right = this week, left = not), portion counts
+  scaled so the week lands on your targets with room for the meals outside the plan, a shopping
+  list by aisle with prices you enter once and a ±15 % weekly total, and a cooking mode that
+  ends by weighing the pot into a batch (SPEC §18).
 - **Week in review** — one page with the week's calories, protein, fiber, trend, measured burn
   and what ran low, shareable as plain text for a coach or a doctor.
 - **Household recipes** — share a recipe as a link or code; the other account imports it with
@@ -100,7 +104,7 @@ its own rows (RLS), and a phone binds to the first account it syncs with. Withou
 environment variables the build runs local-only and Settings says so.
 
 1. Create a free Supabase project, open the SQL editor and run every file in
-   `supabase/migrations/` in order (`0001_init.sql`, `0002_water_supplements.sql`, `0003_recipes.sql`).
+   `supabase/migrations/` in order (`0001_init.sql` … `0004_planner.sql`).
 2. Authentication → Providers → Email: turn **Confirm email** off (accounts sign in immediately).
 3. Authentication → URL configuration: Site URL = the app's URL; add it to Redirect URLs (password reset).
 4. Copy `.env.example` to `.env.local` with the project URL and publishable key, then `npm run deploy`.

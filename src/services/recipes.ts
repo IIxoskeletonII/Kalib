@@ -62,6 +62,11 @@ export async function setRecipeYield(id: string, yield_g: number | undefined): P
   await materialise(next);
 }
 
+export async function setRecipeSteps(id: string, steps: string[]): Promise<void> {
+  const clean = steps.map((x) => x.trim()).filter(Boolean);
+  await updateRecipe(id, { steps: clean.length ? clean : undefined });
+}
+
 export async function setRecipePortions(id: string, portions: number): Promise<void> {
   await patchRecipe(id, { portions: Math.max(1, Math.round(portions)) });
 }

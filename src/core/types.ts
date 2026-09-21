@@ -206,6 +206,8 @@ export interface Recipe extends SyncMeta {
   /** The materialised custom food (foods.recipe_id points back). */
   food_id: string;
   notes?: string;
+  /** Cooking steps for the §18.4 cooking mode. */
+  steps?: string[];
 }
 
 export interface Batch extends SyncMeta {
@@ -214,4 +216,28 @@ export interface Batch extends SyncMeta {
   total_g: number;
   portions_total: number;
   portions_remaining: number;
+}
+
+// SPEC §18 — meal planner.
+
+export interface WeekPlanItem {
+  recipe_id: string;
+  portions: number;
+  pinned?: boolean;
+}
+
+export interface WeekPlan extends SyncMeta {
+  week_start: string; // YYYY-MM-DD (Monday)
+  days: number;
+  allowance_kcal: number;
+  allowance_protein_g: number;
+  items: WeekPlanItem[];
+  /** Shopping list lines ticked off, by food id. */
+  checked: string[];
+}
+
+export interface FoodPrice extends SyncMeta {
+  food_id: string;
+  price_per_kg: number;
+  currency: string;
 }

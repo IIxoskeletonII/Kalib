@@ -5,6 +5,7 @@ import type {
   Batch,
   DailyTarget,
   Food,
+  FoodPrice,
   LogEntry,
   Profile,
   Recipe,
@@ -13,6 +14,7 @@ import type {
   SupplementLog,
   TdeeEstimate,
   WaterLog,
+  WeekPlan,
   WeighIn,
 } from '@/core/types';
 
@@ -34,6 +36,8 @@ export class KalibDB extends Dexie {
   supplement_logs!: EntityTable<SupplementLog, 'id'>;
   recipes!: EntityTable<Recipe, 'id'>;
   batches!: EntityTable<Batch, 'id'>;
+  week_plans!: EntityTable<WeekPlan, 'id'>;
+  prices!: EntityTable<FoodPrice, 'id'>;
 
   constructor(name: string = DB_NAME) {
     super(name);
@@ -56,6 +60,11 @@ export class KalibDB extends Dexie {
     this.version(3).stores({
       recipes: 'id, food_id',
       batches: 'id, recipe_id, cooked_on',
+    });
+    // v4 (SPEC §18): meal plans and ingredient prices.
+    this.version(4).stores({
+      week_plans: 'id, [user_id+week_start]',
+      prices: 'id, &[user_id+food_id]',
     });
   }
 }

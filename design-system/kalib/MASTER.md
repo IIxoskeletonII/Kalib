@@ -95,6 +95,11 @@ leading side with its verb; a full swipe commits and the row collapses in 200 ms
 (`primary` pill above the tab bar, 5 s) replaces confirmation dialogs for everything that can be
 restored. Cards clip their content so a swiped row keeps the corner radius.
 
+The planner deck (§18): one card at a time, dragged with rotation (dx/18°); the verdict
+stamps ("THIS WEEK" in `accent`, "NOT THIS WEEK" in `surface-3`) fade in with travel; commit
+past 110 pt flies the card off in 220 ms. Two round buttons under it repeat the gesture for
+thumbs that prefer taps: `surface` for no, `accent` for yes.
+
 Provenance meters (§7.4) sit inside the ring card under the stats: label, percentage, a 4 pt
 bar toned `accent` ≥ 85 %, `kcal` ≥ 60 %, `fat` below. Tone here is information, not decoration.
 

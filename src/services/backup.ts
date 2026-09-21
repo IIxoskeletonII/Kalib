@@ -4,6 +4,7 @@ import type {
   Batch,
   DailyTarget,
   Food,
+  FoodPrice,
   LogEntry,
   Profile,
   Recipe,
@@ -11,6 +12,7 @@ import type {
   Supplement,
   SupplementLog,
   WaterLog,
+  WeekPlan,
   WeighIn,
 } from '@/core/types';
 import { bulkPutDailyTargets, listDailyTargets } from '@/db/repo/dailyTargets';
@@ -18,6 +20,7 @@ import { bulkPutFoods, listUserFoods } from '@/db/repo/foods';
 import { bulkPutEntries, listAllEntries } from '@/db/repo/logEntries';
 import { bulkPutProfiles, listProfiles } from '@/db/repo/profiles';
 import { bulkPutBatches, bulkPutRecipes, listAllBatches, listAllRecipes } from '@/db/repo/recipes';
+import { bulkPutPlans, bulkPutPrices, listAllPlans, listAllPrices } from '@/db/repo/planner';
 import { bulkPutSettings, listSettings } from '@/db/repo/settings';
 import {
   bulkPutSupplementLogs,
@@ -31,7 +34,7 @@ import { exportFiles } from '@/platform/exportFile';
 
 export interface Backup {
   app: 'kalib';
-  format: 4;
+  format: 5;
   exported_at: string;
   profiles: Profile[];
   foods: Food[];
@@ -44,11 +47,13 @@ export interface Backup {
   supplement_logs: SupplementLog[];
   recipes: Recipe[];
   batches: Batch[];
+  week_plans: WeekPlan[];
+  prices: FoodPrice[];
 }
 
 // Format 1 (first v0 builds) carried a single `profile` and no foods or settings; format 2
 // added those; format 3 (SPEC §17) adds water and supplements; format 4 (SPEC §8.2) recipes
-// and batches. parseBackup upgrades in place.
+// and batches; format 5 (SPEC §18) plans and prices. parseBackup upgrades in place.
 
 /** Device-specific keys that must not travel between installs. */
 const LOCAL_ONLY_SETTING = /^seed_version:/;
@@ -66,6 +71,8 @@ export async function buildBackup(): Promise<Backup> {
     supplement_logs,
     recipes,
     batches,
+    week_plans,
+    prices,
   ] = await Promise.all([
     listProfiles(),
     listUserFoods(),
@@ -78,10 +85,12 @@ export async function buildBackup(): Promise<Backup> {
     listAllSupplementLogs(),
     listAllRecipes(),
     listAllBatches(),
+    listAllPlans(),
+    listAllPrices(),
   ]);
   return {
     app: 'kalib',
-    format: 4,
+    format: 5,
     exported_at: new Date().toISOString(),
     profiles,
     foods,
@@ -94,6 +103,8 @@ export async function buildBackup(): Promise<Backup> {
     supplement_logs,
     recipes,
     batches,
+    week_plans,
+    prices,
   };
 }
 
@@ -142,6 +153,8 @@ export function parseBackup(raw: unknown): Backup {
     supplement_logs?: unknown;
     recipes?: unknown;
     batches?: unknown;
+    week_plans?: unknown;
+    prices?: unknown;
   };
   if (b.app !== 'kalib') throw new Error('Not a Kalib backup file.');
   if (!isArray<WeighIn>(b.weigh_ins) || !isArray<LogEntry>(b.log_entries)) {
@@ -151,7 +164,7 @@ export function parseBackup(raw: unknown): Backup {
   if (b.format === 1) {
     return {
       app: 'kalib',
-      format: 4,
+      format: 5,
       exported_at: typeof b.exported_at === 'string' ? b.exported_at : '',
       profiles: b.profile ? [b.profile] : [],
       foods: [],
@@ -164,13 +177,15 @@ export function parseBackup(raw: unknown): Backup {
       supplement_logs: [],
       recipes: [],
       batches: [],
+      week_plans: [],
+      prices: [],
     };
   }
-  if (typeof b.format !== 'number' || b.format < 2 || b.format > 4)
+  if (typeof b.format !== 'number' || b.format < 2 || b.format > 5)
     throw new Error(`Backup format ${String(b.format)} is newer than this app.`);
   return {
     app: 'kalib',
-    format: 4,
+    format: 5,
     exported_at: typeof b.exported_at === 'string' ? b.exported_at : '',
     profiles: isArray<Profile>(b.profiles) ? b.profiles : [],
     foods: isArray<Food>(b.foods) ? b.foods : [],
@@ -185,6 +200,8 @@ export function parseBackup(raw: unknown): Backup {
     supplement_logs: isArray<SupplementLog>(b.supplement_logs) ? b.supplement_logs : [],
     recipes: isArray<Recipe>(b.recipes) ? b.recipes : [],
     batches: isArray<Batch>(b.batches) ? b.batches : [],
+    week_plans: isArray<WeekPlan>(b.week_plans) ? b.week_plans : [],
+    prices: isArray<FoodPrice>(b.prices) ? b.prices : [],
   };
 }
 
@@ -212,4 +229,6 @@ export async function restoreBackup(b: Backup): Promise<void> {
   await bulkPutSupplementLogs(b.supplement_logs);
   await bulkPutRecipes(b.recipes);
   await bulkPutBatches(b.batches);
+  await bulkPutPlans(b.week_plans);
+  await bulkPutPrices(b.prices);
 }

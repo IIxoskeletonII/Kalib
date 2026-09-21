@@ -761,3 +761,44 @@ count toward the coach's gap detection (§16).
   medical advice; iron in particular says "test ferritin first".
 - The user's saved dose is theirs; the recommendation is shown beside it and never
   overwrites it.
+
+## 18. Meal planner (v4, pulled forward 21 Sep 2026)
+
+The §11 v4 item, built before Oman rather than after: swipe-to-select the week's meals,
+macro-scaled portions, a shopping list by aisle with a budget, and a cooking mode.
+Differentiator #5 (§15). Everything runs on the recipes the user already has (§8.2); the
+planner never invents meals.
+
+### 18.1 Choosing (the deck)
+- One recipe card at a time: name, per-portion kcal / protein / fiber, cost per portion when
+  prices are known, and how a portion sits against the day's targets. **Swipe right = in this
+  week, swipe left = not this week**; buttons do the same. The deck is the user's recipes
+  ordered by how recently they were logged (§8.1: the rotation wins), then the rest.
+- A plan is a set of recipes with a **portion count** for the week; there is no day-by-day
+  grid. Meal prep is "cook three pots on Sunday", not a calendar.
+
+### 18.2 Scaling
+- The week's budget is the daily target × days planned (default 7). The planner sets each
+  chosen recipe's portions so the plan's kcal lands within ±5 % of the budget while keeping
+  protein ≥ target; portion grams are then scaled uniformly (a recipe's own portion size is
+  a starting point, not a fact). The user can pin a recipe's portion count; the rest re-scales.
+- Fixed meals the user always eats (breakfast, snacks) are entered as a daily kcal/protein
+  allowance the planner subtracts first.
+
+### 18.3 Shopping list
+- Ingredients across the plan, summed in grams, grouped by **aisle** derived from the source
+  category (produce, meat & fish, dairy & eggs, bakery, grains & pasta, tins & jars, frozen,
+  drinks, oils & spices, other). Lines check off; the list shares as plain text.
+- **Prices**: entered once per ingredient (price per kg, or per pack with the pack weight);
+  they persist across plans. The list shows a cost per line and a week total; ±15 % is the
+  honest accuracy, and the total says so. No grocery-chain integration (§11).
+
+### 18.4 Cooking
+- Recipes carry optional **steps**. Cooking mode shows one step at a time in large type, the
+  ingredient list scaled to the portions being cooked, and ends on *Cook batch* (§8.2) so the
+  pot is weighed and its portions become one-tap logs.
+
+### 18.5 Data
+`week_plans (id, week_start, days, allowance_kcal, allowance_protein_g, items[{recipe_id,
+portions, pinned}])`, `prices (id, food_id, price_per_kg, currency)`, `recipes.steps[]`.
+All synced like every other table (§6).

@@ -8,6 +8,7 @@ import {
   Moon,
   RefreshCw,
   CalendarClock,
+  CalendarRange,
   ChefHat,
   Cloud,
   CloudOff,
@@ -503,6 +504,14 @@ export default function Settings() {
             subtitle="Custom foods and scanned products"
             chevron
             onClick={() => navigate('/foods')}
+          />
+          <ListRow
+            icon={CalendarRange}
+            iconTone="accent"
+            title="Plan the week"
+            subtitle="Pick meals, scale portions, shop by aisle"
+            chevron
+            onClick={() => navigate('/plan')}
           />
           <ListRow
             icon={ChefHat}
