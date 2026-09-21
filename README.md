@@ -8,6 +8,10 @@ own weigh-ins and logs instead of guessing them from a formula — and coaches y
 targets you keep missing. Progressive web app, works offline, costs nothing to run.
 
 <p align="center">
+  <img src="docs/screenshots/demo.gif" width="300" alt="Planning a week by swiping a recipe card, logging a portion in one tap, swiping an entry away and undoing it" />
+</p>
+
+<p align="center">
   <img src="docs/screenshots/today-dark.png" width="200" alt="Today, dark" />
   <img src="docs/screenshots/today-light.png" width="200" alt="Today, light" />
   <img src="docs/screenshots/log-sheet.png" width="200" alt="Logging a food" />
@@ -110,12 +114,14 @@ worker/         Cloudflare Worker (assets + /api/*)           scripts/        US
 ```sh
 npm install
 npm run dev          # http://localhost:5173 (add --host to test on a phone over LAN)
-npm test             # 226 unit tests: every formula in SPEC §3/§4/§5/§16/§18, repos, the Worker
+npm test             # 228 unit tests: every formula in SPEC §3/§4/§5/§16/§18, repos, the Worker
 npm run build        # typecheck + production build → dist/
+npm run e2e          # Playwright against the build: day one end to end, and fully offline
+npm run demo:gif     # re-records the README demo from the dev server (Chrome + Pillow)
 ```
 
-CI runs typecheck, lint, Prettier, tests, the build, a Worker config dry-run and a production
-dependency audit on every push. Deploys stay manual.
+CI runs typecheck, lint, Prettier, unit tests, the build, a Worker config dry-run, the browser
+smoke tests and a production dependency audit on every push. Deploys stay manual.
 
 ## Performance
 

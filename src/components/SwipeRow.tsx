@@ -132,6 +132,7 @@ export function SwipeRow({
   return (
     <div
       ref={ref}
+      data-swipe-row=""
       className={`relative overflow-hidden ${leaving ? 'max-h-0 transition-[max-height] duration-200' : ''} ${className}`}
       style={leaving ? { maxHeight: 0 } : undefined}
     >

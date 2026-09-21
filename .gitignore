@@ -13,3 +13,7 @@ dev-dist
 # Local secrets / per-machine config
 .env.local
 .env.*.local
+
+# Playwright
+test-results
+playwright-report
