@@ -27,6 +27,7 @@ import { personFor } from '@/services/supplements';
 import { computeWeekBanking } from '@/services/banking';
 import { computeCoach, weekOverview, type CoachState, type WeekOverview } from '@/services/coach';
 import { ensureTargetForDate, weightFor } from '@/services/targets';
+import { pingIfEnabled } from '@/services/reminders';
 import { tdeeState, type TdeeState } from '@/services/tdee';
 
 /** undefined = still loading; null = onboarded state unknown → no profile. */
@@ -244,4 +245,17 @@ export function useWeekOverview(date: string): WeekOverview | undefined {
     };
   }, [date, profile, stamp]);
   return state;
+}
+
+/** Keeps the reminder service informed of what has been logged and weighed today. */
+export function useReminderPing() {
+  const today = todayKey();
+  const entries = useEntries(today);
+  const weighIns = useWeighIns();
+  const logged = entries && entries.length > 0 ? today : undefined;
+  const weighed = weighIns?.some((w) => w.date === today) ? today : undefined;
+  useEffect(() => {
+    if (entries === undefined || weighIns === undefined) return;
+    void pingIfEnabled({ lastLoggedDate: logged, lastWeighedDate: weighed });
+  }, [entries, weighIns, logged, weighed]);
 }

@@ -1,5 +1,5 @@
 // SPEC §8.2 — the user's recipes. New ones get a name here and are built on the editor.
-import { ChefHat, ChevronLeft, Plus } from 'lucide-react';
+import { ChefHat, ChevronLeft, Download, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Button, Card, EmptyState, IconButton, ListRow, Sheet, fmt } from '@/components/ui';
@@ -42,6 +42,11 @@ export default function Recipes() {
           <h1 className="text-[22px] leading-tight font-bold tracking-[-0.01em]">Recipes</h1>
           <p className="text-[13px] text-muted">Cook once, log a portion in a tap.</p>
         </div>
+        <IconButton
+          icon={Download}
+          label="Import a recipe"
+          onClick={() => navigate('/recipes/import')}
+        />
         <Button size="sm" variant="primary" icon={Plus} onClick={() => setNaming(true)}>
           New
         </Button>

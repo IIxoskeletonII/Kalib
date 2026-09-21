@@ -44,6 +44,12 @@ targets you keep missing. Progressive web app, works offline, costs nothing to r
   own-food numbers at the model's portion; only the rest stays a model estimate with a range
   and a deliberate +10 % bias. Adjust grams, log all in one tap, promote a corrected estimate
   to a food of your own (SPEC §9).
+- **Week in review** — one page with the week's calories, protein, fiber, trend, measured burn
+  and what ran low, shareable as plain text for a coach or a doctor.
+- **Household recipes** — share a recipe as a link or code; the other account imports it with
+  every ingredient resolved (database foods by id, own foods embedded).
+- **Reminders** — a weigh-in nudge and an evening "nothing logged" check, each at your time and
+  only when the thing is still undone, via Web Push from the Worker (Home Screen app on iOS 16.4+).
 - **Your data stays yours** — everything lives in IndexedDB on the device; CSV and JSON export.
 
 Product spec: [`SPEC.md`](SPEC.md) · design system: [`design-system/kalib/MASTER.md`](design-system/kalib/MASTER.md) ·
@@ -105,6 +111,17 @@ environment variables the build runs local-only and Settings says so.
 2. `npx wrangler secret put OPENROUTER_API_KEY` and paste the key when prompted.
 3. The model id is `VISION_MODEL` in `wrangler.jsonc` (default `google/gemini-3.1-flash-lite`,
    about $0.001 per estimate). Without the secret the screen explains what is missing.
+
+## Reminders (optional)
+
+Web Push, sent by the Worker's cron every 10 minutes to subscriptions kept in KV.
+
+1. `npx wrangler kv namespace create PUSH` and paste the printed `id` into `kv_namespaces` in
+   `wrangler.jsonc` (uncomment the line).
+2. Generate a VAPID key pair (any Web Push tool, or the snippet in the repo history); put the
+   public key in `wrangler.jsonc` → `VAPID_PUBLIC_KEY` and the private `d` value in a secret:
+   `npx wrangler secret put VAPID_PRIVATE_KEY`.
+3. Deploy. Settings → Reminders turns on from the installed app.
 
 ## Deploy
 

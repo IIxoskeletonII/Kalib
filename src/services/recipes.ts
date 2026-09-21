@@ -1,6 +1,7 @@
 // SPEC §8.2 — recipes and batches. Every write to a recipe rewrites its materialised food so
 // the rest of the app (search, favourites, coach, amount sheet) only ever sees a food.
 import { todayKey } from '@/core/dates';
+import { encodeShare, packRecipe, type SharedRecipe } from '@/core/recipeShare';
 import { portionGrams, recipeFoodFields, servingsOf } from '@/core/recipes';
 import type { Batch, Food, MealSlot, Recipe, RecipeItem } from '@/core/types';
 import { addFood, getFood, getFoods, updateFood, deleteFood } from '@/db/repo/foods';
@@ -155,4 +156,55 @@ export async function removeEntry(id: string): Promise<void> {
 /** Grams of one portion for the amount sheet, from the batch when there is one. */
 export function batchPortionGrams(batch: Batch | undefined, recipe: Recipe): number {
   return batch ? batch.total_g / batch.portions_total : portionGrams(recipe);
+}
+
+/** A share code for this recipe (§8.2 household sharing): seed foods by id, own foods embedded. */
+export async function shareCodeFor(recipe: Recipe): Promise<string> {
+  const foods = await foodsFor(recipe.items);
+  return encodeShare(packRecipe(recipe, foods));
+}
+
+export interface ImportPreview {
+  shared: SharedRecipe;
+  /** Per ingredient: found in this database, will be created as an own food, or unknown. */
+  status: ('found' | 'embedded' | 'missing')[];
+}
+
+export async function previewImport(shared: SharedRecipe): Promise<ImportPreview> {
+  const ids = shared.items.map((i) => i.id).filter((id): id is string => id != null);
+  const have = await getFoods(ids);
+  return {
+    shared,
+    status: shared.items.map((i) =>
+      i.id && have.has(i.id) ? 'found' : i.f ? 'embedded' : 'missing',
+    ),
+  };
+}
+
+/** Creates the recipe locally; embedded own foods become this account's custom foods. */
+export async function importRecipe(shared: SharedRecipe): Promise<Recipe> {
+  const recipe = await createRecipe(shared.name);
+  const ids = shared.items.map((i) => i.id).filter((id): id is string => id != null);
+  const have = await getFoods(ids);
+  for (const it of shared.items) {
+    let food: Food | undefined = it.id ? have.get(it.id) : undefined;
+    if (!food && it.f) {
+      food = await addFood({
+        source: 'custom',
+        name: it.f.name,
+        ...(it.f.brand ? { brand: it.f.brand } : {}),
+        ...(it.f.barcode ? { barcode: it.f.barcode } : {}),
+        per_100g: it.f.per_100g,
+        micros: it.f.micros ?? {},
+        micro_coverage: 0,
+        portions: [{ label: '1 serving', grams: 100 }],
+        verified: false,
+      });
+    }
+    if (food) await addRecipeItem(recipe.id, food, it.g);
+  }
+  await updateRecipe(recipe.id, { portions: shared.portions, yield_g: shared.yield_g });
+  const fresh = await getRecipe(recipe.id);
+  if (fresh) await materialise(fresh);
+  return fresh ?? recipe;
 }

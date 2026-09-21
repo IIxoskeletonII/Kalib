@@ -1,6 +1,16 @@
 // SPEC §8.2 — build a recipe: ingredients by weight, the cooked weight, portions; cook a
 // batch; log a portion. Every change rewrites the materialised food.
-import { ChefHat, ChevronLeft, Flame, Minus, Plus, Scale, Trash2 } from 'lucide-react';
+import {
+  Check,
+  ChefHat,
+  ChevronLeft,
+  Flame,
+  Minus,
+  Plus,
+  Scale,
+  Share2,
+  Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { AmountSheet } from '@/components/AmountSheet';
@@ -23,6 +33,7 @@ import {
   useRecipe,
   useRecipeFoods,
 } from '@/hooks/useData';
+import { shareText } from '@/platform/share';
 import {
   cookBatch,
   deleteRecipe,
@@ -31,6 +42,7 @@ import {
   setRecipeItemGrams,
   setRecipePortions,
   setRecipeYield,
+  shareCodeFor,
 } from '@/services/recipes';
 
 export default function RecipeEditor() {
@@ -57,6 +69,21 @@ function Editor({ recipe }: { recipe: Recipe }) {
   const [cookOpen, setCookOpen] = useState(false);
   const [logging, setLogging] = useState<Batch | null | undefined>(undefined);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [shared, setShared] = useState(false);
+
+  const share = async () => {
+    const code = await shareCodeFor(recipe);
+    const url = `${window.location.origin}/recipes/import#${code}`;
+    const outcome = await shareText(
+      `${recipe.name} — a Kalib recipe`,
+      `${recipe.name}: ${recipe.items.length} ingredients, ${recipe.portions} portions. Open in Kalib, or paste the code under Recipes → Import.`,
+      url,
+    );
+    if (outcome === 'copied') {
+      setShared(true);
+      setTimeout(() => setShared(false), 1800);
+    }
+  };
 
   const totals = foods ? recipeTotals(recipe.items, foods) : undefined;
   const raw = rawWeight(recipe.items);
@@ -85,6 +112,12 @@ function Editor({ recipe }: { recipe: Recipe }) {
           }}
           aria-label="Recipe name"
           className="h-11 min-w-0 flex-1 rounded-full bg-transparent px-2 text-[22px] font-bold tracking-[-0.01em] outline-none focus:bg-surface-2"
+        />
+        <IconButton
+          icon={shared ? Check : Share2}
+          label="Share recipe"
+          disabled={recipe.items.length === 0}
+          onClick={() => void share()}
         />
       </div>
 

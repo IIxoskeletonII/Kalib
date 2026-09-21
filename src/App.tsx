@@ -10,6 +10,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router';
 import { ensureSeeded, type SeedProgress } from '@/db/seed';
 import { useProfile } from '@/hooks/useData';
+import { useReminderPing } from '@/hooks/useData';
 import { useSync } from '@/hooks/useSync';
 import { useTheme } from '@/hooks/useTheme';
 import { startSync } from '@/services/sync/manager';
@@ -29,12 +30,15 @@ const Supplements = lazy(() => import('@/screens/Supplements'));
 const Recipes = lazy(() => import('@/screens/Recipes'));
 const RecipeEditor = lazy(() => import('@/screens/RecipeEditor'));
 const Estimate = lazy(() => import('@/screens/Estimate'));
+const Review = lazy(() => import('@/screens/Review'));
+const RecipeImport = lazy(() => import('@/screens/RecipeImport'));
 
 export default function App() {
   const profile = useProfile();
   const location = useLocation();
   const [seed, setSeed] = useState<SeedProgress | 'error' | null>(null);
   const { recovery, session } = useSync();
+  useReminderPing();
   useTheme();
 
   useEffect(() => {
@@ -66,10 +70,12 @@ export default function App() {
 
   if (profile === undefined) return null; // first paint waits for one IndexedDB read
   const onboarding = location.pathname === '/onboarding';
-  if (profile === null && !onboarding) return <Navigate to="/onboarding" replace />;
+  // A shared-recipe link must show its code even on a browser with no profile (Safari).
+  const importing = location.pathname === '/recipes/import';
+  if (profile === null && !onboarding && !importing) return <Navigate to="/onboarding" replace />;
   if (profile && onboarding) return <Navigate to="/" replace />;
 
-  const hideNav = /^\/(log|quick|onboarding|foods|supplements|recipes|estimate)/.test(
+  const hideNav = /^\/(log|quick|onboarding|foods|supplements|recipes|estimate|review)/.test(
     location.pathname,
   );
   const screenKey = location.pathname.split('/')[1] ?? '';
@@ -92,8 +98,10 @@ export default function App() {
               <Route path="/foods/:id" element={<FoodEditor />} />
               <Route path="/supplements" element={<Supplements />} />
               <Route path="/recipes" element={<Recipes />} />
+              <Route path="/recipes/import" element={<RecipeImport />} />
               <Route path="/recipes/:id" element={<RecipeEditor />} />
               <Route path="/estimate" element={<Estimate />} />
+              <Route path="/review" element={<Review />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

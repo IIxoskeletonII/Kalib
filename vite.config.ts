@@ -40,6 +40,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Reminders: push + notificationclick handlers live beside the generated worker.
+        importScripts: ['push-sw.js'],
         // Food data is fetched lazily on first run; cache it so reseeds/offline never hit the network.
         runtimeCaching: [
           {

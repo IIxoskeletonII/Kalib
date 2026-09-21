@@ -4,9 +4,144 @@
 // and cache. Everything else falls through to static assets.
 import { runEstimate, type EstimateEnv, type EstimateRequest } from './estimate';
 import { normalizeOffProduct, rankOffProducts, type OffProduct, type OffHit } from './off';
+import {
+  dueReminders,
+  reminderMessage,
+  sendPush,
+  type PushEnv,
+  type PushSubscriptionJson,
+  type ReminderPrefs,
+  type StoredSubscription,
+} from './push';
 
-export interface Env extends EstimateEnv {
+export interface Env extends EstimateEnv, PushEnv {
   ASSETS: Fetcher;
+  /** Push subscriptions (reminders). Optional: without the binding the feature is off. */
+  PUSH?: KVNamespace;
+}
+
+async function subKey(endpoint: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint));
+  return Array.from(new Uint8Array(digest).slice(0, 16), (b) =>
+    b.toString(16).padStart(2, '0'),
+  ).join('');
+}
+
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+function cleanPrefs(raw: unknown): ReminderPrefs {
+  const p = (raw ?? {}) as Record<string, unknown>;
+  const t = (v: unknown) => (typeof v === 'string' && HHMM.test(v) ? v : null);
+  return { weighAt: t(p.weighAt), logAt: t(p.logAt) };
+}
+
+/** POST /api/push/subscribe, DELETE /api/push/subscribe, POST /api/push/ping, GET /api/push/config */
+async function handlePush(request: Request, url: URL, env: Env): Promise<Response> {
+  if (url.pathname === '/api/push/config') {
+    const on = Boolean(env.PUSH && env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
+    return json({ enabled: on, publicKey: on ? env.VAPID_PUBLIC_KEY : null });
+  }
+  if (!env.PUSH || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) {
+    return json({ error: 'Reminders are not set up on the server.' }, 503);
+  }
+  const origin = request.headers.get('origin') ?? '';
+  if (origin && origin !== url.origin) return json({ error: 'forbidden' }, 403);
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: 'bad request' }, 400);
+  }
+
+  if (url.pathname === '/api/push/subscribe' && request.method === 'POST') {
+    const sub = body.subscription as PushSubscriptionJson | undefined;
+    if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
+      return json({ error: 'bad subscription' }, 400);
+    }
+    const key = await subKey(sub.endpoint);
+    const existing = (await env.PUSH.get(key, 'json')) as StoredSubscription | null;
+    const stored: StoredSubscription = {
+      subscription: sub,
+      prefs: cleanPrefs(body.prefs),
+      tz: typeof body.tz === 'string' ? body.tz : 'UTC',
+      ...(typeof body.lastLoggedDate === 'string' ? { lastLoggedDate: body.lastLoggedDate } : {}),
+      ...(typeof body.lastWeighedDate === 'string'
+        ? { lastWeighedDate: body.lastWeighedDate }
+        : {}),
+      ...(existing?.sent ? { sent: existing.sent } : {}),
+      updated_at: new Date().toISOString(),
+    };
+    await env.PUSH.put(key, JSON.stringify(stored));
+    return json({ ok: true });
+  }
+  if (url.pathname === '/api/push/subscribe' && request.method === 'DELETE') {
+    const endpoint = body.endpoint;
+    if (typeof endpoint !== 'string') return json({ error: 'bad request' }, 400);
+    await env.PUSH.delete(await subKey(endpoint));
+    return json({ ok: true });
+  }
+  if (url.pathname === '/api/push/ping' && request.method === 'POST') {
+    const endpoint = body.endpoint;
+    if (typeof endpoint !== 'string') return json({ error: 'bad request' }, 400);
+    const key = await subKey(endpoint);
+    const existing = (await env.PUSH.get(key, 'json')) as StoredSubscription | null;
+    if (!existing) return json({ error: 'unknown subscription' }, 404);
+    if (typeof body.lastLoggedDate === 'string') existing.lastLoggedDate = body.lastLoggedDate;
+    if (typeof body.lastWeighedDate === 'string') existing.lastWeighedDate = body.lastWeighedDate;
+    existing.updated_at = new Date().toISOString();
+    await env.PUSH.put(key, JSON.stringify(existing));
+    return json({ ok: true });
+  }
+  return json({ error: 'not found' }, 404);
+}
+
+/** Cron: every few minutes, send whatever is due. Dead subscriptions are dropped. */
+export async function runReminders(
+  env: Env,
+  now = new Date(),
+): Promise<{ sent: number; dropped: number }> {
+  const out = { sent: 0, dropped: 0 };
+  if (!env.PUSH || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return out;
+  let cursor: string | null = null;
+  do {
+    const page: KVNamespaceListResult<unknown> = await env.PUSH.list(cursor ? { cursor } : {});
+    for (const k of page.keys) {
+      const s = (await env.PUSH.get(k.name, 'json')) as StoredSubscription | null;
+      if (!s) continue;
+      const due = dueReminders(s, now);
+      if (due.length === 0) continue;
+      const { date } = localClockFor(s, now);
+      let changed = false;
+      for (const kind of due) {
+        const r = await sendPush(s.subscription, reminderMessage(kind), env);
+        if (r === 'gone') {
+          await env.PUSH.delete(k.name);
+          out.dropped++;
+          changed = false;
+          break;
+        }
+        if (r === 'sent') {
+          s.sent = { ...s.sent, [kind]: date };
+          out.sent++;
+          changed = true;
+        }
+      }
+      if (changed) await env.PUSH.put(k.name, JSON.stringify(s));
+    }
+    cursor = page.list_complete ? null : page.cursor;
+  } while (cursor);
+  return out;
+}
+
+function localClockFor(s: StoredSubscription, now: Date) {
+  // Re-derive the local date the way dueReminders does, for the sent-today marker.
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: s.tz || 'UTC',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '00';
+  return { date: `${get('year')}-${get('month')}-${get('day')}` };
 }
 
 const USER_AGENT = 'Kalib/0.1 (https://kalib.kalib.workers.dev)';
@@ -105,6 +240,8 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    if (url.pathname.startsWith('/api/push/')) return handlePush(request, url, env);
+
     // SPEC §9.4 — estimation. POST only, from the app's own origin, never cached.
     if (url.pathname === '/api/estimate') {
       if (request.method !== 'POST') return json({ error: 'method' }, 405);
@@ -153,5 +290,9 @@ export default {
     }
 
     return env.ASSETS.fetch(request);
+  },
+
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runReminders(env));
   },
 };

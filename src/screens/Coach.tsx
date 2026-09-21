@@ -1,7 +1,8 @@
 // SPEC §16 — where the diet is short, and the foods that close the gap — plus the v2 week in
 // review and the §7.4 micronutrient panel, all over the same seven days.
-import { Sparkles } from 'lucide-react';
+import { ChevronRight, Sparkles } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { AmountSheet } from '@/components/AmountSheet';
 import { Card, EmptyState, ListRow, SectionHeading, Skeleton, fmt } from '@/components/ui';
 import { COACH_MIN_COMPLETE_DAYS, MICRO_COVERAGE_FLOOR } from '@/core/coach';
@@ -24,7 +25,18 @@ export default function Coach() {
         <h1 className="mt-0.5 text-[34px] leading-none font-extrabold tracking-[-0.03em]">Coach</h1>
       </header>
 
-      {week && week.review.completeDays > 0 && <WeekCard r={week.review} />}
+      {week && week.review.completeDays > 0 && (
+        <>
+          <WeekCard r={week.review} />
+          <Link
+            to="/review"
+            className="mt-2 flex items-center justify-end gap-1 px-1 text-[14px] font-semibold text-accent"
+          >
+            Week in review
+            <ChevronRight size={16} aria-hidden />
+          </Link>
+        </>
+      )}
 
       {coach === undefined && (
         <Card className="mt-6 space-y-3 p-5">

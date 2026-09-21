@@ -450,6 +450,17 @@ the description the primary input, not an add-on to the photo:
   estimate). Requests must come from the app's own origin; images are capped at 1024 px.
 - Classified as **differentiator #4** (§15); the grounding step is what no competitor does.
 
+### 9.5 Retention pieces (added 21 Sep 2026)
+Three small features whose only purpose is success criterion #1 (§14: still logging on
+23 December):
+- **Reminders.** Web Push from the Worker (RFC 8291/8292 in WebCrypto, subscriptions in KV, a
+  10-minute cron). Two nudges, each at a time of the user's choosing and *only when the thing
+  is still undone*: a weigh-in nudge and an evening "nothing logged" check. The app tells the
+  Worker what has been done today; the Worker never sees the log itself.
+- **Week in review** as a page and as shareable plain text (§2.5: trends, not instants).
+- **Household recipe sharing.** A recipe travels as a self-contained code (seed foods by their
+  deterministic id, own foods embedded) in a link or pasted; no server involvement.
+
 ---
 
 ## 10. Platform and stack

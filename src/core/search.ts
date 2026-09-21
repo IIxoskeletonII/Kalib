@@ -18,7 +18,7 @@ export interface SearchHit extends SearchDoc {
 
 const SOURCE_BOOST: Record<FoodSource, number> = {
   custom: 3,
-  usda_foundation: 2,
+  usda_foundation: 1.25,
   off: 1,
   photo: 0.5,
   usda_sr: 0,
@@ -51,21 +51,67 @@ export function buildSearchDoc(f: {
   return doc;
 }
 
+/** "eggs" → "egg", "berries" → "berry"; USDA names are singular, people type either. */
+function singular(q: string): string | undefined {
+  if (q.length < 4) return undefined;
+  if (q.endsWith('ies')) return q.slice(0, -3) + 'y';
+  if (q.endsWith('es') && /[sxz]es$|[cs]hes$/.test(q)) return q.slice(0, -2);
+  if (q.endsWith('s') && !q.endsWith('ss')) return q.slice(0, -1);
+  return undefined;
+}
+
+function matchOne(q: string, t: string): number {
+  if (t === q) return 3;
+  if (t.startsWith(q)) return 2;
+  const sg = singular(q);
+  if (sg && (t === sg || t.startsWith(sg))) return 2.5;
+  return 0;
+}
+
 /** Best match of a query token against a document's tokens: 3 exact, 2 prefix, 0 none. */
 function tokenScore(q: string, tokens: readonly string[]): number {
   let best = 0;
   for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i]!;
-    let s = 0;
-    if (t === q) s = 3;
-    else if (t.startsWith(q)) s = 2;
-    if (s > 0) {
-      // Earlier tokens are the "head noun" in USDA naming ("Chicken, breast, ...").
-      s += i === 0 ? 0.5 : i === 1 ? 0.25 : 0;
-      if (s > best) best = s;
-    }
+    const s = matchOne(q, tokens[i]!);
+    // "Oil, olive" over "Oil, corn, peanut, and olive": the nearer the front, the more it is
+    // what the name is about.
+    if (s > 0 && s - Math.min(0.4, 0.05 * i) > best) best = s - Math.min(0.4, 0.05 * i);
   }
   return best;
+}
+
+/**
+ * USDA names lead with the food itself ("Oil, olive, ..."; "Chicken, breast, ..."). A query
+ * that names the head noun is asking for that food; one that only matches later tokens is
+ * usually asking for something else that merely contains it ("olive oil" ≠ anchovies in it).
+ */
+function headBonus(q: readonly string[], tokens: readonly string[]): number {
+  const head = tokens[0];
+  const second = tokens[1];
+  if (head && q.some((qt) => matchOne(qt, head) > 0)) return 2;
+  if (second && q.some((qt) => matchOne(qt, second) > 0)) return 0.75;
+  return 0;
+}
+
+/** Forms nobody means when they type the plain food: dried yolk, powdered milk, baby food. */
+const LESS_EVERYDAY: Record<string, number> = {
+  dried: 0.8,
+  dehydrated: 0.8,
+  powder: 0.8,
+  powdered: 0.8,
+  imitation: 0.8,
+  infant: 1,
+  baby: 1,
+  concentrate: 0.6,
+  pasteurized: 0.3,
+  frozen: 0.3,
+  canned: 0.3,
+};
+
+function everydayPenalty(tokens: readonly string[]): number {
+  let p = 0;
+  for (const t of tokens) p += LESS_EVERYDAY[t] ?? 0;
+  return p;
 }
 
 /**
@@ -110,6 +156,8 @@ export function searchFoods(
       score += s;
     }
     if (!ok) continue;
+    score += headBonus(q, d.tokens);
+    score -= everydayPenalty(d.tokens);
     score += SOURCE_BOOST[d.source];
     const used = usage?.get(d.id) ?? 0;
     if (used > 0) score += Math.log2(1 + used);
