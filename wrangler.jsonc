@@ -22,7 +22,7 @@
   },
   // Push subscriptions live in KV. Create once with `npx wrangler kv namespace create PUSH`
   // and paste the id here; without the binding the reminders UI says so and does nothing.
-  // "kv_namespaces": [{ "binding": "PUSH", "id": "<id>" }],
+  "kv_namespaces": [{ "binding": "PUSH", "id": "079cc1615c694a8a8afcef454dad7ad4" }],
   // The cron sends due reminders; a 10-minute grid is fine for "around 07:30".
   "triggers": { "crons": ["*/10 * * * *"] },
   "observability": { "enabled": true }
