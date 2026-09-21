@@ -57,13 +57,25 @@ labels, no eyebrows above headings, no middle dots in meta — commas and full w
 control and chip a pill, sheet top 32. Depth: `.card` = one soft shadow (`--card-shadow`), FAB
 and sheet shadows; nothing else. Icons sit in 32–40 px tinted discs (`bg-<tone>/15`).
 
+## Page structure
+
+Numbers sit on the page; cards are for things you tap. Today is: the day's numbers set
+directly on the background (big figure, budget bar, four macro columns, two lines of small
+print) → one row of three check tiles → food → context. One tier of cards in the first
+viewport, never a stack of equal cards as the page skeleton, and no ring, sparkline or
+metric card standing in for content.
+
 ## Touch, states, motion
 
 Targets ≥ 44 pt; keys 60 pt. Press = scale .97 + surface step. Visible `focus-visible` ring.
 Disabled = 40 % opacity. Motion: `--ease-out-soft` (0.22,1,0.36,1) for arrivals, `--ease-spring`
-(0.32,0.72,0,1) for sheets (320 ms). The ring fills from empty on mount and eases on change
-(900 ms); the hero number counts up (700 ms); screens rise in 220 ms; bars ease 700 ms.
-Reduced-motion zeroes all of it. Skeletons for loading, never spinners.
+(0.32,0.72,0,1) for sheets (320 ms). Four authored moments, and only these: the hero figure
+rolls like an odometer (each digit slides, 700 ms); the tab-bar pill morphs between tabs
+through the View Transitions API (320 ms spring, root cross-fade switched off so it never
+stacks with the 220 ms screen rise); list rows and rail tiles rise in staggered 35–40 ms
+apart (`.rise-in`, 260 ms, capped at eight); a value changed by a tap pops (`.pop`, 360 ms
+spring). Bars ease 700 ms. Reduced-motion zeroes all of it. Skeletons for loading, never
+spinners.
 
 Arrival animations use `animation-fill-mode: backwards`, never `both`: a transform that persists
 after the animation makes that element the containing block for every `position: fixed` sheet

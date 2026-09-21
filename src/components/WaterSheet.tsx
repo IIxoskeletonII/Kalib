@@ -1,10 +1,8 @@
-// SPEC §17.1 — water. One tap adds a glass; the card opens a sheet for other amounts, the
-// day's list and undo.
-import { Droplets, GlassWater, Plus, Trash2 } from 'lucide-react';
+// SPEC §17.1 — water sheet: presets, a custom amount, the day's list with undo, glass size.
+import { GlassWater, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { WaterLog } from '@/core/types';
 import {
-  DEFAULT_GLASS_ML,
   WATER_GLASS_KEY,
   WATER_PRESETS_ML,
   formatLitres,
@@ -13,86 +11,10 @@ import {
 } from '@/core/water';
 import { setSetting } from '@/db/repo/settings';
 import { addWater, deleteWater } from '@/db/repo/water';
-import { useSetting, useWaterLogs } from '@/hooks/useData';
 import { NumberPad } from './NumberPad';
 import { Button, Chip, IconButton, Sheet, fmt } from './ui';
 
-export function WaterCard({ date, targetMl }: { date: string; targetMl: number }) {
-  const logs = useWaterLogs(date);
-  const glass = useSetting<number>(WATER_GLASS_KEY, DEFAULT_GLASS_ML);
-  const [open, setOpen] = useState(false);
-  const [pulse, setPulse] = useState(0);
-  const total = sumWater(logs ?? []);
-  const pct = targetMl > 0 ? Math.min(1, total / targetMl) : 0;
-  const done = targetMl > 0 && total >= targetMl;
-
-  const addGlass = async () => {
-    await addWater(date, glass);
-    setPulse((n) => n + 1);
-  };
-
-  return (
-    <>
-      <div className="card flex items-center gap-4 px-5 py-4">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="min-w-0 flex-1 text-left transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-[0.985]"
-          aria-label="Water details"
-        >
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-2/15 text-accent-2">
-              <Droplets size={16} strokeWidth={2.4} aria-hidden />
-            </span>
-            <span className="text-[14px] font-semibold text-ink-2">Water</span>
-            {logs && logs.length > 0 && (
-              <span className="ml-auto text-[13px] text-muted tabular">
-                {logs.length} {logs.length === 1 ? 'glass' : 'glasses'}
-              </span>
-            )}
-          </div>
-          <div className="mt-3 flex items-baseline gap-1 tabular">
-            <span
-              key={pulse}
-              className={`text-[24px] font-bold tracking-[-0.02em] ${pulse ? 'fade-in' : ''}`}
-            >
-              {(total / 1000).toLocaleString(undefined, {
-                maximumFractionDigits: 1,
-                minimumFractionDigits: 1,
-              })}
-            </span>
-            <span className="text-[13px] text-muted">/ {formatLitres(targetMl)}</span>
-            {done && <span className="ml-2 text-[12px] font-semibold text-accent-2">Done</span>}
-          </div>
-          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-            <div
-              className="h-full rounded-full bg-accent-2 transition-[width] duration-700 ease-[var(--ease-out-soft)]"
-              style={{ width: `${pct * 100}%` }}
-            />
-          </div>
-        </button>
-        <button
-          type="button"
-          onClick={addGlass}
-          aria-label={`Add ${glass} ml of water`}
-          className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-full bg-accent-2 text-on-accent shadow-[0_6px_18px_color-mix(in_srgb,var(--accent-2)_30%,transparent)] transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-90"
-        >
-          <Plus size={22} strokeWidth={2.6} aria-hidden />
-        </button>
-      </div>
-      <WaterSheet
-        open={open}
-        date={date}
-        logs={logs ?? []}
-        glass={glass}
-        targetMl={targetMl}
-        onClose={() => setOpen(false)}
-      />
-    </>
-  );
-}
-
-function WaterSheet({
+export function WaterSheet({
   open,
   date,
   logs,

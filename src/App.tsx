@@ -146,6 +146,7 @@ function Tab({ to, label, icon: Icon }: { to: string; label: string; icon: Lucid
     <NavLink
       to={to}
       end={to === '/'}
+      viewTransition
       className={({ isActive }) =>
         `flex h-full flex-col items-center justify-center gap-1 text-[11px] font-semibold transition-colors duration-200 ${
           isActive ? 'text-ink' : 'text-muted active:text-ink-2'
@@ -156,6 +157,8 @@ function Tab({ to, label, icon: Icon }: { to: string; label: string; icon: Lucid
         <>
           <span
             className={`flex h-7 w-11 items-center justify-center rounded-full transition-colors duration-200 ${isActive ? 'bg-surface-2' : ''}`}
+            // The active pill morphs between tabs through the View Transitions API (Safari 18+).
+            style={isActive ? { viewTransitionName: 'tab-pill' } : undefined}
           >
             <Icon size={22} strokeWidth={isActive ? 2.4 : 2} aria-hidden />
           </span>

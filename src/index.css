@@ -240,6 +240,31 @@ a {
   }
 }
 
+@keyframes pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Route changes: the new screen rises in on its own; only the tab pill morphs between
+   positions through the View Transitions API. Root cross-fade is switched off so the two
+   motions never stack. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-group(tab-pill) {
+  animation-duration: 320ms;
+  animation-timing-function: var(--ease-spring);
+}
+
 /* Motion answers an action (a sheet opening, a screen arriving). */
 .sheet-in {
   animation: sheet-in 320ms var(--ease-spring) both;
@@ -251,6 +276,13 @@ a {
    for every fixed sheet, clipping them to the area above the tab bar. */
 .screen-in {
   animation: rise-in 220ms var(--ease-out-soft) backwards;
+}
+/* List items and tiles arriving: 260 ms, staggered by the caller via animation-delay. */
+.rise-in {
+  animation: rise-in 260ms var(--ease-out-soft) backwards;
+}
+.pop {
+  animation: pop 360ms var(--ease-spring) both;
 }
 .skeleton {
   background: linear-gradient(

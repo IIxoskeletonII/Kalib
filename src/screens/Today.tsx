@@ -1,27 +1,22 @@
+// Today: one block of numbers, one row of daily checks, then food, then context.
 import {
-  Beef,
   ChefHat,
+  ChevronRight,
   Cookie,
-  Droplets,
-  Leaf,
   Moon,
   Plus,
   Scale,
   Sparkles,
   Sun,
   Sunrise,
-  Wheat,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AccountChip } from '@/components/AccountChip';
 import { AmountSheet, SLOT_LABEL } from '@/components/AmountSheet';
-import { MacroTile } from '@/components/MacroTile';
-import { ProvenanceRow } from '@/components/Provenance';
-import { Ring } from '@/components/Ring';
-import { Sparkline } from '@/components/Sparkline';
-import { SupplementsCard } from '@/components/SupplementsCard';
+import { DailyChecks } from '@/components/DailyChecks';
+import { DayHero } from '@/components/DayHero';
 import {
   Badge,
   Button,
@@ -33,13 +28,12 @@ import {
   fmt,
 } from '@/components/ui';
 import { WeekStrip } from '@/components/WeekStrip';
-import { WaterCard } from '@/components/WaterCard';
 import { WeighInSheet } from '@/components/WeighInSheet';
 import { addDays, formatDayLabel, fromDateKey, mealSlotForTime, todayKey } from '@/core/dates';
 import { dayTotals } from '@/core/nutrition';
-import type { EngineResult } from '@/core/tdee';
 import { formatPortions } from '@/core/recipes';
-import { computeTrend, trendDelta } from '@/core/trend';
+import type { EngineResult } from '@/core/tdee';
+import { computeTrend } from '@/core/trend';
 import {
   MEAL_SLOTS,
   type Batch,
@@ -60,7 +54,6 @@ import {
   useTdee,
   useWeighIns,
 } from '@/hooks/useData';
-import { useCountUp } from '@/hooks/useCountUp';
 import { recordChoice } from '@/services/banking';
 import { acceptPendingTdee, dismissPendingTdee, type TdeeState } from '@/services/tdee';
 
@@ -93,15 +86,16 @@ export default function Today() {
   const weighIns = useWeighIns();
   const allFavourites = useFavourites();
   const batches = useActiveBatches();
+  const tdee = useTdee();
+  const coach = useCoach(date);
+  const loggedDates = useLoggedDates(addDays(today, -6), today);
+
   // A batch tile already stands for its food; do not show it twice.
   const favourites = useMemo(() => {
     if (!allFavourites) return undefined;
     const covered = new Set(batches?.map((b) => b.food.id));
     return allFavourites.filter((f) => !covered.has(f.food_id));
   }, [allFavourites, batches]);
-  const tdee = useTdee();
-  const coach = useCoach(date);
-  const loggedDates = useLoggedDates(addDays(today, -6), today);
 
   const [weighOpen, setWeighOpen] = useState(false);
   const [sheet, setSheet] = useState<SheetState | null>(null);
@@ -109,15 +103,11 @@ export default function Today() {
   const totals = useMemo(() => dayTotals(entries ?? []), [entries]);
   const trend = useMemo(() => computeTrend(weighIns ?? [], undefined, date), [weighIns, date]);
   const trendToday = trend.find((p) => p.date === date);
-  const weekDelta = trendDelta(trend, 7);
-  const spark = trend.slice(-14).map((p) => p.trend);
   const todaysWeighIn = weighIns?.find((w) => w.date === date);
   const previousWeighIn = weighIns?.filter((w) => w.date < date).at(-1);
   // §5: the ring runs on the banked target for the day, not the raw formula target.
   const dayTarget = banking ? Math.round(banking.todayTarget) : (target?.kcal ?? 0);
   const bankShift = target ? dayTarget - target.kcal : 0;
-  const remaining = target ? dayTarget - totals.kcal : 0;
-  const shownRemaining = useCountUp(Math.abs(remaining));
 
   const openFavourite = async (food_id: string, grams: number) => {
     const food = await getFood(food_id);
@@ -147,7 +137,7 @@ export default function Today() {
     day: 'numeric',
     month: 'long',
   });
-  const provisionalNote = targetNote(target?.provisional, tdee, date === today);
+  const note = targetNote(target?.provisional, tdee, date === today);
 
   return (
     <div className="pb-32">
@@ -167,69 +157,22 @@ export default function Today() {
       </header>
 
       {loading ? (
-        <div className="card mt-6 flex flex-col items-center p-6">
-          <Skeleton className="h-[180px] w-[180px] rounded-full" />
-          <Skeleton className="mt-5 h-4 w-2/3" />
+        <div className="mt-7 space-y-4 px-1">
+          <Skeleton className="h-12 w-1/2" />
+          <Skeleton className="h-1.5 w-full" />
+          <Skeleton className="h-8 w-full" />
         </div>
       ) : target ? (
-        <>
-          <Card className="mt-6 px-6 pt-6 pb-5">
-            <div className="flex flex-col items-center">
-              <Ring value={totals.kcal} target={dayTarget}>
-                <span className="display">{fmt(shownRemaining)}</span>
-                <span className="mt-1.5 text-[13px] font-semibold text-muted">
-                  {remaining >= 0 ? 'kcal left' : 'kcal over'}
-                </span>
-              </Ring>
-            </div>
-            <div className="mt-5 grid grid-cols-2 gap-3 border-t border-line pt-4 tabular">
-              <Stat label="Eaten" value={fmt(totals.kcal)} unit="kcal" />
-              <Stat
-                label={
-                  bankShift !== 0
-                    ? `Target (${bankShift > 0 ? '+' : ''}${fmt(bankShift)} banked)`
-                    : 'Target'
-                }
-                value={fmt(dayTarget)}
-                unit="kcal"
-                align="right"
-              />
-            </div>
-            {entries && entries.length > 0 && <ProvenanceRow entries={entries} />}
-            <p className="mt-3 text-center text-[12px] text-muted">{provisionalNote}</p>
-          </Card>
-
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <MacroTile
-              kind="protein"
-              label="Protein"
-              icon={Beef}
-              value={totals.protein_g}
-              target={target.protein_g}
-            />
-            <MacroTile
-              kind="fiber"
-              label="Fiber"
-              icon={Leaf}
-              value={totals.fiber_g}
-              target={target.fiber_g}
-            />
-            <MacroTile
-              kind="carb"
-              label="Carbs"
-              icon={Wheat}
-              value={totals.carb_g}
-              target={target.carb_g}
-            />
-            <MacroTile
-              kind="fat"
-              label="Fat"
-              icon={Droplets}
-              value={totals.fat_g}
-              target={target.fat_g}
-            />
-          </div>
-        </>
+        <div className="mt-7">
+          <DayHero
+            totals={totals}
+            target={target}
+            dayTarget={dayTarget}
+            bankShift={bankShift}
+            note={note}
+            entries={entries ?? []}
+          />
+        </div>
       ) : (
         <Card className="mt-6">
           <EmptyState
@@ -245,55 +188,17 @@ export default function Today() {
         </Card>
       )}
 
-      <Card
-        className="mt-3 flex items-center justify-between gap-4 px-5 py-4"
-        onClick={() => setWeighOpen(true)}
-      >
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[14px] font-semibold text-ink-2">
-            <Scale size={16} strokeWidth={2.2} aria-hidden className="text-accent" />
-            Weight
-          </div>
-          <div className="mt-1.5 tabular">
-            {todaysWeighIn ? (
-              <span className="text-[26px] font-bold tracking-[-0.02em]">
-                {todaysWeighIn.weight_kg.toFixed(1)}
-                <span className="ml-1 text-[15px] font-medium text-muted">kg</span>
-              </span>
-            ) : previousWeighIn ? (
-              <span className="text-[17px] font-medium text-muted">
-                Last {previousWeighIn.weight_kg.toFixed(1)} kg
-              </span>
-            ) : (
-              <span className="text-[17px] font-medium text-muted">Not logged yet</span>
-            )}
-          </div>
-          {trendToday && (
-            <p className="mt-0.5 text-[13px] whitespace-nowrap text-muted tabular">
-              Trend {trendToday.trend.toFixed(1)} kg
-              {weekDelta != null && (
-                <>
-                  {' · '}
-                  <span className={weekDelta <= 0 ? 'text-fiber' : 'text-fat'}>
-                    {weekDelta > 0 ? '+' : ''}
-                    {weekDelta.toFixed(1)} kg/wk
-                  </span>
-                </>
-              )}
-            </p>
-          )}
+      {target && (
+        <div className="mt-6">
+          <DailyChecks
+            date={date}
+            waterTargetMl={target.water_ml}
+            todaysWeighIn={todaysWeighIn}
+            previousWeighIn={previousWeighIn}
+            trendKg={trendToday?.trend}
+          />
         </div>
-        {todaysWeighIn && spark.length >= 2 ? (
-          <Sparkline values={spark} />
-        ) : (
-          <span className="inline-flex h-10 shrink-0 items-center gap-1 rounded-full bg-primary px-3.5 text-[14px] font-semibold text-on-primary">
-            <Plus size={15} strokeWidth={2.6} aria-hidden />
-            {date === today ? 'Log weight' : 'Add weight'}
-          </span>
-        )}
-      </Card>
-
-      {target && <WaterCard date={date} targetMl={target.water_ml} />}
+      )}
 
       {banking?.pending && (
         <Card className="mt-3 p-5">
@@ -324,47 +229,6 @@ export default function Today() {
         </Card>
       )}
 
-      {banking && target && (
-        <Card className="mt-3 px-5 py-4">
-          <div className="flex items-baseline justify-between">
-            <span className="text-[14px] font-semibold text-ink-2">This week</span>
-            <span className="tabular text-[13px] text-muted">
-              {banking.daysLeft} {banking.daysLeft === 1 ? 'day' : 'days'} left
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-1 tabular">
-            <span className="text-[22px] font-bold tracking-[-0.02em]">
-              {fmt(banking.consumedToDate)}
-            </span>
-            <span className="text-[13px] text-muted">of {fmt(banking.weekBudget)} kcal</span>
-            {Math.abs(banking.balance) >= 50 && (
-              <span
-                className={`ml-auto text-[13px] font-semibold ${banking.balance > 0 ? 'text-fiber' : 'text-fat'}`}
-              >
-                {banking.balance > 0
-                  ? `${fmt(banking.balance)} banked`
-                  : `${fmt(-banking.balance)} over`}
-              </span>
-            )}
-          </div>
-          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-            <div
-              className="h-full rounded-full bg-accent transition-[width] duration-700 ease-[var(--ease-out-soft)]"
-              style={{
-                width: `${Math.min(100, (banking.consumedToDate / Math.max(1, banking.weekBudget)) * 100)}%`,
-              }}
-            />
-          </div>
-          {banking.notices.length > 0 && (
-            <ul className="mt-3 space-y-1 text-[13px] leading-snug text-muted">
-              {banking.notices.slice(-2).map((n, i) => (
-                <li key={i}>{n.text}</li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      )}
-
       {date === today && tdee?.pending && (
         <Card className="mt-3 p-5">
           <p className="text-[15px] font-semibold tabular">
@@ -389,54 +253,6 @@ export default function Today() {
         </Card>
       )}
 
-      <SupplementsCard date={date} />
-
-      {coach?.kind === 'gap' && (
-        <section className="mt-7" aria-label="Coach">
-          <SectionHeading>
-            <span className="inline-flex items-center gap-2">
-              <Sparkles size={16} className="text-accent" aria-hidden />
-              {coach.result.gap.label} is running low
-            </span>
-          </SectionHeading>
-          <Card>
-            <p className="px-4 pt-4 pb-1 text-[14px] leading-snug text-muted tabular">
-              Averaging {fmt(coach.result.gap.average, coach.result.gap.unit === 'g' ? 0 : 1)}{' '}
-              {coach.result.gap.unit} of{' '}
-              {fmt(coach.result.gap.target, coach.result.gap.unit === 'g' ? 0 : 1)}{' '}
-              {coach.result.gap.unit} over the last {coach.result.gap.days} logged days.
-              {coach.result.recommendations.length > 0 ? ' Any of these helps:' : ''}
-            </p>
-            <div className="divide-y divide-line">
-              {coach.result.recommendations.map((r) => (
-                <ListRow
-                  key={r.food.id}
-                  onClick={() =>
-                    setSheet({
-                      food: r.food,
-                      grams: r.grams,
-                      slot: mealSlotForTime(new Date()),
-                      method: 'search',
-                    })
-                  }
-                  wrapTitle
-                  title={shortName(r.food.name)}
-                  subtitle={`${fmt(r.grams)} g, ${fmt(r.kcal)} kcal${r.familiar ? ', you log this already' : ''}`}
-                  value={`+${fmt(r.adds, coach.result.gap.unit === 'g' ? 0 : 1)} ${coach.result.gap.unit}`}
-                  valueSub={coach.result.gap.label.toLowerCase()}
-                />
-              ))}
-            </div>
-          </Card>
-        </section>
-      )}
-
-      {coach?.kind === 'closed' && (
-        <p className="card mt-7 px-4 py-3 text-[14px] text-ink-2">
-          {coach.nutrientLabel} is on target this week.
-        </p>
-      )}
-
       {((favourites && favourites.length > 0) || (batches && batches.length > 0)) && (
         <section className="mt-7">
           <SectionHeading>Log again</SectionHeading>
@@ -456,7 +272,7 @@ export default function Today() {
                       batch: { batch, recipe },
                     })
                   }
-                  className="card flex w-[156px] shrink-0 snap-start flex-col justify-between p-4 text-left transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-[0.97]"
+                  className="card rise-in flex w-[156px] shrink-0 snap-start flex-col justify-between p-4 text-left transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-[0.97]"
                 >
                   <span className="flex items-start gap-1.5">
                     <ChefHat
@@ -478,12 +294,13 @@ export default function Today() {
                 </button>
               );
             })}
-            {favourites?.map((f) => (
+            {favourites?.map((f, i) => (
               <button
                 key={f.food_id}
                 type="button"
                 onClick={() => openFavourite(f.food_id, f.last_grams)}
-                className="card flex w-[156px] shrink-0 snap-start flex-col justify-between p-4 text-left transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-[0.97]"
+                style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}
+                className="card rise-in flex w-[156px] shrink-0 snap-start flex-col justify-between p-4 text-left transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-[0.97]"
               >
                 <span className="line-clamp-2 text-[15px] font-semibold leading-snug">
                   {shortName(f.name)}
@@ -506,18 +323,25 @@ export default function Today() {
           <section key={slot} className="mt-7">
             <SectionHeading trailing={`${fmt(kcal)} kcal`}>{SLOT_LABEL[slot]}</SectionHeading>
             <Card className="divide-y divide-line">
-              {list.map((e) => (
-                <ListRow
+              {list.map((e, i) => (
+                <div
                   key={e.id}
-                  onClick={() => openEntry(e)}
-                  icon={Icon}
-                  iconTone="kcal"
-                  title={e.name}
-                  badge={e.confidence !== 'high' ? <Badge tone="kcal">estimate</Badge> : undefined}
-                  subtitle={entryMeta(e)}
-                  value={fmt(e.kcal)}
-                  valueSub="kcal"
-                />
+                  className="rise-in"
+                  style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}
+                >
+                  <ListRow
+                    onClick={() => openEntry(e)}
+                    icon={Icon}
+                    iconTone="kcal"
+                    title={e.name}
+                    badge={
+                      e.confidence !== 'high' ? <Badge tone="kcal">estimate</Badge> : undefined
+                    }
+                    subtitle={entryMeta(e)}
+                    value={fmt(e.kcal)}
+                    valueSub="kcal"
+                  />
+                </div>
               ))}
             </Card>
           </section>
@@ -538,6 +362,73 @@ export default function Today() {
             </Link>
           }
         />
+      )}
+
+      {(banking || coach) && target && (
+        <section className="mt-7">
+          <SectionHeading>This week</SectionHeading>
+          <Card className="divide-y divide-line">
+            {banking && (
+              <div className="px-4 py-3">
+                <div className="flex items-baseline justify-between gap-3 tabular">
+                  <span className="text-[15px]">
+                    <span className="font-semibold">{fmt(banking.consumedToDate)}</span>
+                    <span className="text-muted"> of {fmt(banking.weekBudget)} kcal</span>
+                  </span>
+                  <span className="text-[13px] text-muted">
+                    {Math.abs(banking.balance) >= 50 && (
+                      <span
+                        className={`mr-2 font-semibold ${banking.balance > 0 ? 'text-fiber' : 'text-fat'}`}
+                      >
+                        {banking.balance > 0
+                          ? `${fmt(banking.balance)} banked`
+                          : `${fmt(-banking.balance)} over`}
+                      </span>
+                    )}
+                    {banking.daysLeft} {banking.daysLeft === 1 ? 'day' : 'days'} left
+                  </span>
+                </div>
+                <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-surface-2">
+                  <div
+                    className="h-full rounded-full bg-accent transition-[width] duration-700 ease-[var(--ease-out-soft)]"
+                    style={{
+                      width: `${Math.min(100, (banking.consumedToDate / Math.max(1, banking.weekBudget)) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            {coach?.kind === 'gap' && (
+              <Link
+                to="/coach"
+                className="flex min-h-16 items-center gap-3.5 px-4 py-3 transition-colors duration-150 last:rounded-b-[24px] active:bg-surface-2"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+                  <Sparkles size={18} strokeWidth={2.2} aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[16px] font-medium">
+                    {coach.result.gap.label} is running low
+                  </span>
+                  <span className="block truncate text-[13px] text-muted tabular">
+                    {fmt(coach.result.gap.average, coach.result.gap.unit === 'g' ? 0 : 1)} of{' '}
+                    {fmt(coach.result.gap.target, coach.result.gap.unit === 'g' ? 0 : 1)}{' '}
+                    {coach.result.gap.unit} a day
+                    {coach.result.recommendations.length > 0 &&
+                      ` · ${coach.result.recommendations.length} foods that help`}
+                  </span>
+                </span>
+                <ChevronRight size={18} className="shrink-0 text-muted" aria-hidden />
+              </Link>
+            )}
+            {coach?.kind === 'closed' && (
+              <div className="flex min-h-12 items-center gap-3.5 px-4 py-3 text-[14px] text-ink-2">
+                <Sparkles size={16} className="text-accent" aria-hidden />
+                {coach.nutrientLabel} is on target this week.
+              </div>
+            )}
+          </Card>
+        </section>
       )}
 
       <WeighInSheet
@@ -562,48 +453,22 @@ export default function Today() {
   );
 }
 
-function Stat({
-  label,
-  value,
-  unit,
-  align = 'left',
-}: {
-  label: string;
-  value: string;
-  unit: string;
-  align?: 'left' | 'right';
-}) {
-  return (
-    <div className={align === 'right' ? 'text-right' : ''}>
-      <div className="text-[12px] font-semibold text-muted">{label}</div>
-      <div className="mt-0.5 text-[18px] font-bold tracking-[-0.01em]">
-        {value}
-        <span className="ml-1 text-[12px] font-medium text-muted">{unit}</span>
-      </div>
-    </div>
-  );
-}
-
-/** The line under the ring: where the target comes from and how the §4 measurement is going. */
+/** The line under the numbers: where the target comes from and how the §4 measurement is going. */
 function targetNote(
   provisional: boolean | undefined,
   tdee: TdeeState | undefined,
   isToday: boolean,
 ): string {
   if (provisional == null) return '';
-  if (!provisional) {
-    return tdee?.published
-      ? `Measured target · TDEE ${fmt(tdee.published.tdee)} kcal`
-      : 'Measured target';
-  }
-  if (!tdee || !isToday) return 'Provisional target from formula';
-  return `Provisional target · ${engineLine(tdee.result, tdee.pending != null)}`;
+  if (!provisional) return 'Measured target';
+  if (!tdee || !isToday) return 'Provisional target';
+  return `Provisional · ${engineLine(tdee.result, tdee.pending != null)}`;
 }
 
 function engineLine(r: EngineResult, pending: boolean): string {
   switch (r.status) {
     case 'calibrating':
-      return `calibration day ${r.day} of ${r.first_estimate_day}`;
+      return `day ${r.day}/${r.first_estimate_day}`;
     case 'insufficient': {
       const needL = Math.max(0, r.need_logged - r.logged_days);
       const needW = Math.max(0, r.need_weighed - r.weighed_days);
@@ -613,7 +478,7 @@ function engineLine(r: EngineResult, pending: boolean): string {
       return parts.length ? `needs ${parts.join(' and ')}` : 'measuring';
     }
     case 'ok':
-      return pending ? 'measurement on hold, see below' : 'formula kept this week';
+      return pending ? 'measurement on hold' : 'formula kept this week';
   }
 }
 
