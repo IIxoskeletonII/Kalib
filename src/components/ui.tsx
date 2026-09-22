@@ -342,6 +342,57 @@ export function Skeleton({ className = '' }: { className?: string }) {
   return <div className={`skeleton rounded-lg ${className}`} aria-hidden />;
 }
 
+/**
+ * For waits long enough to need one (roughly half a second and up). Reduced motion turns the
+ * ring static rather than removing it, so the state is still visible.
+ */
+export function Spinner({ size = 18, className = '' }: { size?: number; className?: string }) {
+  return (
+    <span
+      className={`spinner inline-block shrink-0 rounded-full ${className}`}
+      style={{ width: size, height: size, borderWidth: Math.max(2, Math.round(size / 9)) }}
+      aria-hidden
+    />
+  );
+}
+
+/**
+ * A named step with a determinate bar: for a multi-second job the honest thing is to say what
+ * is happening and how far along it is, not to spin indefinitely.
+ */
+export function StepProgress({
+  label,
+  done,
+  total,
+  className = '',
+}: {
+  label: string;
+  done: number;
+  total: number;
+  className?: string;
+}) {
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  return (
+    <div className={className} role="status" aria-live="polite">
+      <div className="flex items-center gap-2 text-[14px] text-ink-2">
+        <Spinner size={16} />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {total > 1 && (
+          <span className="shrink-0 text-[12px] text-muted tabular">
+            {done}/{total}
+          </span>
+        )}
+      </div>
+      <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-surface-2">
+        <div
+          className="h-full rounded-full bg-accent transition-[width] duration-500 ease-[var(--ease-out-soft)]"
+          style={{ width: `${Math.max(6, pct)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function Row({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="flex items-baseline justify-between px-4 py-3">

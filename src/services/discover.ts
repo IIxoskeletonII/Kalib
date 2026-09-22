@@ -8,7 +8,7 @@ import { getFoods, listSearchDocs } from '@/db/repo/foods';
 import { foodUsageCounts } from '@/db/repo/logEntries';
 import { getSetting, setSetting } from '@/db/repo/settings';
 import { setPrice } from '@/db/repo/planner';
-import { authHeaders } from '@/services/apiAuth';
+import { authHeaders, isSignedIn } from '@/services/apiAuth';
 import { createCustomFood } from '@/services/customFoods';
 import { decide, setBudget, type PlanContext } from '@/services/planner';
 import {
@@ -36,6 +36,22 @@ export interface DiscoverState {
   seen: string[];
   requested_at: string;
   model?: string;
+  /** How many the user asked to end up with; the deck refills until it gets there. */
+  target?: number;
+  /** How many have been kept so far against that target. */
+  kept?: number;
+  /** Batches fetched for this week, capped so a run of "no" cannot spend without end. */
+  batches?: number;
+}
+
+/** A week may fetch this many batches in total, however many cards are turned down. */
+export const MAX_BATCHES_PER_WEEK = 6;
+
+export type AcceptStage = 'matching' | 'saving' | 'week';
+export interface AcceptProgress {
+  stage: AcceptStage;
+  done: number;
+  total: number;
 }
 
 export const DISCOVER_INPUTS_KEY = 'discover:inputs';
@@ -63,6 +79,7 @@ export async function getDiscoverInputs(): Promise<DiscoverInputs> {
 export async function requestSuggestions(
   ctx: PlanContext,
   inputs: DiscoverInputs,
+  opts: { keepTarget?: boolean } = {},
 ): Promise<{ added: number; used?: number; cap?: number }> {
   const auth = await authHeaders();
   if (!('authorization' in auth)) {
@@ -82,6 +99,7 @@ export async function requestSuggestions(
   const protein_per_portion = Math.round(
     Math.max(20, Math.min(90, (ctx.inputs.protein_g - ctx.inputs.allowance_protein_g) * 0.4)),
   );
+  const batches = (current?.batches ?? 0) + 1;
   const res = await fetch('/api/suggest', {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...auth },
@@ -115,6 +133,9 @@ export async function requestSuggestions(
     seen: current?.seen ?? [],
     requested_at: new Date().toISOString(),
     ...(data.model ? { model: data.model } : {}),
+    target: opts.keepTarget === false ? (current?.target ?? inputs.count) : inputs.count,
+    kept: current?.kept ?? 0,
+    batches,
   };
   await setSetting(discoverKey(ctx.week_start), next);
   return {
@@ -124,18 +145,50 @@ export async function requestSuggestions(
   };
 }
 
-async function settle(week_start: string, s: Suggestion): Promise<void> {
+async function settle(week_start: string, s: Suggestion, kept: boolean): Promise<void> {
   const current = await getDiscover(week_start);
   if (!current) return;
   await setSetting(discoverKey(week_start), {
     ...current,
     pending: current.pending.filter((p) => p.name !== s.name),
     seen: [...current.seen, s.name].slice(-60),
+    kept: (current.kept ?? 0) + (kept ? 1 : 0),
   } satisfies DiscoverState);
 }
 
+/** How many more cards are needed before the user has the number they asked for. */
+export function shortfall(state: DiscoverState | null): number {
+  if (!state) return 0;
+  const target = state.target ?? state.inputs.count;
+  const kept = state.kept ?? 0;
+  const enRoute = state.pending.length;
+  return Math.max(0, target - kept - enRoute);
+}
+
+export function canFetchMore(state: DiscoverState | null): boolean {
+  if (!state) return false;
+  return (state.batches ?? 0) < MAX_BATCHES_PER_WEEK && shortfall(state) > 0;
+}
+
+/**
+ * Keeps the deck stocked: after every decision, if the user is still short of the number they
+ * asked to keep, another batch is fetched in the background. Turning cards down therefore
+ * brings new ones rather than emptying the deck.
+ */
+export async function topUpIfNeeded(ctx: PlanContext): Promise<number> {
+  const state = await getDiscover(ctx.week_start);
+  if (!canFetchMore(state)) return 0;
+  // A background top-up never prompts: without a session there is simply nothing to fetch.
+  if (!(await isSignedIn())) return 0;
+  const need = shortfall(state);
+  // Ask for a couple more than strictly needed: some will not be to taste either.
+  const count = Math.min(8, Math.max(2, need + 1));
+  const r = await requestSuggestions(ctx, { ...state!.inputs, count }, { keepTarget: false });
+  return r.added;
+}
+
 export async function rejectSuggestion(week_start: string, s: Suggestion): Promise<void> {
-  await settle(week_start, s);
+  await settle(week_start, s, false);
 }
 
 /** Ground the ingredients against the offline database; the rest become own foods. */
@@ -152,12 +205,19 @@ export async function groundSuggestion(s: Suggestion): Promise<GroundedItem[]> {
  * model's steps and metadata), its ingredients get estimated prices where none exist, and it
  * goes into the week. Returns the new recipe id.
  */
-export async function acceptSuggestion(ctx: PlanContext, s: Suggestion): Promise<string> {
+export async function acceptSuggestion(
+  ctx: PlanContext,
+  s: Suggestion,
+  onProgress?: (p: AcceptProgress) => void,
+): Promise<string> {
+  const total = s.ingredients.length;
+  onProgress?.({ stage: 'matching', done: 0, total });
   const grounded = await groundSuggestion(s);
   const recipe = await createRecipe(s.name);
   for (let i = 0; i < grounded.length; i++) {
     const g = grounded[i]!;
     const ing = s.ingredients[i]!;
+    onProgress?.({ stage: 'matching', done: i, total });
     let food: Food;
     if (g.food) food = g.food;
     else {
@@ -174,6 +234,7 @@ export async function acceptSuggestion(ctx: PlanContext, s: Suggestion): Promise
     await addRecipeItem(recipe.id, food, ing.grams);
     if (ing.price_per_kg > 0) await setPrice(food.id, ing.price_per_kg, ctx.currency, true);
   }
+  onProgress?.({ stage: 'saving', done: total, total });
   await setRecipePortions(recipe.id, s.portions);
   if (s.steps.length) await setRecipeSteps(recipe.id, s.steps);
   await setRecipeMeta(recipe.id, {
@@ -183,8 +244,9 @@ export async function acceptSuggestion(ctx: PlanContext, s: Suggestion): Promise
     ...(s.oven_c != null ? { oven_c: s.oven_c } : {}),
     source: 'suggested',
   });
+  onProgress?.({ stage: 'week', done: total, total });
   await decide(ctx, recipe.id, true);
-  await settle(ctx.week_start, s);
+  await settle(ctx.week_start, s, true);
   // The shared bank grows with every kept card; nobody's data goes with it.
   void fetch('/api/suggest/keep', {
     method: 'POST',

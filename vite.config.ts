@@ -40,6 +40,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Old builds' files go with the old precache; nothing lingers to be served later.
+        cleanupOutdatedCaches: true,
+        // A missing file must reach the network (and its 404), never index.html.
+        navigateFallbackDenylist: [/^\/api\//, /^\/assets\//, /^\/data\//, /\.[a-z0-9]+$/i],
         // Reminders: push + notificationclick handlers live beside the generated worker.
         importScripts: ['push-sw.js'],
         // Food data is fetched lazily on first run; cache it so reseeds/offline never hit the network.

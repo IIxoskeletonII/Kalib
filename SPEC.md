@@ -567,6 +567,12 @@ list grouped by aisle, step-by-step recipe instructions.
 
 - **Offline:** all logging works offline. Only barcode lookup (uncached) and photo
   estimation require network. Queue and replay on reconnect.
+- **Updates must never strand an install** (added 22 Sep 2026): a build's files are hashed and
+  immutable, so a request for one a later deploy removed answers **404**, never the SPA
+  fallback's `index.html` — a browser handed HTML where it expects JavaScript fails forever and
+  no reload fixes it. The client treats that failure as a stale build: it clears its caches,
+  unregisters the service worker and reloads once (IndexedDB untouched). Seed files carry the
+  seed version in their URL so a bump is a new cache address.
 - **Cold start:** interactive in <1.5s on a mid-range phone over 4G. *Measured 21 Sep 2026
   (Lighthouse 12, production build, returning visit): 0.84 s interactive under a regular-4G
   throttle (70 ms RTT, 10 Mbps, 2× CPU slowdown); 2.6 s under Lighthouse's "slow 4G" preset.
@@ -807,6 +813,13 @@ planner never invents meals.
   ingredient list scaled to the portions being cooked, and ends on *Cook batch* (§8.2) so the
   pot is weighed and its portions become one-tap logs.
 
+### 18.4a Reading the plan (added 22 Sep 2026)
+A row in *This week* expands in place: ingredients at the amounts the week needs, the numbered
+steps with their times and temperatures, and *Cook it*. Swiping a row left takes the recipe out
+of the week, with an undo. *Fit → Details* gives the week in the units a person thinks in —
+portions a day, cooked weight, cost a day and a portion, each target as a bar, and the single
+target the plan is furthest from as a share of itself, with what closes it.
+
 ### 18.5 Data
 `week_plans (id, week_start, days, allowance_kcal, allowance_protein_g, budget?, items[{recipe_id,
 portions, pinned}])`, `prices (id, food_id, price_per_kg, currency, estimated)`,
@@ -824,6 +837,12 @@ database search term, per-100 g macros as a fallback, a typical local price per 
 numbered steps that carry their times and temperatures. Variety is a stated requirement of
 the prompt (different proteins, cuisines, methods), as is landing each portion near the
 per-portion calorie and protein targets and keeping the batch inside the budget.
+
+The deck keeps itself stocked: after every decision, if fewer than the requested number have
+been kept and none are waiting, another batch is fetched in the background (at most six batches
+a week, so a long run of "no" cannot spend without end). Accepting shows the real work as it
+happens — matching each ingredient, saving the recipe, putting it in the week — rather than an
+indefinite spinner.
 
 Suggestions are cards in the deck with a *New* badge. **Swipe right** grounds every
 ingredient in the offline database exactly as §9.4 does (a match must agree on energy

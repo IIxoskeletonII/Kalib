@@ -2,9 +2,11 @@
 // portions scaled to the targets, then the shopping list.
 import {
   ChefHat,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
+  CookingPot,
   Flame,
   Minus,
   Pin,
@@ -17,6 +19,7 @@ import { Link, useNavigate } from 'react-router';
 import { DiscoverSheet } from '@/components/DiscoverSheet';
 import { NumberPad } from '@/components/NumberPad';
 import { SwipeCard } from '@/components/SwipeCard';
+import { SwipeRow } from '@/components/SwipeRow';
 import { toast } from '@/components/Toast';
 import {
   Badge,
@@ -26,18 +29,28 @@ import {
   IconButton,
   SectionHeading,
   Sheet,
+  StepProgress,
   fmt,
 } from '@/components/ui';
 import { fromDateKey, addDays } from '@/core/dates';
 import { budgetLine, DISCOVER_TAGS, suggestionFacts, type Suggestion } from '@/core/discover';
-import type { RecipeFacts } from '@/core/planner';
+import { planSummary, type RecipeFacts } from '@/core/planner';
 import type { Recipe } from '@/core/types';
 import { useBack } from '@/hooks/useBack';
 import { usePlan } from '@/hooks/useData';
-import { acceptSuggestion, rejectSuggestion } from '@/services/discover';
+import {
+  acceptSuggestion,
+  canFetchMore,
+  getDiscover,
+  rejectSuggestion,
+  topUpIfNeeded,
+  type AcceptProgress,
+} from '@/services/discover';
 import {
   decide,
   planRows,
+  removeFromWeek,
+  restoreToWeek,
   setAllowance,
   setDays,
   setPortions,
@@ -54,6 +67,10 @@ export default function Plan() {
   const ctx = usePlan(week);
   const [allowanceOpen, setAllowanceOpen] = useState(false);
   const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [fitOpen, setFitOpen] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  /** The deck refills itself after a decision; this is only so the wait is visible. */
+  const [topUp, setTopUp] = useState<'idle' | 'busy' | 'failed'>('idle');
   const range = `${fromDateKey(week).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${fromDateKey(addDays(week, 6)).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
 
   return (
@@ -93,7 +110,29 @@ export default function Plan() {
         </button>
       )}
 
-      {ctx && ctx.suggestions.length > 0 && <SuggestionDeck ctx={ctx} />}
+      {ctx && ctx.suggestions.length > 0 && <SuggestionDeck ctx={ctx} onTopUp={setTopUp} />}
+
+      {ctx && ctx.suggestions.length === 0 && topUp !== 'idle' && (
+        <section className="mt-5">
+          <SectionHeading>Something new?</SectionHeading>
+          <Card className="px-5 py-5">
+            {topUp === 'busy' ? (
+              <StepProgress label="Finding more recipes you might like…" done={1} total={1} />
+            ) : (
+              <p className="text-[14px] text-muted">
+                Could not fetch more just now.{' '}
+                <button
+                  type="button"
+                  className="font-semibold text-accent"
+                  onClick={() => setDiscoverOpen(true)}
+                >
+                  Try again
+                </button>
+              </p>
+            )}
+          </Card>
+        </section>
+      )}
 
       {ctx && ctx.recipes.length === 0 && ctx.suggestions.length === 0 && (
         <EmptyState
@@ -153,24 +192,60 @@ export default function Plan() {
             ) : (
               <Card className="divide-y divide-line">
                 {planRows(ctx).map(({ item, facts, portion_g, pinned }) => (
-                  <PlanRow
-                    key={item.recipe_id}
-                    facts={facts}
-                    portions={item.portions}
-                    portion_g={portion_g}
-                    pinned={pinned}
-                    currency={ctx.currency}
-                    cost={costPerPortion(ctx, facts, portion_g)}
-                    onChange={(n) => void setPortions(ctx, item.recipe_id, n)}
-                    onUnpin={() => void unpin(ctx, item.recipe_id)}
-                  />
+                  <div key={item.recipe_id}>
+                    <SwipeRow
+                      deleteLabel="Remove"
+                      onDelete={() => {
+                        void removeFromWeek(ctx, item.recipe_id).then((removed) => {
+                          toast(`${facts.recipe.name} is out of the week`, {
+                            label: 'Undo',
+                            run: () => {
+                              if (removed) void restoreToWeek(ctx.week_start, removed);
+                            },
+                          });
+                        });
+                      }}
+                    >
+                      <PlanRow
+                        facts={facts}
+                        portions={item.portions}
+                        portion_g={portion_g}
+                        pinned={pinned}
+                        currency={ctx.currency}
+                        cost={costPerPortion(ctx, facts, portion_g)}
+                        open={expanded === item.recipe_id}
+                        onToggle={() =>
+                          setExpanded(expanded === item.recipe_id ? null : item.recipe_id)
+                        }
+                        onChange={(n) => void setPortions(ctx, item.recipe_id, n)}
+                        onUnpin={() => void unpin(ctx, item.recipe_id)}
+                      />
+                    </SwipeRow>
+                    {expanded === item.recipe_id && (
+                      <RecipeDetail
+                        facts={facts}
+                        portions={item.portions}
+                        portion_g={portion_g}
+                        onCook={() => navigate(`/recipes/${facts.recipe.id}/cook`)}
+                        onOpen={() => navigate(`/recipes/${facts.recipe.id}`)}
+                      />
+                    )}
+                  </div>
                 ))}
               </Card>
             )}
           </section>
 
           <section className="mt-7">
-            <SectionHeading>Fit</SectionHeading>
+            <SectionHeading
+              trailing={
+                <button type="button" className="text-accent" onClick={() => setFitOpen(true)}>
+                  Details
+                </button>
+              }
+            >
+              Fit
+            </SectionHeading>
             <Card className="px-5 py-4">
               <FitBar
                 label="Calories a day"
@@ -220,7 +295,8 @@ export default function Plan() {
             </Card>
             <p className="mt-3 px-1 text-[12px] leading-snug text-muted">
               Portions are set so the week lands on your target; pin a count to fix it and the rest
-              re-scales. Breakfasts and snacks you eat regardless go under “outside the plan”.
+              re-scales. Swipe a row left to take it out of the week. Breakfasts and snacks you eat
+              regardless go under “outside the plan”.
             </p>
           </section>
 
@@ -259,6 +335,24 @@ export default function Plan() {
             )}
           </Sheet>
         </>
+      )}
+
+      {ctx && (
+        <Sheet open={fitOpen} onClose={() => setFitOpen(false)} title="The week at a glance">
+          {fitOpen && (
+            <FitDetail
+              ctx={ctx}
+              onAllowance={() => {
+                setFitOpen(false);
+                setAllowanceOpen(true);
+              }}
+              onBudget={() => {
+                setFitOpen(false);
+                setDiscoverOpen(true);
+              }}
+            />
+          )}
+        </Sheet>
       )}
 
       {ctx && (
@@ -339,27 +433,56 @@ function Deck({ ctx }: { ctx: PlanContext }) {
   );
 }
 
+const ACCEPT_LABEL: Record<AcceptProgress['stage'], string> = {
+  matching: 'Matching ingredients to your food database…',
+  saving: 'Saving the recipe and its steps…',
+  week: 'Putting it in the week…',
+};
+
 /** §18.6 — suggestion cards come before the user's own; accepting one makes it theirs. */
-function SuggestionDeck({ ctx }: { ctx: PlanContext }) {
+function SuggestionDeck({
+  ctx,
+  onTopUp,
+}: {
+  ctx: PlanContext;
+  onTopUp: (state: 'idle' | 'busy' | 'failed') => void;
+}) {
   const s: Suggestion = ctx.suggestions[0]!;
-  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<AcceptProgress | null>(null);
   const facts = suggestionFacts(s);
   const fit = ctx.inputs.kcal > 0 ? facts.portion_kcal / ctx.inputs.kcal : 0;
   const tagLabel = (id: string) => DISCOVER_TAGS.find((t) => t.id === id)?.label ?? id;
+  const busy = progress !== null;
+
+  /** Keep the deck stocked so a run of "not for me" never empties it (§18.6). */
+  const refill = async () => {
+    const state = await getDiscover(ctx.week_start);
+    if (!canFetchMore(state)) return;
+    onTopUp('busy');
+    try {
+      await topUpIfNeeded(ctx);
+      onTopUp('idle');
+    } catch {
+      // Nothing was asked for out loud, so nothing shouts: the deck says so quietly instead.
+      onTopUp('failed');
+    }
+  };
 
   const commit = async (dir: 'left' | 'right') => {
     if (dir === 'left') {
       await rejectSuggestion(ctx.week_start, s);
+      void refill();
       return;
     }
-    setBusy(true);
+    setProgress({ stage: 'matching', done: 0, total: s.ingredients.length });
     try {
-      await acceptSuggestion(ctx, s);
+      await acceptSuggestion(ctx, s, setProgress);
       toast(`${s.name} is yours now — ingredients matched, steps kept.`);
+      void refill();
     } catch (err) {
       toast((err as Error).message);
     } finally {
-      setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -416,9 +539,17 @@ function SuggestionDeck({ ctx }: { ctx: PlanContext }) {
         )}
         <p className="mt-3 text-[12px] text-muted">
           {s.ingredients.length} ingredients · {s.steps.length} steps
-          {busy ? ' · matching ingredients to the database…' : ''}
         </p>
       </SwipeCard>
+      {progress && (
+        <Card className="mt-4 px-5 py-4">
+          <StepProgress
+            label={ACCEPT_LABEL[progress.stage]}
+            done={progress.stage === 'matching' ? progress.done : progress.total}
+            total={progress.total}
+          />
+        </Card>
+      )}
     </section>
   );
 }
@@ -474,6 +605,8 @@ function PlanRow({
   pinned,
   currency,
   cost,
+  open,
+  onToggle,
   onChange,
   onUnpin,
 }: {
@@ -483,31 +616,55 @@ function PlanRow({
   pinned: boolean;
   currency: string;
   cost: number | undefined;
+  open: boolean;
+  onToggle: () => void;
   onChange: (n: number) => void;
   onUnpin: () => void;
 }) {
   const kcal = (facts.portion_kcal * portion_g) / Math.max(1, facts.portion_g);
   return (
     <div className="flex items-center gap-3 px-4 py-3">
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 text-[16px] font-medium">
-          <span className="truncate">{facts.recipe.name}</span>
-          {pinned && (
-            <button
-              type="button"
-              aria-label="Unpin portions"
-              onClick={onUnpin}
-              className="text-accent"
-            >
-              <Pin size={14} aria-hidden />
-            </button>
-          )}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+      >
+        <ChevronDown
+          size={16}
+          aria-hidden
+          className={`shrink-0 text-muted transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5 text-[16px] font-medium">
+            <span className="truncate">{facts.recipe.name}</span>
+            {pinned && (
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label="Unpin portions"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUnpin();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.stopPropagation();
+                    onUnpin();
+                  }
+                }}
+                className="text-accent"
+              >
+                <Pin size={14} aria-hidden />
+              </span>
+            )}
+          </span>
+          <span className="block text-[13px] text-muted tabular">
+            {fmt(portion_g)} g · {fmt(kcal)} kcal a portion
+            {cost != null && ` · ${currency}${((cost * portions) / 1).toFixed(2)}`}
+          </span>
         </span>
-        <span className="block text-[13px] text-muted tabular">
-          {fmt(portion_g)} g · {fmt(kcal)} kcal a portion
-          {cost != null && ` · ${currency}${((cost * portions) / 1).toFixed(2)}`}
-        </span>
-      </span>
+      </button>
       <div className="flex items-center gap-1">
         <IconButton
           icon={Minus}
@@ -525,6 +682,222 @@ function PlanRow({
           onClick={() => onChange(portions + 1)}
         />
       </div>
+    </div>
+  );
+}
+
+/** What is in the dish and how it is made, without leaving the plan. */
+function RecipeDetail({
+  facts,
+  portions,
+  portion_g,
+  onCook,
+  onOpen,
+}: {
+  facts: RecipeFacts;
+  portions: number;
+  portion_g: number;
+  onCook: () => void;
+  onOpen: () => void;
+}) {
+  const recipe = facts.recipe;
+  // Grams to buy for the week: the recipe's own amounts at the scaled portions (§18.3).
+  const scale = facts.yield_g > 0 ? (portion_g * portions) / facts.yield_g : 0;
+  const steps = recipe.steps ?? [];
+  return (
+    <div className="rise-in border-t border-line bg-surface-2/40 px-4 py-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-semibold text-muted">
+        <span>{recipe.items.length} ingredients</span>
+        {recipe.time_min ? (
+          <span className="flex items-center gap-1">
+            <Clock size={12} aria-hidden />
+            {recipe.time_min} min
+          </span>
+        ) : null}
+        {recipe.oven_c ? (
+          <span className="flex items-center gap-1">
+            <Flame size={12} aria-hidden />
+            {recipe.oven_c} °C
+          </span>
+        ) : null}
+        <span>· {portions} portions this week</span>
+      </div>
+      {recipe.blurb && <p className="mt-2 text-[13px] text-muted">{recipe.blurb}</p>}
+
+      <ul className="mt-3 space-y-1.5">
+        {recipe.items.map((it, i) => (
+          <li key={i} className="flex items-baseline justify-between gap-3 text-[14px]">
+            <span className="min-w-0 truncate">{it.name.split(',').slice(0, 2).join(',')}</span>
+            <span className="shrink-0 text-muted tabular">
+              {fmt(it.grams * scale)} g<span className="ml-1 text-[11px]">for the week</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {steps.length > 0 ? (
+        <ol className="mt-4 space-y-2">
+          {steps.map((st, i) => (
+            <li key={i} className="flex gap-2.5 text-[14px] leading-snug">
+              <span className="w-4 shrink-0 text-right font-semibold text-muted tabular">
+                {i + 1}
+              </span>
+              <span className="text-ink-2">{st}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-4 text-[13px] text-muted">
+          No steps written for this one yet — open it to add them.
+        </p>
+      )}
+
+      <div className="mt-4 flex gap-2">
+        <Button size="sm" variant="primary" icon={CookingPot} className="flex-1" onClick={onCook}>
+          Cook it
+        </Button>
+        <Button size="sm" onClick={onOpen}>
+          Open recipe
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** §18.2 — the numbers behind the bars, and the levers that move them. */
+function FitDetail({
+  ctx,
+  onAllowance,
+  onBudget,
+}: {
+  ctx: PlanContext;
+  onAllowance: () => void;
+  onBudget: () => void;
+}) {
+  const s = planSummary(ctx.scaled, ctx.facts, ctx.inputs, ctx.list.total_cost);
+  const money = (n: number) => `${ctx.currency}${n.toFixed(2)}`;
+  const GAP: Record<string, string> = {
+    calories: 'kcal',
+    protein: 'g of protein',
+    fiber: 'g of fiber',
+  };
+  return (
+    <div className="space-y-5">
+      <div>
+        <p className="text-[14px] text-muted">
+          {s.recipes === 0
+            ? 'Nothing in the week yet — swipe a card right and these numbers fill in.'
+            : `${s.portions} portions from ${s.recipes} ${s.recipes === 1 ? 'recipe' : 'recipes'}, spread over ${ctx.draft.days} days.`}
+        </p>
+      </div>
+
+      <Card className="divide-y divide-line">
+        <FitLine
+          label="Calories a day"
+          value={s.kcal}
+          target={s.kcal_target}
+          unit="kcal"
+          note="the plan plus what you eat outside it"
+        />
+        <FitLine
+          label="Protein a day"
+          value={s.protein_g}
+          target={s.protein_target}
+          unit="g"
+          overIsFine
+          note="more than the target is fine"
+        />
+        <FitLine
+          label="Fiber a day"
+          value={s.fiber_g}
+          target={s.fiber_target}
+          unit="g"
+          overIsFine
+          note="from the planned meals alone"
+        />
+      </Card>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Stat label="Portions a day" value={s.portions_per_day.toFixed(1)} unit="cooked" />
+        <Stat label="Cooked weight" value={fmt(s.grams / 1000)} unit="kg" />
+        <Stat
+          label="Cost a day"
+          value={s.cost_per_day > 0 ? money(s.cost_per_day) : '—'}
+          unit={ctx.list.estimated > 0 ? 'estimated' : 'from your prices'}
+        />
+        <Stat
+          label="Cost a portion"
+          value={s.cost_per_portion > 0 ? money(s.cost_per_portion) : '—'}
+          unit={ctx.budget > 0 ? `of ${ctx.currency}${ctx.budget} a week` : 'no budget set'}
+        />
+      </div>
+
+      {s.shortest && (
+        <Card className="px-4 py-3">
+          <p className="text-[14px]">
+            <span className="font-semibold">
+              {s.shortest_gap} {GAP[s.shortest]}
+            </span>{' '}
+            short a day.{' '}
+            {s.shortest === 'fiber' && 'Beans, lentils and whole grains close it fastest.'}
+            {s.shortest === 'protein' && 'Pin one more portion of your highest-protein recipe.'}
+            {s.shortest === 'calories' &&
+              'Either cook more portions, or raise what you eat outside the plan.'}
+          </p>
+        </Card>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" onClick={onAllowance}>
+          Outside the plan
+        </Button>
+        <Button size="sm" onClick={onBudget}>
+          {ctx.budget > 0 ? 'Change the budget' : 'Set a budget'}
+        </Button>
+      </div>
+
+      <p className="text-[12px] leading-snug text-muted">
+        Portions are whole, so the week lands near your target rather than exactly on it; the gram
+        size of a portion is nudged by up to 30 % to close the rest. Fiber has no plan target of its
+        own — 14 g per 1000 kcal is the guideline the coach uses.
+      </p>
+    </div>
+  );
+}
+
+function FitLine({
+  label,
+  value,
+  target,
+  unit,
+  note,
+  overIsFine = false,
+}: {
+  label: string;
+  value: number;
+  target: number;
+  unit: string;
+  note: string;
+  overIsFine?: boolean;
+}) {
+  const ratio = target > 0 ? value / target : 0;
+  const ok = ratio >= 0.95 && (ratio <= 1.05 || overIsFine);
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-baseline justify-between text-[14px]">
+        <span className="font-semibold text-ink-2">{label}</span>
+        <span className="tabular text-muted">
+          <span className={`font-semibold ${ok ? 'text-accent' : 'text-ink'}`}>{fmt(value)}</span> /{' '}
+          {fmt(target)} {unit}
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+        <div
+          className={`h-full rounded-full ${ok ? 'bg-accent' : ratio > 1.05 ? 'bg-fat' : 'bg-kcal'} transition-[width] duration-700 ease-[var(--ease-out-soft)]`}
+          style={{ width: `${Math.min(100, Math.round(ratio * 100))}%` }}
+        />
+      </div>
+      <p className="mt-1 text-[12px] text-muted">{note}</p>
     </div>
   );
 }

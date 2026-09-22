@@ -218,6 +218,85 @@ export interface ShoppingList {
   estimated: number;
 }
 
+export interface PlanSummary {
+  /** Portions cooked across the week, and what that is per day. */
+  portions: number;
+  portions_per_day: number;
+  /** Recipes actually in the week. */
+  recipes: number;
+  /** Cooked grams across the week. */
+  grams: number;
+  cost_per_day: number;
+  cost_per_portion: number;
+  /** Per day, plan + allowance, against the day's targets. */
+  kcal: number;
+  protein_g: number;
+  fiber_g: number;
+  kcal_target: number;
+  protein_target: number;
+  /** Fiber has no plan target; 14 g per 1000 kcal is the §3.4 rule. */
+  fiber_target: number;
+  /** What the week is furthest from, as a sentence's worth of facts. */
+  shortest: 'calories' | 'protein' | 'fiber' | null;
+  shortest_gap: number;
+}
+
+/**
+ * §18.2 — the week read back in the units a person thinks in: portions, days, money, and the
+ * one target the plan is furthest from. Pure; the screen only formats it.
+ */
+export function planSummary(
+  plan: ScaledPlan,
+  facts: readonly RecipeFacts[],
+  inputs: PlanInputs,
+  total_cost: number,
+): PlanSummary {
+  const byId = new Map(facts.map((f) => [f.recipe.id, f]));
+  let portions = 0;
+  let grams = 0;
+  for (const i of plan.items) {
+    const f = byId.get(i.recipe_id);
+    if (!f) continue;
+    portions += i.portions;
+    grams += (plan.portion_g[i.recipe_id] ?? f.portion_g) * i.portions;
+  }
+  const days = Math.max(1, inputs.days);
+  const kcal = plan.kcal_per_day + inputs.allowance_kcal;
+  const protein_g = plan.protein_per_day + inputs.allowance_protein_g;
+  const fiber_g = plan.fiber_per_day;
+  const fiber_target = Math.max((14 * inputs.kcal) / 1000, 25);
+  const gaps: [PlanSummary['shortest'], number][] = [
+    ['calories', inputs.kcal - kcal],
+    ['protein', inputs.protein_g - protein_g],
+    ['fiber', fiber_target - fiber_g],
+  ];
+  // Relative to each target, so 300 kcal and 20 g of protein compare fairly.
+  const worst = gaps
+    .map(([k, gap], i) => ({
+      k,
+      gap,
+      rel: gap / [inputs.kcal, inputs.protein_g, fiber_target][i]!,
+    }))
+    .filter((x) => x.gap > 0)
+    .sort((a, b) => b.rel - a.rel)[0];
+  return {
+    portions,
+    portions_per_day: portions / days,
+    recipes: plan.items.filter((i) => i.portions > 0).length,
+    grams: Math.round(grams),
+    cost_per_day: total_cost / days,
+    cost_per_portion: portions > 0 ? total_cost / portions : 0,
+    kcal,
+    protein_g,
+    fiber_g,
+    kcal_target: inputs.kcal,
+    protein_target: inputs.protein_g,
+    fiber_target,
+    shortest: worst?.k ?? null,
+    shortest_gap: worst ? Math.round(worst.gap) : 0,
+  };
+}
+
 /** §18.3 — ingredients summed across the plan (portion-scaled), grouped by aisle. */
 export function shoppingList(
   plan: ScaledPlan,

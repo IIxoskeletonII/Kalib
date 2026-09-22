@@ -85,12 +85,16 @@ free tier, and the source is here for anyone who wants the same.
   ends by weighing the pot into a batch (SPEC §18).
 - **Discover** — set a weekly budget, tick preference cards (high protein, low calorie, quick,
   one pot, vegetarian, cheap, Italian…), say what to avoid, and get new recipes written for
-  your targets — themed on what food publishers posted **this week** (thirteen public feeds,
+  your targets. The deck refills itself: turn cards down and more arrive until you have as many
+  as you asked to keep (capped per week so it cannot spend without end) — themed on what food publishers posted **this week** (thirteen public feeds,
   refreshed every Monday by the Worker) and mixed with recipes other people kept, from a bank
   that grows with every accepted card. Swipe right and it becomes yours: every ingredient is
   matched to the offline database (the rest become own foods with the model's numbers), the
   steps carry their times and oven temperatures, prices land as labelled estimates, and the
-  shopping list reads *≈ cost of budget* (SPEC §18.6).
+  shopping list reads *≈ cost of budget*. Tap a row in the week to see its ingredients scaled
+  for the week and its steps without leaving the page, swipe it left to take it out, and open
+  *Fit → Details* for the week read back in portions, days and money with the one target it is
+  furthest from (SPEC §18.6).
 - **Cut, maintain, recomp or bulk** — a lean surplus of 5–15 % sized from the gain rate, the
   same protein and fat rules, switchable on a schedule.
 - **Week in review** — one page with the week's calories, protein, fiber, trend, measured burn

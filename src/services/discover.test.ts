@@ -5,7 +5,17 @@ import { addFood } from '@/db/repo/foods';
 import { listPrices } from '@/db/repo/planner';
 import { getRecipe } from '@/db/repo/recipes';
 import { setSetting } from '@/db/repo/settings';
-import { acceptSuggestion, getDiscover, rejectSuggestion, requestSuggestions } from './discover';
+import {
+  acceptSuggestion,
+  canFetchMore,
+  getDiscover,
+  MAX_BATCHES_PER_WEEK,
+  rejectSuggestion,
+  requestSuggestions,
+  shortfall,
+  topUpIfNeeded,
+  type DiscoverState,
+} from './discover';
 import { planContext, thisWeek } from './planner';
 
 const week = thisWeek('2026-09-22');
@@ -124,5 +134,40 @@ describe('requesting suggestions', () => {
     const inputs = { budget: 60, tags: ['quick'], count: 2, avoid: '', include_bank: true };
     // No session in tests → the service refuses before spending anything.
     await expect(requestSuggestions(ctx, inputs)).rejects.toThrow(/Sign in/);
+  });
+});
+
+describe('keeping the deck stocked (§18.6)', () => {
+  const state = (over: Partial<DiscoverState>): DiscoverState => ({
+    inputs: { budget: 0, tags: [], count: 4, avoid: '', include_bank: true },
+    pending: [],
+    seen: [],
+    requested_at: '',
+    target: 4,
+    kept: 0,
+    batches: 1,
+    ...over,
+  });
+
+  it('counts what is still needed against what is kept and still on the deck', () => {
+    expect(shortfall(state({ kept: 0, pending: [] }))).toBe(4);
+    expect(shortfall(state({ kept: 1, pending: [suggestion] }))).toBe(2);
+    expect(shortfall(state({ kept: 4 }))).toBe(0);
+    expect(shortfall(state({ kept: 2, pending: [suggestion, suggestion] }))).toBe(0);
+    expect(shortfall(null)).toBe(0);
+  });
+
+  it('fetches more while short, and stops at the weekly batch cap', () => {
+    expect(canFetchMore(state({ kept: 0 }))).toBe(true);
+    expect(canFetchMore(state({ kept: 4 }))).toBe(false);
+    expect(canFetchMore(state({ kept: 0, batches: MAX_BATCHES_PER_WEEK }))).toBe(false);
+    expect(canFetchMore(null)).toBe(false);
+  });
+
+  it('a top-up without a session spends nothing', async () => {
+    const ctx = await planContext(week);
+    const spy = vi.spyOn(globalThis, 'fetch');
+    expect(await topUpIfNeeded(ctx)).toBe(0);
+    expect(spy).not.toHaveBeenCalledWith('/api/suggest', expect.anything());
   });
 });

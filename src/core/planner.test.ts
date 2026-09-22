@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   aisleFor,
+  planSummary,
   recipeFacts,
   scalePlan,
   shoppingList,
@@ -192,5 +193,50 @@ describe('shopping list', () => {
     const text = shoppingListText(list, '€');
     expect(text).toMatch(/Chicken, breast — 2\.60 kg \(€24\.70\)/);
     expect(text).toContain('3 items unpriced');
+  });
+});
+
+describe('planSummary (§18.2)', () => {
+  const inputs: PlanInputs = {
+    kcal: 2000,
+    protein_g: 150,
+    days: 7,
+    allowance_kcal: 400,
+    allowance_protein_g: 20,
+  };
+  const facts = [recipeFacts(chickenRice, foods), recipeFacts(salad, foods)];
+
+  it('reads the week back in portions, days and money, and names the biggest gap', () => {
+    const scaled = scalePlan(facts, [{ recipe_id: 'cr', portions: 4, pinned: true }], inputs);
+    const s = planSummary(scaled, facts, inputs, 42);
+    expect(s.portions).toBe(4);
+    expect(s.recipes).toBe(1);
+    expect(s.portions_per_day).toBeCloseTo(4 / 7, 4);
+    expect(s.cost_per_day).toBeCloseTo(6, 4);
+    expect(s.cost_per_portion).toBeCloseTo(10.5, 4);
+    expect(s.kcal).toBeCloseTo(scaled.kcal_per_day + 400, 4);
+    expect(s.protein_g).toBeCloseTo(scaled.protein_per_day + 20, 4);
+    expect(s.fiber_target).toBe(28);
+    expect(s.grams).toBeGreaterThan(0);
+    // Chicken and rice carry little fiber, so against its own target fiber is furthest off:
+    // ~5 g a day against 28 beats calories and protein as a share of their targets.
+    expect(s.shortest).toBe('fiber');
+    expect(s.shortest_gap).toBe(23);
+  });
+
+  it('has nothing to flag when every target is met', () => {
+    const small: PlanInputs = {
+      kcal: 200,
+      protein_g: 5,
+      days: 7,
+      allowance_kcal: 0,
+      allowance_protein_g: 0,
+    };
+    // Enough portions that even the 25 g fiber floor is cleared.
+    const scaled = scalePlan(facts, [{ recipe_id: 'cr', portions: 40, pinned: true }], small);
+    const s = planSummary(scaled, facts, small, 0);
+    expect(s.fiber_g).toBeGreaterThanOrEqual(s.fiber_target);
+    expect(s.shortest).toBeNull();
+    expect(s.shortest_gap).toBe(0);
   });
 });

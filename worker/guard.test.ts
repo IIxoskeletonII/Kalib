@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   admitEstimate,
   isPushEndpoint,
+  isStaticFileRequest,
   mayEstimate,
   requireUser,
   underLimit,
@@ -150,6 +151,25 @@ describe('isPushEndpoint', () => {
     expect(isPushEndpoint('https://10.0.0.1/x')).toBe(false);
     expect(isPushEndpoint(42)).toBe(false);
     expect(isPushEndpoint('not a url')).toBe(false);
+  });
+});
+
+describe('isStaticFileRequest', () => {
+  it('is true for anything with a file extension except html', () => {
+    expect(isStaticFileRequest('/assets/index-Ur7QHaNq.js')).toBe(true);
+    expect(isStaticFileRequest('/assets/index-CQhedZfz.css')).toBe(true);
+    expect(isStaticFileRequest('/data/foods-sr.json')).toBe(true);
+    expect(isStaticFileRequest('/fonts/plus-jakarta.woff2')).toBe(true);
+    expect(isStaticFileRequest('/sw.js')).toBe(true);
+    expect(isStaticFileRequest('/index.html')).toBe(false);
+  });
+
+  it('is false for app routes, which the SPA fallback must keep serving', () => {
+    expect(isStaticFileRequest('/')).toBe(false);
+    expect(isStaticFileRequest('/plan')).toBe(false);
+    expect(isStaticFileRequest('/plan/shopping')).toBe(false);
+    expect(isStaticFileRequest('/recipes/9f3c2a1b-0000-4000-8000-000000000000')).toBe(false);
+    expect(isStaticFileRequest('/recipes/import')).toBe(false);
   });
 });
 

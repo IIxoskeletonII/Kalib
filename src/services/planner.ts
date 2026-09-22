@@ -147,6 +147,34 @@ export async function undecide(ctx: PlanContext, recipe_id: string): Promise<voi
   await save(ctx, { items: ctx.draft.items.filter((i) => i.recipe_id !== recipe_id) });
 }
 
+/**
+ * Take a recipe out of the week (it returns to the deck). The removed entry is handed back so
+ * a toast can undo it; the undo re-reads the plan so anything changed meanwhile survives.
+ */
+export async function removeFromWeek(
+  ctx: PlanContext,
+  recipe_id: string,
+): Promise<WeekPlanItem | undefined> {
+  const removed = ctx.draft.items.find((i) => i.recipe_id === recipe_id);
+  await save(ctx, { items: ctx.draft.items.filter((i) => i.recipe_id !== recipe_id) });
+  return removed;
+}
+
+export async function restoreToWeek(week_start: string, item: WeekPlanItem): Promise<void> {
+  const plan = await getPlan(week_start);
+  if (!plan) return;
+  if (plan.items.some((i) => i.recipe_id === item.recipe_id)) return;
+  await upsertPlan({
+    week_start: plan.week_start,
+    days: plan.days,
+    allowance_kcal: plan.allowance_kcal,
+    allowance_protein_g: plan.allowance_protein_g,
+    items: [...plan.items, item],
+    checked: plan.checked,
+    ...(plan.budget != null ? { budget: plan.budget } : {}),
+  });
+}
+
 /** Pin a portion count by hand (0 removes it from the week). */
 export async function setPortions(ctx: PlanContext, recipe_id: string, portions: number) {
   const items = ctx.draft.items.map((i) =>

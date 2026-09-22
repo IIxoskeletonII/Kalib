@@ -11,6 +11,7 @@ import {
   admitEstimate,
   authConfigured,
   isPushEndpoint,
+  isStaticFileRequest,
   mayEstimate,
   requireUser,
   underLimit,
@@ -555,7 +556,22 @@ export default {
       return response;
     }
 
-    return env.ASSETS.fetch(request);
+    // A build's files are immutable and hashed. When an installed app asks for one that a
+    // later deploy removed, it must hear 404 — not the SPA fallback's index.html, which the
+    // browser would try to execute as JavaScript and fail on forever (the client then clears
+    // its caches and reloads, see platform/recovery.ts).
+    const res = await env.ASSETS.fetch(request);
+    if (
+      res.ok &&
+      isStaticFileRequest(url.pathname) &&
+      (res.headers.get('content-type') ?? '').includes('text/html')
+    ) {
+      return new Response('Not found', {
+        status: 404,
+        headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' },
+      });
+    }
+    return res;
   },
 
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {

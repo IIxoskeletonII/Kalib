@@ -166,6 +166,21 @@ export function isPushEndpoint(endpoint: unknown): endpoint is string {
   return PUSH_HOSTS.some((h) => (h.startsWith('.') ? host.endsWith(h) : host === h));
 }
 
+// ---- static files: a missing one must 404, never fall back to index.html ----
+
+/**
+ * True for a path that must resolve to a real file. The SPA fallback answering these with
+ * `index.html` and status 200 is what strands an installed app on an old build: the browser
+ * is handed HTML where it expects JavaScript, the module fails to parse, and nothing renders.
+ */
+export function isStaticFileRequest(pathname: string): boolean {
+  const last = pathname.slice(pathname.lastIndexOf('/') + 1);
+  const dot = last.lastIndexOf('.');
+  if (dot <= 0) return false; // no extension: a route, which the SPA fallback should serve
+  const ext = last.slice(dot + 1).toLowerCase();
+  return ext !== 'html';
+}
+
 // ---- per-minute rate limits (Cloudflare Rate Limiting binding; absent in local dev) ----
 
 export interface Limiter {
