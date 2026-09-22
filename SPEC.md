@@ -129,6 +129,9 @@ optional polish.
 - `CUT` — deficit as above.
 - `MAINTAIN` — deficit_pct = 0, protein held, targets otherwise relaxed.
 - `RECOMP` — deficit_pct ≤ 0.10, protein at upper bound.
+- `BULK` (added 22 Sep 2026) — a lean surplus: deficit_pct is negative, sized from the gain
+  rate the same way and clamped to 5–15 % above TDEE. Protein and fat rules unchanged; the
+  floors cannot bind. Coach and review read the trend direction from the mode.
 
 Mode is switchable at any time and must be switchable **on a schedule** (the user needs
 an automatic switch to MAINTAIN on 24 Dec 2026 and back to CUT on return).
@@ -805,6 +808,29 @@ planner never invents meals.
   pot is weighed and its portions become one-tap logs.
 
 ### 18.5 Data
-`week_plans (id, week_start, days, allowance_kcal, allowance_protein_g, items[{recipe_id,
-portions, pinned}])`, `prices (id, food_id, price_per_kg, currency)`, `recipes.steps[]`.
+`week_plans (id, week_start, days, allowance_kcal, allowance_protein_g, budget?, items[{recipe_id,
+portions, pinned}])`, `prices (id, food_id, price_per_kg, currency, estimated)`,
+`recipes.steps[]`, `recipes.{blurb, tags, time_min, oven_c, source}`.
 All synced like every other table (§6).
+
+### 18.6 Discover — new recipes from a budget and preferences (added 22 Sep 2026)
+The deck is not only the user's own recipes. From the planner the user sets a **weekly
+budget**, ticks **preference cards** (high protein, low calorie, high fiber, quick, batch-
+friendly, vegetarian, budget, Italian, spicy, one-pot), says how many dinners they want and
+what to avoid, and asks for suggestions. A text model (`/api/suggest`, same key, quota and
+sign-in rule as §9) returns that many **new** recipes, each with a one-line blurb, tags, a time,
+an oven temperature where relevant, ingredients as bought (grams for the whole recipe, a
+database search term, per-100 g macros as a fallback, a typical local price per kg) and
+numbered steps that carry their times and temperatures. Variety is a stated requirement of
+the prompt (different proteins, cuisines, methods), as is landing each portion near the
+per-portion calorie and protein targets and keeping the batch inside the budget.
+
+Suggestions are cards in the deck with a *New* badge. **Swipe right** grounds every
+ingredient in the offline database exactly as §9.4 does (a match must agree on energy
+density; the rest become unverified own foods with the model's macros), creates the recipe
+with its steps, records the model's prices as *estimates* for ingredients the user has never
+priced (an estimate never overwrites a real price and is labelled ≈ everywhere), and puts it
+in the week — from there scaling (§18.2), the shopping list (§18.3) and cooking mode (§18.4)
+apply unchanged. **Swipe left** discards it. The plan shows *≈ cost of budget* once a budget
+is set. The model's numbers are estimates; the honest ±15 % of §18.3 widens to "rough" while
+prices are estimated, and the list says how many are.

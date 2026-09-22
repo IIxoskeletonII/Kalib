@@ -298,12 +298,17 @@ export function useBarcodeReplay(open: (date: string, name: string) => void) {
 /** §18 the week's plan with everything derived; live with plans, recipes, prices and the log. */
 export function usePlan(week_start: string): PlanContext | undefined {
   const stamp = useLiveQuery(async () => {
-    const [plans, recipes, prices] = await Promise.all([
+    const [plans, recipes, prices, discover] = await Promise.all([
       listAllPlans(),
       listRecipes(),
       listAllPrices(),
+      getSetting<{ requested_at?: string; pending?: unknown[] }>(`discover:${week_start}`),
     ]);
-    return [...plans, ...recipes, ...prices].map((r) => r.updated_at).join('|');
+    return [
+      ...[...plans, ...recipes, ...prices].map((r) => r.updated_at),
+      discover?.requested_at ?? '',
+      String(discover?.pending?.length ?? 0),
+    ].join('|');
   }, [week_start]);
   const [ctx, setCtx] = useState<PlanContext | undefined>(undefined);
   useEffect(() => {

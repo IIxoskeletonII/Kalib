@@ -1,25 +1,40 @@
 // SPEC §18 — plan the week: a deck of your recipes (swipe right = in, left = not this week),
 // portions scaled to the targets, then the shopping list.
 import {
-  Check,
   ChefHat,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  Flame,
   Minus,
   Pin,
   Plus,
   ShoppingBag,
-  X,
+  Sparkles,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { DiscoverSheet } from '@/components/DiscoverSheet';
 import { NumberPad } from '@/components/NumberPad';
-import { Button, Card, EmptyState, IconButton, SectionHeading, Sheet, fmt } from '@/components/ui';
+import { SwipeCard } from '@/components/SwipeCard';
+import { toast } from '@/components/Toast';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  IconButton,
+  SectionHeading,
+  Sheet,
+  fmt,
+} from '@/components/ui';
 import { fromDateKey, addDays } from '@/core/dates';
+import { budgetLine, DISCOVER_TAGS, suggestionFacts, type Suggestion } from '@/core/discover';
 import type { RecipeFacts } from '@/core/planner';
 import type { Recipe } from '@/core/types';
 import { useBack } from '@/hooks/useBack';
 import { usePlan } from '@/hooks/useData';
+import { acceptSuggestion, rejectSuggestion } from '@/services/discover';
 import {
   decide,
   planRows,
@@ -38,6 +53,7 @@ export default function Plan() {
   const week = thisWeek();
   const ctx = usePlan(week);
   const [allowanceOpen, setAllowanceOpen] = useState(false);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
   const range = `${fromDateKey(week).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${fromDateKey(addDays(week, 6)).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
 
   return (
@@ -49,26 +65,48 @@ export default function Plan() {
           <p className="text-[13px] text-muted">{range}</p>
         </div>
         {ctx && ctx.scaled.items.length > 0 && (
-          <Button
-            size="sm"
-            variant="primary"
+          <IconButton
             icon={ShoppingBag}
+            label="Shopping list"
+            className="bg-primary text-on-primary"
             onClick={() => navigate('/plan/shopping')}
-          >
-            List
-          </Button>
+          />
         )}
       </div>
 
-      {ctx && ctx.recipes.length === 0 && (
+      {ctx && (ctx.recipes.length > 0 || ctx.suggestions.length > 0) && (
+        <button
+          type="button"
+          onClick={() => setDiscoverOpen(true)}
+          className="card mt-4 flex w-full items-center gap-3 px-4 py-3 text-left transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-[0.985]"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+            <Sparkles size={17} strokeWidth={2.2} aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-semibold">Discover new recipes</span>
+            <span className="block truncate text-[12px] text-muted">
+              A budget, your preferences, this week&rsquo;s trends
+            </span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-muted" aria-hidden />
+        </button>
+      )}
+
+      {ctx && ctx.suggestions.length > 0 && <SuggestionDeck ctx={ctx} />}
+
+      {ctx && ctx.recipes.length === 0 && ctx.suggestions.length === 0 && (
         <EmptyState
           icon={ChefHat}
           title="Nothing to plan with yet"
-          body="The planner works from your recipes. Add the things you actually cook and they become cards here."
+          body="Ask for new recipes written for your targets and a budget, or add the things you already cook — either way they become cards here."
           action={
-            <Button variant="primary" onClick={() => navigate('/recipes')}>
-              Add a recipe
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="primary" icon={Sparkles} onClick={() => setDiscoverOpen(true)}>
+                Discover recipes
+              </Button>
+              <Button onClick={() => navigate('/recipes')}>Add my own</Button>
+            </div>
           }
         />
       )}
@@ -77,9 +115,17 @@ export default function Plan() {
         <>
           {ctx.deck.length > 0 ? (
             <Deck ctx={ctx} />
-          ) : (
+          ) : ctx.suggestions.length > 0 ? null : (
             <Card className="mt-5 px-5 py-4 text-[14px] text-muted">
-              Every recipe has an answer for this week.
+              Every recipe has an answer for this week.{' '}
+              <button
+                type="button"
+                className="font-semibold text-accent"
+                onClick={() => setDiscoverOpen(true)}
+              >
+                Discover new ones
+              </button>
+              .
               {ctx.skipped.length > 0 && (
                 <>
                   {' '}
@@ -140,6 +186,7 @@ export default function Plan() {
                 className="mt-4"
                 overIsFine
               />
+              {ctx.budget > 0 && <BudgetRow ctx={ctx} />}
               <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-[13px]">
                 <button type="button" className="text-left" onClick={() => setAllowanceOpen(true)}>
                   <span className="block font-semibold text-ink-2">Outside the plan</span>
@@ -213,6 +260,24 @@ export default function Plan() {
           </Sheet>
         </>
       )}
+
+      {ctx && (
+        <Sheet open={discoverOpen} onClose={() => setDiscoverOpen(false)} title="Discover">
+          {discoverOpen && (
+            <DiscoverSheet
+              ctx={ctx}
+              onDone={(added) => {
+                setDiscoverOpen(false);
+                toast(
+                  added === 0
+                    ? 'Nothing new came back — try other preferences.'
+                    : `${added} new ${added === 1 ? 'recipe is' : 'recipes are'} in the deck.`,
+                );
+              }}
+            />
+          )}
+        </Sheet>
+      )}
     </div>
   );
 }
@@ -235,104 +300,158 @@ function costPerPortion(ctx: PlanContext, f: RecipeFacts, portion_g: number): nu
 function Deck({ ctx }: { ctx: PlanContext }) {
   const recipe = ctx.deck[0]!;
   const facts = ctx.facts.find((f) => f.recipe.id === recipe.id)!;
-  const [dx, setDx] = useState(0);
-  const [flying, setFlying] = useState<'left' | 'right' | null>(null);
-  const start = useRef<{ x: number; y: number; id: number } | null>(null);
   const cost = costPerPortion(ctx, facts, facts.portion_g);
   const fit = ctx.inputs.kcal > 0 ? facts.portion_kcal / ctx.inputs.kcal : 0;
-
-  const commit = (dir: 'left' | 'right') => {
-    setFlying(dir);
-    window.setTimeout(() => {
-      void decide(ctx, recipe.id, dir === 'right');
-      setFlying(null);
-      setDx(0);
-    }, 220);
-  };
-
-  const rot = dx / 18;
-  const x = flying === 'right' ? 600 : flying === 'left' ? -600 : dx;
-  const yesOpacity = Math.min(1, Math.max(0, dx / 90));
-  const noOpacity = Math.min(1, Math.max(0, -dx / 90));
 
   return (
     <section className="mt-5">
       <SectionHeading trailing={`${ctx.deck.length} to decide`}>This one?</SectionHeading>
-      <div className="relative select-none" style={{ touchAction: 'pan-y' }}>
-        <div
-          key={recipe.id}
-          className={`card rise-in relative p-5 ${flying || dx === 0 ? 'transition-transform duration-300 ease-[var(--ease-spring)]' : ''}`}
-          style={{ transform: `translateX(${x}px) rotate(${rot}deg)` }}
-          onPointerDown={(e) => {
-            start.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
-            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-          }}
-          onPointerMove={(e) => {
-            if (!start.current) return;
-            setDx(e.clientX - start.current.x);
-          }}
-          onPointerUp={() => {
-            if (!start.current) return;
-            start.current = null;
-            if (dx > 110) commit('right');
-            else if (dx < -110) commit('left');
-            else setDx(0);
-          }}
-          onPointerCancel={() => {
-            start.current = null;
-            setDx(0);
-          }}
-        >
-          <span
-            className="absolute top-4 left-4 rounded-full bg-accent px-3 py-1 text-[12px] font-bold text-on-accent"
-            style={{ opacity: yesOpacity }}
-          >
-            THIS WEEK
-          </span>
-          <span
-            className="absolute top-4 right-4 rounded-full bg-surface-3 px-3 py-1 text-[12px] font-bold text-ink-2"
-            style={{ opacity: noOpacity }}
-          >
-            NOT THIS WEEK
-          </span>
-          <div className="mt-6 flex items-center gap-2 text-[13px] font-semibold text-muted">
-            <ChefHat size={14} className="text-accent" aria-hidden />
-            {recipe.items.length} ingredients · {recipe.portions} portions
-          </div>
-          <h3 className="mt-1 text-[26px] leading-tight font-extrabold tracking-[-0.02em]">
-            {recipe.name}
-          </h3>
-          <div className="mt-4 grid grid-cols-3 gap-3 tabular">
-            <Stat label="Per portion" value={fmt(facts.portion_kcal)} unit="kcal" />
-            <Stat label="Protein" value={fmt(facts.portion_protein_g)} unit="g" />
-            <Stat label="Fiber" value={fmt(facts.portion_fiber_g)} unit="g" />
-          </div>
-          <p className="mt-4 text-[13px] text-muted tabular">
-            One portion is {Math.round(fit * 100)}% of a day
-            {cost != null && ` · about ${ctx.currency}${cost.toFixed(2)} a portion`}
-            {cost == null && ' · no prices yet'}
-          </p>
+      <SwipeCard
+        key={recipe.id}
+        id={recipe.id}
+        onCommit={(dir) => void decide(ctx, recipe.id, dir === 'right')}
+        yesLabel="This week"
+        noLabel="Not this week"
+        yesStamp="THIS WEEK"
+        noStamp="NOT THIS WEEK"
+      >
+        <div className="mt-6 flex items-center gap-2 text-[13px] font-semibold text-muted">
+          <ChefHat size={14} className="text-accent" aria-hidden />
+          {recipe.items.length} ingredients · {recipe.portions} portions
+          {recipe.time_min ? ` · ${recipe.time_min} min` : ''}
         </div>
-      </div>
-      <div className="mt-4 flex justify-center gap-6">
-        <button
-          type="button"
-          aria-label="Not this week"
-          onClick={() => commit('left')}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-surface text-ink-2 shadow-card transition-transform duration-200 active:scale-90"
-        >
-          <X size={24} strokeWidth={2.4} aria-hidden />
-        </button>
-        <button
-          type="button"
-          aria-label="This week"
-          onClick={() => commit('right')}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-accent text-on-accent shadow-card transition-transform duration-200 active:scale-90"
-        >
-          <Check size={26} strokeWidth={2.6} aria-hidden />
-        </button>
-      </div>
+        <h3 className="mt-1 text-[26px] leading-tight font-extrabold tracking-[-0.02em]">
+          {recipe.name}
+        </h3>
+        {recipe.blurb && <p className="mt-1 text-[14px] text-muted">{recipe.blurb}</p>}
+        <div className="mt-4 grid grid-cols-3 gap-3 tabular">
+          <Stat label="Per portion" value={fmt(facts.portion_kcal)} unit="kcal" />
+          <Stat label="Protein" value={fmt(facts.portion_protein_g)} unit="g" />
+          <Stat label="Fiber" value={fmt(facts.portion_fiber_g)} unit="g" />
+        </div>
+        <p className="mt-4 text-[13px] text-muted tabular">
+          One portion is {Math.round(fit * 100)}% of a day
+          {cost != null && ` · about ${ctx.currency}${cost.toFixed(2)} a portion`}
+          {cost == null && ' · no prices yet'}
+        </p>
+      </SwipeCard>
     </section>
+  );
+}
+
+/** §18.6 — suggestion cards come before the user's own; accepting one makes it theirs. */
+function SuggestionDeck({ ctx }: { ctx: PlanContext }) {
+  const s: Suggestion = ctx.suggestions[0]!;
+  const [busy, setBusy] = useState(false);
+  const facts = suggestionFacts(s);
+  const fit = ctx.inputs.kcal > 0 ? facts.portion_kcal / ctx.inputs.kcal : 0;
+  const tagLabel = (id: string) => DISCOVER_TAGS.find((t) => t.id === id)?.label ?? id;
+
+  const commit = async (dir: 'left' | 'right') => {
+    if (dir === 'left') {
+      await rejectSuggestion(ctx.week_start, s);
+      return;
+    }
+    setBusy(true);
+    try {
+      await acceptSuggestion(ctx, s);
+      toast(`${s.name} is yours now — ingredients matched, steps kept.`);
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="mt-5">
+      <SectionHeading trailing={`${ctx.suggestions.length} new to decide`}>
+        Something new?
+      </SectionHeading>
+      <SwipeCard
+        key={s.name}
+        id={s.name}
+        busy={busy}
+        onCommit={(dir) => void commit(dir)}
+        yesLabel="Keep it and put it in the week"
+        noLabel="Not for me"
+        yesStamp="KEEP IT"
+        noStamp="NOT FOR ME"
+        className="border border-accent/30"
+      >
+        <div className="mt-6 flex flex-wrap items-center gap-2 text-[13px] font-semibold text-muted">
+          <Badge tone="accent">{s.from_bank ? 'Others kept it' : 'New'}</Badge>
+          <span className="flex items-center gap-1">
+            <Clock size={13} aria-hidden />
+            {s.time_min} min
+          </span>
+          {s.oven_c != null && (
+            <span className="flex items-center gap-1">
+              <Flame size={13} aria-hidden />
+              {s.oven_c} °C
+            </span>
+          )}
+          <span>· {s.portions} portions</span>
+        </div>
+        <h3 className="mt-1 text-[26px] leading-tight font-extrabold tracking-[-0.02em]">
+          {s.name}
+        </h3>
+        {s.blurb && <p className="mt-1 text-[14px] text-muted">{s.blurb}</p>}
+        <div className="mt-4 grid grid-cols-3 gap-3 tabular">
+          <Stat label="Per portion" value={`≈ ${fmt(facts.portion_kcal)}`} unit="kcal" />
+          <Stat label="Protein" value={`≈ ${fmt(facts.portion_protein_g)}`} unit="g" />
+          <Stat label="Fiber" value={`≈ ${fmt(facts.portion_fiber_g)}`} unit="g" />
+        </div>
+        <p className="mt-4 text-[13px] text-muted tabular">
+          About {Math.round(fit * 100)}% of a day · ≈ {ctx.currency}
+          {facts.portion_cost.toFixed(2)} a portion (estimate)
+        </p>
+        {s.tags.length > 0 && (
+          <p className="mt-2 text-[12px] text-muted">{s.tags.map(tagLabel).join(' · ')}</p>
+        )}
+        {s.inspiration && (
+          <p className="mt-2 text-[12px] text-muted">
+            Themed on this week&rsquo;s <span className="text-ink-2">{s.inspiration}</span>
+          </p>
+        )}
+        <p className="mt-3 text-[12px] text-muted">
+          {s.ingredients.length} ingredients · {s.steps.length} steps
+          {busy ? ' · matching ingredients to the database…' : ''}
+        </p>
+      </SwipeCard>
+    </section>
+  );
+}
+
+/** §18.6 — the week's list against the budget, honest about how much is estimated. */
+function BudgetRow({ ctx }: { ctx: PlanContext }) {
+  const b = budgetLine(ctx.list, ctx.budget);
+  const tone = b.share > 1 ? 'bg-fat' : b.share > 0.85 ? 'bg-kcal' : 'bg-accent';
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      <div className="flex items-baseline justify-between text-[13px]">
+        <span className="font-semibold text-ink-2">Budget</span>
+        <span className="text-muted tabular">
+          <span className="font-semibold text-ink">
+            ≈ {ctx.currency}
+            {b.cost.toFixed(0)}
+          </span>{' '}
+          / {ctx.currency}
+          {b.budget}
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+        <div
+          className={`h-full rounded-full ${tone} transition-[width] duration-700 ease-[var(--ease-out-soft)]`}
+          style={{ width: `${Math.min(100, Math.round(b.share * 100))}%` }}
+        />
+      </div>
+      <p className="mt-1.5 text-[12px] text-muted">
+        {b.unpriced > 0 ? `${b.unpriced} unpriced` : 'every item priced'}
+        {b.estimated > 0 ? ` · ${b.estimated} estimated` : ''}
+        {b.share > 1 ? ' · over budget' : ''}
+      </p>
+    </div>
   );
 }
 

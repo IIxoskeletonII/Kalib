@@ -78,6 +78,32 @@ describe('deficit (§3.4, §3.5)', () => {
     expect(deficitPct('MAINTAIN', 1, 2800)).toBe(0);
   });
 
+  it('BULK is a surplus between 5 and 15 %, whatever sign the rate is given with', () => {
+    expect(deficitPct('BULK', 0.25, 2800)).toBeCloseTo(-0.09821, 4);
+    expect(deficitPct('BULK', 0.05, 2800)).toBe(-0.05);
+    expect(deficitPct('BULK', 2, 2800)).toBe(-0.15);
+    expect(deficitPct('BULK', -0.25, 2800)).toBeCloseTo(-0.09821, 4);
+  });
+
+  it('BULK targets sit above TDEE with protein and fat held', () => {
+    const base = {
+      sex: 'male' as const,
+      age: 23,
+      height_cm: 186,
+      weight_kg: 90,
+      bodyfat_pct: 18,
+      activity_level: 'moderate' as const,
+      goal_rate_kg_per_week: 0.25,
+    };
+    const bulk = computeTargets({ ...base, mode: 'BULK' });
+    const keep = computeTargets({ ...base, mode: 'MAINTAIN' });
+    expect(bulk.kcal).toBeGreaterThan(keep.kcal);
+    expect(bulk.kcal / bulk.tdee).toBeCloseTo(1 + (0.25 * 7700) / (bulk.tdee * 7), 3);
+    expect(bulk.protein_g).toBe(keep.protein_g);
+    expect(bulk.fat_g).toBeGreaterThanOrEqual(keep.fat_g);
+    expect(bulk.floors_applied).toEqual([]);
+  });
+
   it('RECOMP is capped at 0.10 and never negative', () => {
     expect(deficitPct('RECOMP', 0.5, 2800)).toBe(0.1);
     expect(deficitPct('RECOMP', 0, 2800)).toBe(0);

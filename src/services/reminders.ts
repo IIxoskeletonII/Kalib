@@ -8,7 +8,10 @@ import {
   enableReminders,
   pingReminders,
   registerSubscription,
+  sendTestNotification,
+  serverStatus,
   type ReminderPrefs,
+  type TestResult,
 } from '@/platform/push';
 
 export const REMINDERS_KEY = 'reminders';
@@ -59,6 +62,38 @@ export async function updatePrefs(s: ReminderSettings, done: DoneToday): Promise
       await authHeaders(),
     );
   }
+}
+
+export type Health =
+  | { state: 'signin' }
+  | { state: 'no-subscription' }
+  | { state: 'registered' }
+  | { state: 're-registered' }
+  | { state: 'unknown' };
+
+/**
+ * Reminders are only real if the server still holds this phone's subscription. When it does
+ * not (a failed first registration, or a subscription the cron dropped), register it again.
+ */
+export async function checkHealth(s: ReminderSettings, done: DoneToday): Promise<Health> {
+  const auth = await authHeaders();
+  if (!('authorization' in auth)) return { state: 'signin' };
+  const sub = await currentSubscription();
+  if (!sub) return { state: 'no-subscription' };
+  const status = await serverStatus(auth);
+  if (!status) return { state: 'unknown' };
+  if (status.registered) return { state: 'registered' };
+  await registerSubscription(sub, { weighAt: s.weighAt, logAt: s.logAt }, done, auth);
+  return { state: 're-registered' };
+}
+
+/** Pushes a test notification now; the result names what the push service answered. */
+export async function testNow(): Promise<TestResult> {
+  const auth = await authHeaders();
+  if (!('authorization' in auth)) {
+    return { outcome: 'failed', status: 401, detail: 'Sign in first.' };
+  }
+  return sendTestNotification(auth);
 }
 
 let lastPing = '';

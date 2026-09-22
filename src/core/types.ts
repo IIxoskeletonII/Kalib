@@ -3,7 +3,7 @@
 
 export type Sex = 'male' | 'female';
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'heavy';
-export type Mode = 'CUT' | 'MAINTAIN' | 'RECOMP';
+export type Mode = 'CUT' | 'MAINTAIN' | 'RECOMP' | 'BULK';
 export type FoodSource = 'usda_foundation' | 'usda_sr' | 'usda_fndds' | 'off' | 'custom' | 'photo';
 export type EntryMethod = 'favourite' | 'search' | 'barcode' | 'batch' | 'photo' | 'manual';
 export type Confidence = 'high' | 'medium' | 'low';
@@ -208,6 +208,12 @@ export interface Recipe extends SyncMeta {
   notes?: string;
   /** Cooking steps for the §18.4 cooking mode. */
   steps?: string[];
+  /** §18.6 — set when the recipe came from a suggestion. */
+  blurb?: string;
+  tags?: string[];
+  time_min?: number;
+  oven_c?: number;
+  source?: 'own' | 'suggested';
 }
 
 export interface Batch extends SyncMeta {
@@ -234,10 +240,14 @@ export interface WeekPlan extends SyncMeta {
   items: WeekPlanItem[];
   /** Shopping list lines ticked off, by food id. */
   checked: string[];
+  /** §18.6 weekly grocery budget in the user's currency; absent or 0 = none. */
+  budget?: number;
 }
 
 export interface FoodPrice extends SyncMeta {
   food_id: string;
   price_per_kg: number;
   currency: string;
+  /** §18.6 — a model's typical price, shown as ≈ until the user enters a real one. */
+  estimated?: boolean;
 }

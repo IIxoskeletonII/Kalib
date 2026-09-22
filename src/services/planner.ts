@@ -1,4 +1,5 @@
 // SPEC §18 — the week's plan: which recipes, how many portions, what to buy.
+import type { Suggestion } from '@/core/discover';
 import { weekStart } from '@/core/banking';
 import { todayKey } from '@/core/dates';
 import {
@@ -38,6 +39,10 @@ export interface PlanContext {
   /** Recipes not yet decided this week, rotation first. */
   deck: Recipe[];
   skipped: Recipe[];
+  /** §18.6 — suggestion cards still to decide this week. */
+  suggestions: Suggestion[];
+  /** Weekly grocery budget; 0 = none set. */
+  budget: number;
 }
 
 export function thisWeek(date: string = todayKey()): string {
@@ -45,15 +50,17 @@ export function thisWeek(date: string = todayKey()): string {
 }
 
 export async function planContext(week_start: string): Promise<PlanContext> {
-  const [plan, recipes, priceRows, usage, targets, currency, allowance] = await Promise.all([
-    getPlan(week_start),
-    listRecipes(),
-    listPrices(),
-    foodUsageCounts(),
-    currentTargets(todayKey()),
-    getSetting<string>(CURRENCY_KEY),
-    getSetting<{ kcal: number; protein_g: number }>(ALLOWANCE_KEY),
-  ]);
+  const [plan, recipes, priceRows, usage, targets, currency, allowance, discover] =
+    await Promise.all([
+      getPlan(week_start),
+      listRecipes(),
+      listPrices(),
+      foodUsageCounts(),
+      currentTargets(todayKey()),
+      getSetting<string>(CURRENCY_KEY),
+      getSetting<{ kcal: number; protein_g: number }>(ALLOWANCE_KEY),
+      getSetting<{ pending?: Suggestion[] }>(`discover:${week_start}`),
+    ]);
   const ids = new Set<string>();
   for (const r of recipes) for (const it of r.items) ids.add(it.food_id);
   const foods = await getFoods([...ids]);
@@ -61,7 +68,7 @@ export async function planContext(week_start: string): Promise<PlanContext> {
   const prices = new Map<string, Price>(
     priceRows.map((p: FoodPrice) => [
       p.food_id,
-      { food_id: p.food_id, price_per_kg: p.price_per_kg },
+      { food_id: p.food_id, price_per_kg: p.price_per_kg, estimated: p.estimated ?? false },
     ]),
   );
   const draft: PlanContext['draft'] = plan
@@ -72,6 +79,7 @@ export async function planContext(week_start: string): Promise<PlanContext> {
         allowance_protein_g: plan.allowance_protein_g,
         items: plan.items,
         checked: plan.checked,
+        ...(plan.budget != null ? { budget: plan.budget } : {}),
       }
     : {
         week_start,
@@ -113,7 +121,14 @@ export async function planContext(week_start: string): Promise<PlanContext> {
     list,
     deck: undecided,
     skipped,
+    suggestions: discover?.pending ?? [],
+    budget: draft.budget ?? 0,
   };
+}
+
+/** §18.6 — the week's grocery budget (0 clears it). */
+export async function setBudget(ctx: PlanContext, budget: number): Promise<void> {
+  await save(ctx, { budget: Math.max(0, Math.round(budget)) });
 }
 
 async function save(ctx: PlanContext, patch: Partial<PlanContext['draft']>): Promise<void> {

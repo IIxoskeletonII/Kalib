@@ -41,25 +41,32 @@ export async function listPrices(): Promise<FoodPrice[]> {
   return rows.filter((r) => r.user_id === LOCAL_USER_ID && isLive(r));
 }
 
+/**
+ * A real price (the default) always wins; an estimated one (§18.6) only fills a gap or
+ * replaces an older estimate.
+ */
 export async function setPrice(
   food_id: string,
   price_per_kg: number,
   currency: string,
+  estimated = false,
 ): Promise<void> {
   const existing = await db.prices
     .where('[user_id+food_id]')
     .equals([LOCAL_USER_ID, food_id])
     .first();
   if (existing) {
+    if (estimated && !existing.estimated && existing.deleted_at == null) return;
     await db.prices.update(existing.id, {
       price_per_kg,
       currency,
+      estimated,
       updated_at: nowIso(),
       deleted_at: null,
     });
     return;
   }
-  const row: FoodPrice = { ...newMeta(), food_id, price_per_kg, currency };
+  const row: FoodPrice = { ...newMeta(), food_id, price_per_kg, currency, estimated };
   await db.prices.add(row);
 }
 

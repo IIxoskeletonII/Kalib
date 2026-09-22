@@ -699,6 +699,7 @@ export default function Settings() {
                 { value: 'CUT', label: 'Cut' },
                 { value: 'MAINTAIN', label: 'Maintain' },
                 { value: 'RECOMP', label: 'Recomp' },
+                { value: 'BULK', label: 'Bulk' },
               ]}
               onChange={setSwitchMode}
             />
@@ -778,7 +779,13 @@ function relativeTime(iso: string): string {
 }
 
 function modeLabel(mode: Mode): string {
-  return mode === 'CUT' ? 'Cut' : mode === 'MAINTAIN' ? 'Maintain' : 'Recomp';
+  return mode === 'CUT'
+    ? 'Cut'
+    : mode === 'MAINTAIN'
+      ? 'Maintain'
+      : mode === 'RECOMP'
+        ? 'Recomp'
+        : 'Bulk';
 }
 
 function cap(s: string): string {

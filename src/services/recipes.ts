@@ -67,6 +67,14 @@ export async function setRecipeSteps(id: string, steps: string[]): Promise<void>
   await updateRecipe(id, { steps: clean.length ? clean : undefined });
 }
 
+/** §18.6 — what a suggestion knows about itself beyond ingredients and steps. */
+export async function setRecipeMeta(
+  id: string,
+  meta: Pick<Recipe, 'blurb' | 'tags' | 'time_min' | 'oven_c' | 'source'>,
+): Promise<void> {
+  await updateRecipe(id, meta);
+}
+
 export async function setRecipePortions(id: string, portions: number): Promise<void> {
   await patchRecipe(id, { portions: Math.max(1, Math.round(portions)) });
 }

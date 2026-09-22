@@ -18,17 +18,29 @@ import {
   type Limiter,
 } from './guard';
 import { normalizeOffProduct, rankOffProducts, type OffProduct, type OffHit } from './off';
+import { runSuggest, type SuggestEnv, type SuggestRequest } from './suggest';
+import {
+  addToBank,
+  BANK_KEY,
+  fetchTrends,
+  pickFromBank,
+  sampleTrends,
+  TRENDS_KEY,
+  trendsStale,
+  type BankRecipe,
+  type Trends,
+} from './trends';
 import {
   dueReminders,
   reminderMessage,
-  sendPush,
+  sendPushDetailed,
   type PushEnv,
   type PushSubscriptionJson,
   type ReminderPrefs,
   type StoredSubscription,
 } from './push';
 
-export interface Env extends EstimateEnv, PushEnv, GuardEnv {
+export interface Env extends EstimateEnv, SuggestEnv, PushEnv, GuardEnv {
   ASSETS: Fetcher;
   /** Push subscriptions and daily quota counters. Optional: without it reminders are off. */
   PUSH?: KVNamespace;
@@ -146,6 +158,35 @@ async function handlePush(request: Request, url: URL, env: Env): Promise<Respons
     }
     return json({ ok: true });
   }
+  if (url.pathname === '/api/push/status' && request.method === 'POST') {
+    if (!existing) return json({ registered: false });
+    if (existing.user_id && existing.user_id !== user.id) return json({ error: 'forbidden' }, 403);
+    return json({
+      registered: true,
+      prefs: existing.prefs,
+      tz: existing.tz,
+      lastLoggedDate: existing.lastLoggedDate ?? null,
+      lastWeighedDate: existing.lastWeighedDate ?? null,
+      sent: existing.sent ?? {},
+      updated_at: existing.updated_at,
+    });
+  }
+  if (url.pathname === '/api/push/test' && request.method === 'POST') {
+    if (!existing) return json({ error: 'unknown subscription' }, 404);
+    if (existing.user_id && existing.user_id !== user.id) return json({ error: 'forbidden' }, 403);
+    const r = await sendPushDetailed(
+      existing.subscription,
+      {
+        title: 'Kalib reminders are on',
+        body: 'This is the test. The real ones come at the times you set.',
+        url: '/',
+        tag: 'test',
+      },
+      env,
+    );
+    console.log(JSON.stringify({ push: 'test', user: user.id, ...r }));
+    return json(r);
+  }
   if (url.pathname === '/api/push/ping' && request.method === 'POST') {
     if (!existing) return json({ error: 'unknown subscription' }, 404);
     if (existing.user_id && existing.user_id !== user.id) return json({ error: 'forbidden' }, 403);
@@ -167,6 +208,8 @@ export async function runReminders(
 ): Promise<{ sent: number; dropped: number }> {
   const out = { sent: 0, dropped: 0 };
   if (!env.PUSH || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return out;
+  let checked = 0;
+  let failed = 0;
   let cursor: string | null = null;
   do {
     const page: KVNamespaceListResult<unknown> = await env.PUSH.list(cursor ? { cursor } : {});
@@ -175,28 +218,40 @@ export async function runReminders(
       const s = (await env.PUSH.get(k.name, 'json')) as StoredSubscription | null;
       // Never POST anywhere but a browser push service, whatever is in the store.
       if (!s?.subscription || !isPushEndpoint(s.subscription.endpoint)) continue;
+      checked++;
       const due = dueReminders(s, now);
       if (due.length === 0) continue;
       const { date } = localClockFor(s, now);
       let changed = false;
       for (const kind of due) {
-        const r = await sendPush(s.subscription, reminderMessage(kind), env);
-        if (r === 'gone') {
+        const r = await sendPushDetailed(s.subscription, reminderMessage(kind), env);
+        if (r.outcome === 'gone') {
+          console.warn(
+            JSON.stringify({ push: 'dropped', kind, status: r.status, detail: r.detail }),
+          );
           await env.PUSH.delete(k.name);
           out.dropped++;
           changed = false;
           break;
         }
-        if (r === 'sent') {
+        if (r.outcome === 'sent') {
           s.sent = { ...s.sent, [kind]: date };
           out.sent++;
           changed = true;
+        } else {
+          failed++;
+          console.warn(
+            JSON.stringify({ push: 'failed', kind, status: r.status, detail: r.detail }),
+          );
         }
       }
       if (changed) await env.PUSH.put(k.name, JSON.stringify(s));
     }
     cursor = page.list_complete ? null : page.cursor;
   } while (cursor);
+  console.log(
+    JSON.stringify({ cron: 'reminders', checked, sent: out.sent, dropped: out.dropped, failed }),
+  );
   return out;
 }
 
@@ -210,6 +265,30 @@ function localClockFor(s: StoredSubscription, now: Date) {
   }).formatToParts(now);
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '00';
   return { date: `${get('year')}-${get('month')}-${get('day')}` };
+}
+
+/** This week's publisher titles from KV, refreshed in place when the Monday cron missed. */
+async function currentTrends(env: Env): Promise<Trends | null> {
+  if (!env.PUSH) return null;
+  const stored = (await env.PUSH.get(TRENDS_KEY, 'json')) as Trends | null;
+  if (!trendsStale(stored)) return stored;
+  const fresh = await fetchTrends();
+  if (fresh.items.length > 0) await env.PUSH.put(TRENDS_KEY, JSON.stringify(fresh));
+  console.log(JSON.stringify({ trends: 'refreshed', items: fresh.items.length }));
+  return fresh.items.length > 0 ? fresh : stored;
+}
+
+export async function refreshTrends(env: Env): Promise<number> {
+  if (!env.PUSH) return 0;
+  const fresh = await fetchTrends();
+  if (fresh.items.length > 0) await env.PUSH.put(TRENDS_KEY, JSON.stringify(fresh));
+  console.log(JSON.stringify({ cron: 'trends', items: fresh.items.length }));
+  return fresh.items.length;
+}
+
+async function readBank(env: Env): Promise<BankRecipe[]> {
+  if (!env.PUSH) return [];
+  return ((await env.PUSH.get(BANK_KEY, 'json')) as BankRecipe[] | null) ?? [];
 }
 
 const USER_AGENT = 'Kalib/0.1 (https://kalib.kalib.workers.dev)';
@@ -311,8 +390,50 @@ export default {
 
     if (url.pathname.startsWith('/api/push/')) return handlePush(request, url, env);
 
-    // SPEC §9.4 — estimation. It costs money, so: signed in, rate-limited, daily-capped.
-    if (url.pathname === '/api/estimate') {
+    // §18.6 — a kept suggestion joins the shared bank (content only, no one's data).
+    if (url.pathname === '/api/suggest/keep') {
+      if (request.method !== 'POST') return json({ error: 'method' }, 405);
+      const origin = request.headers.get('origin') ?? '';
+      if (origin && origin !== url.origin) return json({ error: 'forbidden' }, 403);
+      if (!env.PUSH) return json({ ok: false }, 503);
+      if (!(await underLimit(env.API_LIMIT, `keep:${clientIp(request)}`))) {
+        return json({ error: 'Too many requests.' }, 429);
+      }
+      const user = await requireUser(request, env);
+      if (!user) return json({ error: 'Sign in first.' }, 401);
+      const size = Number(request.headers.get('content-length') ?? 0);
+      if (size > 20_000) return json({ error: 'Too large.' }, 413);
+      let body: { recipe?: Record<string, unknown> };
+      try {
+        body = (await request.json()) as { recipe?: Record<string, unknown> };
+      } catch {
+        return json({ error: 'bad request' }, 400);
+      }
+      const r = body.recipe;
+      if (!r || typeof r.name !== 'string' || !Array.isArray(r.ingredients)) {
+        return json({ error: 'bad recipe' }, 400);
+      }
+      const strings = (v: unknown, max: number) =>
+        Array.isArray(v) ? v.filter((t): t is string => typeof t === 'string').slice(0, max) : [];
+      const bank = addToBank(await readBank(env), {
+        name: r.name.slice(0, 80),
+        blurb: typeof r.blurb === 'string' ? r.blurb.slice(0, 160) : '',
+        tags: strings(r.tags, 8),
+        portions: Number(r.portions) || 4,
+        time_min: Number(r.time_min) || 30,
+        ...(Number(r.oven_c) ? { oven_c: Number(r.oven_c) } : {}),
+        ingredients: r.ingredients.slice(0, 30),
+        steps: strings(r.steps, 12),
+        ...(typeof r.inspiration === 'string' ? { inspiration: r.inspiration.slice(0, 140) } : {}),
+      });
+      await env.PUSH.put(BANK_KEY, JSON.stringify(bank));
+      return json({ ok: true, size: bank.length });
+    }
+
+    // SPEC §9.4 estimation and §18.6 suggestions both cost money: signed in, rate-limited,
+    // and sharing one daily cap (a batch of suggestions counts as one estimate).
+    if (url.pathname === '/api/estimate' || url.pathname === '/api/suggest') {
+      const suggesting = url.pathname === '/api/suggest';
       if (request.method !== 'POST') return json({ error: 'method' }, 405);
       const origin = request.headers.get('origin') ?? '';
       if (origin && origin !== url.origin) return json({ error: 'forbidden' }, 403);
@@ -320,7 +441,16 @@ export default {
         return json({ error: 'Estimation is not set up on the server yet.' }, 503);
       }
       const user = await requireUser(request, env);
-      if (!user) return json({ error: 'Sign in (Settings → Sync) to estimate meals.' }, 401);
+      if (!user) {
+        return json(
+          {
+            error: suggesting
+              ? 'Sign in (Settings → Sync) to get suggestions.'
+              : 'Sign in (Settings → Sync) to estimate meals.',
+          },
+          401,
+        );
+      }
       if (!mayEstimate(user, env)) {
         return json({ error: 'Meal estimation is switched on for household accounts only.' }, 403);
       }
@@ -328,10 +458,10 @@ export default {
         return json({ error: 'One at a time — try again in a minute.' }, 429);
       }
       const size = Number(request.headers.get('content-length') ?? 0);
-      if (size > 2_500_000) return json({ error: 'Photo too large.' }, 413);
-      let req: EstimateRequest;
+      if (size > (suggesting ? 20_000 : 2_500_000)) return json({ error: 'Too large.' }, 413);
+      let req: EstimateRequest & SuggestRequest;
       try {
-        req = (await request.json()) as EstimateRequest;
+        req = (await request.json()) as EstimateRequest & SuggestRequest;
       } catch {
         return json({ error: 'bad request' }, 400);
       }
@@ -346,6 +476,40 @@ export default {
           },
           429,
         );
+      }
+      if (suggesting) {
+        // Some of the batch can come from the bank for free; the model writes the rest.
+        const wanted = Math.min(8, Math.max(1, Math.round(Number(req.count) || 4)));
+        const exclude = Array.isArray(req.exclude)
+          ? req.exclude.filter((n): n is string => typeof n === 'string')
+          : [];
+        const fromBank =
+          req.include_bank === false
+            ? []
+            : pickFromBank(await readBank(env), exclude, Math.min(2, wanted - 1));
+        const trends = sampleTrends(await currentTrends(env), 30);
+        const out = await runSuggest(
+          {
+            ...req,
+            count: wanted - fromBank.length,
+            exclude: [...exclude, ...fromBank.map((b) => b.name)],
+          },
+          env,
+          fetch,
+          { trends },
+        );
+        if (!out.ok) return json({ error: out.error }, out.status);
+        const modelRecipes = ((out.result as { recipes?: unknown[] })?.recipes ?? []) as unknown[];
+        return json({
+          result: {
+            recipes: [...modelRecipes, ...fromBank.map((b) => ({ ...b, from_bank: true }))],
+          },
+          model: out.model,
+          trends: trends.length,
+          bank: fromBank.length,
+          used: admitted.usedToday,
+          cap: admitted.capUser,
+        });
       }
       const out = await runEstimate(req, env);
       return out.ok
@@ -394,7 +558,8 @@ export default {
     return env.ASSETS.fetch(request);
   },
 
-  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runReminders(env));
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    // Monday early: this week's publisher titles. Every ten minutes: reminders.
+    ctx.waitUntil(event.cron === '0 5 * * 1' ? refreshTrends(env) : runReminders(env));
   },
 };

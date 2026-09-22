@@ -83,6 +83,16 @@ free tier, and the source is here for anyone who wants the same.
   scaled so the week lands on your targets with room for the meals outside the plan, a shopping
   list by aisle with prices you enter once and a ±15 % weekly total, and a cooking mode that
   ends by weighing the pot into a batch (SPEC §18).
+- **Discover** — set a weekly budget, tick preference cards (high protein, low calorie, quick,
+  one pot, vegetarian, cheap, Italian…), say what to avoid, and get new recipes written for
+  your targets — themed on what food publishers posted **this week** (thirteen public feeds,
+  refreshed every Monday by the Worker) and mixed with recipes other people kept, from a bank
+  that grows with every accepted card. Swipe right and it becomes yours: every ingredient is
+  matched to the offline database (the rest become own foods with the model's numbers), the
+  steps carry their times and oven temperatures, prices land as labelled estimates, and the
+  shopping list reads *≈ cost of budget* (SPEC §18.6).
+- **Cut, maintain, recomp or bulk** — a lean surplus of 5–15 % sized from the gain rate, the
+  same protein and fat rules, switchable on a schedule.
 - **Week in review** — one page with the week's calories, protein, fiber, trend, measured burn
   and what ran low, shareable as plain text for a coach or a doctor.
 - **Household recipes** — share a recipe as a link or code; the other account imports it with
@@ -156,7 +166,7 @@ its own rows (RLS), and a phone binds to the first account it syncs with. Withou
 environment variables the build runs local-only and Settings says so.
 
 1. Create a free Supabase project, open the SQL editor and run every file in
-   `supabase/migrations/` in order (`0001_init.sql` … `0005_erasure.sql`).
+   `supabase/migrations/` in order (`0001_init.sql` … `0006_discover.sql`).
 2. Authentication → Providers → Email: turn **Confirm email** off (accounts sign in immediately).
 3. Authentication → URL configuration: Site URL = the app's URL; add it to Redirect URLs (password reset).
 4. Copy `.env.example` to `.env.local` with the project URL and publishable key, then `npm run deploy`.
@@ -183,6 +193,10 @@ it to particular people instead, list their emails in `ESTIMATE_ALLOWED_EMAILS` 
 2. `npx wrangler secret put OPENROUTER_API_KEY` and paste the key when prompted.
 3. The model id is `VISION_MODEL` in `wrangler.jsonc` (default `google/gemini-3.1-flash-lite`,
    about €0.0007 per estimate with a photo). Without the secret the screen explains what is missing.
+4. Recipe suggestions use `TEXT_MODEL` (same default; a batch of four recipes costs about
+   €0.005 and counts as one estimate toward the daily caps). This week's publisher titles are
+   fetched by the Monday cron from the RSS feeds listed in `worker/trends.ts` — free, no keys —
+   and kept in KV alongside the bank of accepted recipes.
 
 ## Reminders (optional)
 
@@ -193,7 +207,9 @@ requires a signed-in user; the Worker only ever posts to the browsers' own push 
    `wrangler.jsonc`.
 2. Generate a VAPID key pair (any Web Push tool); put the public key in `wrangler.jsonc` →
    `VAPID_PUBLIC_KEY` and the private `d` value in a secret: `npx wrangler secret put VAPID_PRIVATE_KEY`.
-3. Deploy. Settings → Reminders turns on from the installed app.
+3. Deploy. Settings → Reminders turns on from the installed app; the card shows whether the
+   server still holds this phone's subscription (and re-registers it if not), and **Send a test**
+   reports the push service's exact answer, so a silent failure has somewhere to be seen.
 
 ## Deploy
 

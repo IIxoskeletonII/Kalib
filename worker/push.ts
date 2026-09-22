@@ -178,28 +178,52 @@ export interface PushMessage {
   tag?: string;
 }
 
+export type PushOutcome = 'sent' | 'gone' | 'failed';
+export interface PushResult {
+  outcome: PushOutcome;
+  /** The push service's HTTP status and the start of its body, for diagnostics. */
+  status: number;
+  detail: string;
+}
+
 /** Sends one notification; 'gone' means the subscription is dead and should be dropped. */
 export async function sendPush(
   sub: PushSubscriptionJson,
   msg: PushMessage,
   env: PushEnv,
   fetchImpl: typeof fetch = fetch,
-): Promise<'sent' | 'gone' | 'failed'> {
+): Promise<PushOutcome> {
+  return (await sendPushDetailed(sub, msg, env, fetchImpl)).outcome;
+}
+
+export async function sendPushDetailed(
+  sub: PushSubscriptionJson,
+  msg: PushMessage,
+  env: PushEnv,
+  fetchImpl: typeof fetch = fetch,
+): Promise<PushResult> {
   const body = await encryptPayload(sub, JSON.stringify(msg));
-  const res = await fetchImpl(sub.endpoint, {
-    method: 'POST',
-    headers: {
-      authorization: await vapidAuthorization(sub.endpoint, env),
-      'content-encoding': 'aes128gcm',
-      'content-type': 'application/octet-stream',
-      ttl: '3600',
-      urgency: 'normal',
-      ...(msg.tag ? { topic: msg.tag } : {}),
-    },
-    body: body as BodyInit,
-  });
-  if (res.status === 404 || res.status === 410) return 'gone';
-  return res.ok ? 'sent' : 'failed';
+  let res: Response;
+  try {
+    res = await fetchImpl(sub.endpoint, {
+      method: 'POST',
+      headers: {
+        authorization: await vapidAuthorization(sub.endpoint, env),
+        'content-encoding': 'aes128gcm',
+        'content-type': 'application/octet-stream',
+        ttl: '3600',
+        urgency: 'normal',
+        ...(msg.tag ? { topic: msg.tag } : {}),
+      },
+      body: body as BodyInit,
+    });
+  } catch (err) {
+    return { outcome: 'failed', status: 0, detail: (err as Error).message };
+  }
+  const detail = (await res.text().catch(() => '')).slice(0, 200);
+  if (res.status === 404 || res.status === 410)
+    return { outcome: 'gone', status: res.status, detail };
+  return { outcome: res.ok ? 'sent' : 'failed', status: res.status, detail };
 }
 
 // ---- reminder logic (pure) ----

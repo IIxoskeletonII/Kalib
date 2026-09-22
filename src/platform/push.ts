@@ -107,6 +107,49 @@ export async function disableReminders(auth: AuthHeaders): Promise<void> {
   await sub.unsubscribe();
 }
 
+export interface ServerStatus {
+  registered: boolean;
+  prefs?: ReminderPrefs;
+  tz?: string;
+  sent?: { weigh?: string; log?: string };
+}
+
+/** Whether the Worker still holds this phone's subscription (it drops dead ones). */
+export async function serverStatus(auth: AuthHeaders): Promise<ServerStatus | null> {
+  const sub = await currentSubscription();
+  if (!sub) return null;
+  const res = await fetch('/api/push/status', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...auth },
+    body: JSON.stringify({ endpoint: sub.endpoint }),
+  }).catch(() => null);
+  if (!res?.ok) return null;
+  return (await res.json()) as ServerStatus;
+}
+
+export interface TestResult {
+  outcome: 'sent' | 'gone' | 'failed';
+  status: number;
+  detail: string;
+}
+
+/** Asks the Worker to push a test notification right now and reports what the push service said. */
+export async function sendTestNotification(auth: AuthHeaders): Promise<TestResult> {
+  const sub = await currentSubscription();
+  if (!sub) return { outcome: 'failed', status: 0, detail: 'This phone has no subscription.' };
+  const res = await fetch('/api/push/test', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...auth },
+    body: JSON.stringify({ endpoint: sub.endpoint }),
+  });
+  if (res.status === 404) return { outcome: 'gone', status: 404, detail: 'not registered' };
+  if (!res.ok) {
+    const e = (await res.json().catch(() => ({}))) as { error?: string };
+    return { outcome: 'failed', status: res.status, detail: e.error ?? '' };
+  }
+  return (await res.json()) as TestResult;
+}
+
 /** Tells the Worker what has been done today, so a due reminder is not sent needlessly. */
 export async function pingReminders(state: SubscribeState, auth: AuthHeaders): Promise<void> {
   const sub = await currentSubscription();

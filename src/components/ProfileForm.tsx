@@ -24,13 +24,16 @@ const MODES: { value: Mode; label: string }[] = [
   { value: 'CUT', label: 'Cut' },
   { value: 'MAINTAIN', label: 'Maintain' },
   { value: 'RECOMP', label: 'Recomp' },
+  { value: 'BULK', label: 'Bulk' },
 ];
 const MODE_HINT: Record<Mode, string> = {
   CUT: 'Deficit sized to your goal rate, clamped to 10–25 %.',
   MAINTAIN: 'Eat at maintenance; protein held.',
   RECOMP: 'Small deficit (≤ 10 %), protein at the upper bound.',
+  BULK: 'Lean surplus sized to your gain rate, clamped to 5–15 %.',
 };
 const RATES = [0.25, 0.5, 0.75, 1.0];
+const BULK_RATES = [0.125, 0.25, 0.375, 0.5];
 
 export function ProfileForm({
   initial,
@@ -237,11 +240,11 @@ export function ProfileForm({
       </Field>
 
       {mode !== 'MAINTAIN' && (
-        <Field label="Goal rate">
+        <Field label={mode === 'BULK' ? 'Gain per week' : 'Goal rate'}>
           <div className="grid grid-cols-4 gap-2">
-            {RATES.map((r) => (
+            {(mode === 'BULK' ? BULK_RATES : RATES).map((r) => (
               <Chip key={r} active={rate === r} onClick={() => setRate(r)} wrap className="px-1">
-                <span className="font-medium">{r.toFixed(2)}</span>
+                <span className="font-medium">{r.toFixed((r * 1000) % 10 ? 3 : 2)}</span>
                 <span className="text-[12px] opacity-75">kg / wk</span>
               </Chip>
             ))}

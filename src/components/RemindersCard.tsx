@@ -12,8 +12,12 @@ import {
   turnOn,
   updatePrefs,
   type ReminderSettings,
+  checkHealth,
+  testNow,
+  type Health,
 } from '@/services/reminders';
-import { Card } from './ui';
+import { toast } from './Toast';
+import { Button, Card } from './ui';
 
 export function RemindersCard() {
   const settings = useSetting<ReminderSettings>(REMINDERS_KEY, DEFAULT_REMINDERS);
@@ -23,6 +27,8 @@ export function RemindersCard() {
   const [server, setServer] = useState<'checking' | 'on' | 'off'>('checking');
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [health, setHealth] = useState<Health | null>(null);
+  const [testing, setTesting] = useState(false);
   const support = pushSupport();
 
   useEffect(() => {
@@ -42,6 +48,49 @@ export function RemindersCard() {
   const done = {
     lastLoggedDate: entries && entries.length > 0 ? today : undefined,
     lastWeighedDate: weighIns?.some((w) => w.date === today) ? today : undefined,
+  };
+  const doneKey = `${done.lastLoggedDate ?? ''}|${done.lastWeighedDate ?? ''}`;
+
+  // When reminders are on, make sure the server still has this phone; re-register if not.
+  useEffect(() => {
+    if (!settings.enabled || server !== 'on' || entries === undefined || weighIns === undefined) {
+      return;
+    }
+    let cancelled = false;
+    const [logged, weighed] = doneKey.split('|');
+    void checkHealth(settings, {
+      lastLoggedDate: logged || undefined,
+      lastWeighedDate: weighed || undefined,
+    })
+      .then((h) => !cancelled && setHealth(h))
+      .catch(() => !cancelled && setHealth({ state: 'unknown' }));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.enabled, settings.weighAt, settings.logAt, server, doneKey]);
+
+  const runTest = async () => {
+    if (testing) return;
+    setTesting(true);
+    setNote(null);
+    try {
+      const r = await testNow();
+      if (r.outcome === 'sent') {
+        toast(`The push service accepted it (${r.status}). It should be on your phone now.`);
+      } else if (r.outcome === 'gone') {
+        setNote(
+          'The server had no subscription for this phone — it has been registered again. Tap once more.',
+        );
+        setHealth(null);
+      } else {
+        setNote(`The push service refused it: ${r.status} ${r.detail || ''}`.trim());
+      }
+    } catch (err) {
+      setNote((err as Error).message);
+    } finally {
+      setTesting(false);
+    }
   };
 
   const toggle = async () => {
@@ -135,6 +184,26 @@ export function RemindersCard() {
         onChange={(v) => setTime('logAt', v)}
         disabled={!settings.enabled}
       />
+      {settings.enabled && server === 'on' && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <p className="text-[13px] text-muted">
+            {health == null
+              ? 'Checking the server…'
+              : health.state === 'registered'
+                ? 'Registered on the server.'
+                : health.state === 're-registered'
+                  ? 'The server had lost this phone — registered again.'
+                  : health.state === 'signin'
+                    ? 'Sign in (Sync, above) so the server can keep this phone.'
+                    : health.state === 'no-subscription'
+                      ? 'This phone has no push subscription — turn reminders off and on.'
+                      : 'Could not reach the server.'}
+          </p>
+          <Button size="sm" onClick={() => void runTest()} disabled={testing}>
+            {testing ? 'Sending…' : 'Send a test'}
+          </Button>
+        </div>
+      )}
       {note && <p className="px-4 py-3 text-[13px] text-danger">{note}</p>}
     </Card>
   );

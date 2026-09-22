@@ -139,6 +139,16 @@ function Editor({ recipe }: { recipe: Recipe }) {
         />
       </div>
 
+      {(recipe.blurb || recipe.time_min || recipe.oven_c) && (
+        <p className="mt-3 px-1 text-[13px] text-muted">
+          {recipe.blurb}
+          {recipe.blurb && (recipe.time_min || recipe.oven_c) ? ' · ' : ''}
+          {recipe.time_min ? `${recipe.time_min} min` : ''}
+          {recipe.time_min && recipe.oven_c ? ' · ' : ''}
+          {recipe.oven_c ? `oven ${recipe.oven_c} °C` : ''}
+        </p>
+      )}
+
       <Card className="mt-4 px-5 py-4">
         <div className="flex items-baseline justify-between">
           <span className="text-[14px] font-semibold text-ink-2">Per portion</span>

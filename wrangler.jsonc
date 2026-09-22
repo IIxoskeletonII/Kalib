@@ -19,6 +19,9 @@
   //                        — or simply `npx wrangler secret bulk .env.local` (VITE_ names work)
   "vars": {
     "VISION_MODEL": "google/gemini-3.1-flash-lite",
+    // §18.6 recipe suggestions (text only). Cheap and proficient; openai/gpt-5-nano is ~4×
+    // cheaper again if the budget ever matters more than the prose.
+    "TEXT_MODEL": "google/gemini-3.1-flash-lite",
     // Daily caps on estimation, per signed-in user and across everyone (worker/guard.ts).
     "ESTIMATE_DAILY_USER": "30",
     "ESTIMATE_DAILY_TOTAL": "100",
@@ -40,6 +43,7 @@
     { "name": "API_LIMIT", "namespace_id": "1002", "simple": { "limit": 60, "period": 60 } },
   ],
   // The cron sends due reminders; a 10-minute grid is fine for "around 07:30".
-  "triggers": { "crons": ["*/10 * * * *"] },
+  // Every ten minutes: due reminders. Monday 05:00 UTC: this week's recipe trends (§18.6).
+  "triggers": { "crons": ["*/10 * * * *", "0 5 * * 1"] },
   "observability": { "enabled": true },
 }

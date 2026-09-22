@@ -192,6 +192,8 @@ export interface Price {
   food_id: string;
   /** In the user's currency, per kilogram. */
   price_per_kg: number;
+  /** A suggestion's guess rather than something the user paid (§18.6). */
+  estimated?: boolean | undefined;
 }
 
 export interface ShoppingLine {
@@ -203,6 +205,8 @@ export interface ShoppingLine {
   recipes: string[];
   cost?: number | undefined;
   price_per_kg?: number | undefined;
+  /** The price behind `cost` is an estimate. */
+  estimated?: boolean | undefined;
 }
 
 export interface ShoppingList {
@@ -210,6 +214,8 @@ export interface ShoppingList {
   total_cost: number;
   /** Lines with no price yet. */
   unpriced: number;
+  /** Priced lines whose price is an estimate. */
+  estimated: number;
 }
 
 /** §18.3 — ingredients summed across the plan (portion-scaled), grouped by aisle. */
@@ -248,6 +254,7 @@ export function shoppingList(
   }
   let total = 0;
   let unpriced = 0;
+  let estimated = 0;
   for (const line of lines.values()) {
     line.grams = Math.round(line.grams);
     const p = prices.get(line.food_id);
@@ -255,13 +262,17 @@ export function shoppingList(
       line.price_per_kg = p.price_per_kg;
       line.cost = (line.grams / 1000) * p.price_per_kg;
       total += line.cost;
+      if (p.estimated) {
+        line.estimated = true;
+        estimated++;
+      }
     } else unpriced++;
   }
   const aisles = AISLE_ORDER.map((aisle) => ({
     aisle,
     lines: [...lines.values()].filter((l) => l.aisle === aisle).sort((a, b) => b.grams - a.grams),
   })).filter((g) => g.lines.length > 0);
-  return { aisles, total_cost: total, unpriced };
+  return { aisles, total_cost: total, unpriced, estimated };
 }
 
 /** Plain text for sharing. */
@@ -279,7 +290,7 @@ export function shoppingListText(list: ShoppingList, currency: string): string {
   if (list.total_cost > 0) {
     out.push(
       '',
-      `About ${currency}${list.total_cost.toFixed(0)} (±15 %)${list.unpriced ? `, ${list.unpriced} items unpriced` : ''}`,
+      `About ${currency}${list.total_cost.toFixed(0)} (${list.estimated ? 'rough — ' + list.estimated + ' estimated prices' : '±15 %'})${list.unpriced ? `, ${list.unpriced} items unpriced` : ''}`,
     );
   }
   return out.join('\n');

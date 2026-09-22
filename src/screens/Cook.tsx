@@ -41,6 +41,8 @@ function CookView({ recipe }: { recipe: Recipe }) {
           <h1 className="text-[22px] leading-tight font-bold tracking-[-0.01em]">{recipe.name}</h1>
           <p className="text-[13px] text-muted">
             {step < 0 ? 'Ingredients' : `Step ${step + 1} of ${steps.length}`}
+            {recipe.time_min ? ` · ${recipe.time_min} min` : ''}
+            {recipe.oven_c ? ` · oven ${recipe.oven_c} °C` : ''}
           </p>
         </div>
         {step < 0 && (

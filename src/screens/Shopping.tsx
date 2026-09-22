@@ -92,10 +92,12 @@ export default function Shopping() {
                     {l.cost != null ? (
                       <>
                         <span className="block font-semibold">
+                          {l.estimated ? '≈ ' : ''}
                           {ctx.currency}
                           {l.cost.toFixed(2)}
                         </span>
                         <span className="block text-[11px] text-muted">
+                          {l.estimated ? 'est. ' : ''}
                           {ctx.currency}
                           {l.price_per_kg!.toFixed(2)}/kg
                         </span>
@@ -117,13 +119,26 @@ export default function Shopping() {
             <span className="text-[14px] font-semibold text-ink-2">This week</span>
             <span className="text-[22px] font-bold tracking-[-0.02em]">
               {ctx.list.total_cost > 0 ? `≈ ${ctx.currency}${ctx.list.total_cost.toFixed(0)}` : '—'}
+              {ctx.budget > 0 && (
+                <span className="text-[14px] font-medium text-muted">
+                  {' '}
+                  of {ctx.currency}
+                  {ctx.budget}
+                </span>
+              )}
             </span>
           </div>
           <p className="mt-1 text-[13px] text-muted">
-            {ctx.list.total_cost > 0 ? 'Give or take 15 %. ' : ''}
+            {ctx.list.total_cost > 0
+              ? ctx.list.estimated > 0
+                ? `Rough: ${ctx.list.estimated} ${ctx.list.estimated === 1 ? 'price is an estimate' : 'prices are estimates'} (≈) — tap one to enter what you paid. `
+                : 'Give or take 15 %. '
+              : ''}
             {ctx.list.unpriced > 0
               ? `${ctx.list.unpriced} ${ctx.list.unpriced === 1 ? 'item has' : 'items have'} no price yet — tap “price” once and it sticks.`
-              : 'Every item is priced.'}
+              : ctx.list.estimated === 0
+                ? 'Every item is priced.'
+                : ''}
           </p>
         </Card>
       )}

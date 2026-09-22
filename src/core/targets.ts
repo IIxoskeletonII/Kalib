@@ -16,6 +16,9 @@ export const CALIBRATION_DAYS = 14;
 export const DEFICIT_MIN = 0.1;
 export const DEFICIT_MAX = 0.25;
 export const RECOMP_DEFICIT_MAX = 0.1;
+/** §3.5 BULK: a lean surplus, 5–15 % above TDEE. */
+export const SURPLUS_MIN = 0.05;
+export const SURPLUS_MAX = 0.15;
 
 export interface TargetInputs {
   sex: Sex;
@@ -25,7 +28,7 @@ export interface TargetInputs {
   bodyfat_pct?: number | undefined;
   activity_level: ActivityLevel;
   mode: Mode;
-  /** Desired loss rate, kg/week (positive = losing). */
+  /** Desired rate of change, kg/week: loss for CUT/RECOMP, gain for BULK (always positive). */
   goal_rate_kg_per_week: number;
   /** Used for protein when body fat is unknown (§3.4). Falls back to weight_kg. */
   target_weight_kg?: number | undefined;
@@ -97,11 +100,12 @@ export function clamp(x: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, x));
 }
 
-/** §3.4 / §3.5 — deficit fraction for the mode. Positive = below TDEE. */
+/** §3.4 / §3.5 — deficit fraction for the mode. Positive = below TDEE; BULK is negative. */
 export function deficitPct(mode: Mode, goal_rate_kg_per_week: number, tdee: number): number {
   if (mode === 'MAINTAIN') return 0;
-  const raw = (goal_rate_kg_per_week * ENERGY_DENSITY_KCAL_PER_KG) / (tdee * 7);
+  const raw = (Math.abs(goal_rate_kg_per_week) * ENERGY_DENSITY_KCAL_PER_KG) / (tdee * 7);
   if (mode === 'RECOMP') return clamp(raw, 0, RECOMP_DEFICIT_MAX);
+  if (mode === 'BULK') return -clamp(raw, SURPLUS_MIN, SURPLUS_MAX);
   return clamp(raw, DEFICIT_MIN, DEFICIT_MAX);
 }
 
