@@ -2,7 +2,12 @@
 // card into a real recipe (ingredients grounded like §9.4, steps kept, prices recorded as
 // estimates) that the planner then treats like any other.
 import { groundItems, matchItems, type GroundedItem } from '@/core/estimate';
-import { parseSuggestions, toEstimateItems, type Suggestion } from '@/core/discover';
+import {
+  dropNearDuplicates,
+  parseSuggestions,
+  toEstimateItems,
+  type Suggestion,
+} from '@/core/discover';
 import type { Food } from '@/core/types';
 import { getFoods, listSearchDocs } from '@/db/repo/foods';
 import { foodUsageCounts } from '@/db/repo/logEntries';
@@ -34,6 +39,8 @@ export interface DiscoverState {
   pending: Suggestion[];
   /** Names already accepted or rejected this week, so the next batch avoids them. */
   seen: string[];
+  /** The cards turned down, kept whole so the next batch can move away from them (§18.6). */
+  rejected?: Suggestion[];
   requested_at: string;
   model?: string;
   /** How many the user asked to end up with; the deck refills until it gets there. */
@@ -93,6 +100,12 @@ export async function requestSuggestions(
     ...(current?.seen ?? []),
     ...(current?.pending ?? []).map((s) => s.name),
   ];
+  const rejected = current?.rejected ?? [];
+  // What one portion may cost if the whole week is to fit: the budget over the portions the
+  // week actually needs, with a little headroom so the model is not boxed in.
+  const portionsNeeded = Math.max(1, Math.round(ctx.inputs.days * 1.2));
+  const maxCostPerPortion =
+    inputs.budget > 0 ? Math.max(1, (inputs.budget / portionsNeeded) * 1.15) : 0;
   const perDay = ctx.inputs.kcal - ctx.inputs.allowance_kcal;
   // One dinner is roughly 40 % of what is left for planned meals; protein likewise.
   const kcal_per_portion = Math.round(Math.max(300, Math.min(1200, perDay * 0.4)));
@@ -114,6 +127,12 @@ export async function requestSuggestions(
       exclude: exclude.slice(-40),
       locale: navigator.language,
       include_bank: inputs.include_bank,
+      max_cost_per_portion: Math.round(maxCostPerPortion * 100) / 100,
+      rejected: rejected.slice(-8).map((r) => ({
+        name: r.name,
+        ingredients: r.ingredients.slice(0, 4).map((i) => i.search_term),
+        tags: r.tags,
+      })),
     }),
   });
   const data = (await res.json().catch(() => ({}))) as {
@@ -124,9 +143,11 @@ export async function requestSuggestions(
     error?: string;
   };
   if (!res.ok) throw new Error(data.error ?? `Suggestions failed (${res.status}).`);
-  const fresh = parseSuggestions(data.result).filter(
+  const parsed = parseSuggestions(data.result).filter(
     (s) => !exclude.some((n) => n.toLowerCase() === s.name.toLowerCase()),
   );
+  // Whatever came back, nothing that reads as a card already turned down reaches the deck.
+  const fresh = dropNearDuplicates(parsed, [...rejected, ...(current?.pending ?? [])]);
   const next: DiscoverState = {
     inputs,
     pending: [...(current?.pending ?? []), ...fresh],
@@ -189,6 +210,14 @@ export async function topUpIfNeeded(ctx: PlanContext): Promise<number> {
 
 export async function rejectSuggestion(week_start: string, s: Suggestion): Promise<void> {
   await settle(week_start, s, false);
+  const current = await getDiscover(week_start);
+  if (!current) return;
+  // Remembered whole: the next batch is told what this was made of, and anything close to it
+  // is dropped before it is ever shown.
+  await setSetting(discoverKey(week_start), {
+    ...current,
+    rejected: [...(current.rejected ?? []), s].slice(-12),
+  } satisfies DiscoverState);
 }
 
 /** Ground the ingredients against the offline database; the rest become own foods. */

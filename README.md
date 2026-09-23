@@ -83,9 +83,11 @@ free tier, and the source is here for anyone who wants the same.
   scaled so the week lands on your targets with room for the meals outside the plan, a shopping
   list by aisle with prices you enter once and a ±15 % weekly total, and a cooking mode that
   ends by weighing the pot into a batch (SPEC §18).
-- **Discover** — set a weekly budget, tick preference cards (high protein, low calorie, quick,
-  one pot, vegetarian, cheap, Italian…), say what to avoid, and get new recipes written for
-  your targets. The deck refills itself: turn cards down and more arrive until you have as many
+- **Discover** — set a weekly budget, tick preference cards (fakeaway, trending now, high
+  protein, big plate, quick, air fryer, one pot, meal prep, vegetarian, low carb, cheap,
+  Italian, Asian, Mexican…), say what to avoid, and get new recipes written for your targets.
+  Turning a card down moves the next batch away from it: the rejection goes back with what it
+  was made of, and anything that still reads as the same dish is dropped before you see it. The deck refills itself: turn cards down and more arrive until you have as many
   as you asked to keep (capped per week so it cannot spend without end) — themed on what food publishers posted **this week** (thirteen public feeds,
   refreshed every Monday by the Worker) and mixed with recipes other people kept, from a bank
   that grows with every accepted card. Swipe right and it becomes yours: every ingredient is
@@ -95,6 +97,13 @@ free tier, and the source is here for anyone who wants the same.
   for the week and its steps without leaving the page, swipe it left to take it out, and open
   *Fit → Details* for the week read back in portions, days and money with the one target it is
   furthest from (SPEC §18.6).
+- **A budget that holds** — every recipe is priced from the prices on file and portions are
+  trimmed (worst calories-per-euro first, pinned counts untouched) until the week fits, then
+  refilled with whatever still fits. Verified by simulation: 80 plan/budget combinations, never
+  over budget, the shopping list agreeing with the projection to the cent.
+- **Reminders that know the day** — the evening check covers food, supplements and water, and
+  names what is left; Settings shows when the next one is due, when the last one went, and why
+  one failed if it did.
 - **Cut, maintain, recomp or bulk** — a lean surplus of 5–15 % sized from the gain rate, the
   same protein and fat rules, switchable on a schedule.
 - **Week in review** — one page with the week's calories, protein, fiber, trend, measured burn

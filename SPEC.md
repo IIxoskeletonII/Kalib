@@ -567,6 +567,12 @@ list grouped by aisle, step-by-step recipe instructions.
 
 - **Offline:** all logging works offline. Only barcode lookup (uncached) and photo
   estimation require network. Queue and replay on reconnect.
+- **Reminders are about the day's checklist** (added 23 Sep 2026): the phone reports what the
+  day still needs — weigh-in, food, supplements, water — and the evening nudge names what is
+  left ("Nothing logged, 2 supplements and 1.4 L of water") instead of only asking whether
+  anything was logged at all. The time zone travels with the phone, the next due time and the
+  last send are visible in Settings, and a failed send is written to the record so a silent
+  failure has somewhere to be seen.
 - **Updates must never strand an install** (added 22 Sep 2026): a build's files are hashed and
   immutable, so a request for one a later deploy removed answers **404**, never the SPA
   fallback's `index.html` — a browser handed HTML where it expects JavaScript fails forever and
@@ -826,11 +832,31 @@ portions, pinned}])`, `prices (id, food_id, price_per_kg, currency, estimated)`,
 `recipes.steps[]`, `recipes.{blurb, tags, time_min, oven_c, source}`.
 All synced like every other table (§6).
 
+### 18.5a The budget is a constraint, not a wish (added 23 Sep 2026)
+A recipe's facts carry what it costs at the prices on file, by the same arithmetic the shopping
+list uses, so the planner and the list always agree. When a budget is set the scaler trims
+portions — worst calories-per-euro first, never a pinned count — until the projected cost fits,
+then puts back whatever still fits (best calories-per-euro first, never above the
+calorie-optimal count). The week therefore never costs more than the budget, and when money is
+what bound it, nothing more could be added without going over. Spending *less* is correct
+whenever the calories are already covered, and the plan says so rather than padding the shop.
+Unpriced ingredients count as zero, so the list says how many there are.
+
 ### 18.6 Discover — new recipes from a budget and preferences (added 22 Sep 2026)
 The deck is not only the user's own recipes. From the planner the user sets a **weekly
-budget**, ticks **preference cards** (high protein, low calorie, high fiber, quick, batch-
-friendly, vegetarian, budget, Italian, spicy, one-pot), says how many dinners they want and
-what to avoid, and asks for suggestions. A text model (`/api/suggest`, same key, quota and
+budget**, ticks **preference cards** — fakeaway (takeaway favourites made to fit), trending
+now, high protein, big plate, low calorie, high fiber, quick, air fryer, one pot, meal prep,
+batch-friendly, vegetarian, low carb, cheap, Italian, Asian, Mexican, spicy — says how many
+dinners they want and what to avoid, and asks for suggestions. A per-portion cost ceiling
+derived from the budget goes with the request.
+
+**Turning a card down changes what comes next.** The rejected suggestion is kept whole; the
+next request carries the last eight rejections with the ingredients they were built on and is
+told to move away from the protein, cuisine, format and method they have in common. Whatever
+comes back is then filtered on the device: a suggestion sharing more than half its descriptive
+terms (dish words plus the first four ingredients, stop-words removed) with something already
+refused — or with another card in the same batch — never reaches the deck. A different sauce on
+the same chicken and rice is the same recipe to the person looking at it. A text model (`/api/suggest`, same key, quota and
 sign-in rule as §9) returns that many **new** recipes, each with a one-line blurb, tags, a time,
 an oven temperature where relevant, ingredients as bought (grams for the whole recipe, a
 database search term, per-100 g macros as a fallback, a typical local price per kg) and

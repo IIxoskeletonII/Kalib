@@ -12,6 +12,19 @@ export interface ReminderPrefs {
   logAt: string | null;
 }
 
+/** What the phone last told us about the day it is having. */
+export interface DayState {
+  /** The phone's local date these figures describe. */
+  date: string;
+  weighed: boolean;
+  logged: boolean;
+  /** Supplements still to take, and how many there are in total. */
+  supplements_left: number;
+  supplements_total: number;
+  /** Millilitres still to drink against the day's target (0 when there is no target). */
+  water_left_ml: number;
+}
+
 export interface StoredSubscription {
   subscription: PushSubscriptionJson;
   prefs: ReminderPrefs;
@@ -19,6 +32,10 @@ export interface StoredSubscription {
   tz: string;
   lastLoggedDate?: string;
   lastWeighedDate?: string;
+  /** The checklist as of the phone's last word on it (§17 water and supplements). */
+  day?: DayState;
+  /** The last send that did not arrive, so a silent failure has somewhere to be seen. */
+  last_error?: { at: string; kind: ReminderKind; status: number; detail: string };
   /** Local date each reminder was last sent, so it fires once a day. */
   sent?: { weigh?: string; log?: string };
   /** Supabase user the subscription belongs to (records from before auth was required lack it). */
@@ -250,31 +267,111 @@ export type ReminderKind = 'weigh' | 'log';
  * Which reminders are due for a subscription right now: the local time has passed the
  * preferred time, the thing has not been done today, and nothing was sent today.
  */
+/** The day's checklist as the server understands it, ignoring anything stale. */
+export function outstanding(
+  s: StoredSubscription,
+  date: string,
+): {
+  weigh: boolean;
+  log: boolean;
+  supplements: number;
+  water_ml: number;
+  any: boolean;
+} {
+  const day = s.day?.date === date ? s.day : undefined;
+  // Without a fresh day report, fall back to the two date markers the phone has always sent.
+  const weigh = day ? !day.weighed : (s.lastWeighedDate ?? '') < date;
+  const log = day ? !day.logged : (s.lastLoggedDate ?? '') < date;
+  const supplements = day?.supplements_left ?? 0;
+  const water_ml = day?.water_left_ml ?? 0;
+  return { weigh, log, supplements, water_ml, any: log || supplements > 0 || water_ml > 0 };
+}
+
+/**
+ * The morning nudge fires when the day has not been weighed; the evening one when anything on
+ * the day's checklist is still undone — food, supplements or water (§17), not only food.
+ */
 export function dueReminders(s: StoredSubscription, now: Date): ReminderKind[] {
   const { date, time } = localClock(now, s.tz || 'UTC');
+  const left = outstanding(s, date);
   const due: ReminderKind[] = [];
   const passed = (at: string | null) => at != null && time >= at;
-  if (passed(s.prefs.weighAt) && (s.lastWeighedDate ?? '') < date && s.sent?.weigh !== date) {
-    due.push('weigh');
-  }
-  if (passed(s.prefs.logAt) && (s.lastLoggedDate ?? '') < date && s.sent?.log !== date) {
-    due.push('log');
-  }
+  if (passed(s.prefs.weighAt) && left.weigh && s.sent?.weigh !== date) due.push('weigh');
+  if (passed(s.prefs.logAt) && left.any && s.sent?.log !== date) due.push('log');
   return due;
 }
 
-export function reminderMessage(kind: ReminderKind): PushMessage {
-  return kind === 'weigh'
-    ? {
-        title: 'Weigh-in',
-        body: 'Step on the scale — it takes five seconds.',
-        url: '/',
-        tag: 'weigh',
-      }
-    : {
-        title: 'Nothing logged today',
-        body: 'Even a rough day beats a missing one.',
-        url: '/',
-        tag: 'log',
-      };
+/**
+ * When each reminder will next be considered, in the subscriber's own clock. A reminder that
+ * is due right now reads as today; one whose day is already done (or whose time has passed)
+ * moves to tomorrow. This is what the app shows so the feature is never invisible.
+ */
+export function nextReminderAt(
+  s: StoredSubscription,
+  now: Date,
+): { weigh: string | null; log: string | null } {
+  const { date } = localClock(now, s.tz || 'UTC');
+  const tomorrow = addLocalDay(date);
+  const left = outstanding(s, date);
+  const when = (at: string | null, outstandingNow: boolean, sentOn: string | undefined) => {
+    if (!at) return null;
+    if (outstandingNow && sentOn !== date) return `${date} ${at}`;
+    return `${tomorrow} ${at}`;
+  };
+  return {
+    weigh: when(s.prefs.weighAt, left.weigh, s.sent?.weigh),
+    log: when(s.prefs.logAt, left.any, s.sent?.log),
+  };
+}
+
+/** Next calendar day for a local YYYY-MM-DD, without touching time zones. */
+export function addLocalDay(date: string): string {
+  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
+  const dt = new Date(Date.UTC(y, m - 1, d + 1));
+  return dt.toISOString().slice(0, 10);
+}
+
+/** Plain English for what is left, longest-standing first: "2 vitamins and 1.4 L of water". */
+export function outstandingText(left: ReturnType<typeof outstanding>): string {
+  const parts: string[] = [];
+  if (left.log) parts.push('nothing logged');
+  if (left.supplements > 0) {
+    parts.push(`${left.supplements} ${left.supplements === 1 ? 'supplement' : 'supplements'}`);
+  }
+  if (left.water_ml > 0) {
+    const l = left.water_ml / 1000;
+    parts.push(`${l >= 1 ? `${l.toFixed(1)} L` : `${Math.round(left.water_ml)} ml`} of water`);
+  }
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return parts[0]!;
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]!}`;
+}
+
+export function reminderMessage(
+  kind: ReminderKind,
+  left?: ReturnType<typeof outstanding>,
+): PushMessage {
+  if (kind === 'weigh') {
+    return {
+      title: 'Weigh-in',
+      body: 'Step on the scale — it takes five seconds.',
+      url: '/',
+      tag: 'weigh',
+    };
+  }
+  const text = left ? outstandingText(left) : '';
+  if (!text || (left && left.log && left.supplements === 0 && left.water_ml === 0)) {
+    return {
+      title: 'Nothing logged today',
+      body: 'Even a rough day beats a missing one.',
+      url: '/',
+      tag: 'log',
+    };
+  }
+  return {
+    title: 'Still to do today',
+    body: `${text.charAt(0).toUpperCase()}${text.slice(1)}.`,
+    url: '/',
+    tag: 'log',
+  };
 }

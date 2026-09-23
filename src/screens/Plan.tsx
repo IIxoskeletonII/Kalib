@@ -578,9 +578,13 @@ function BudgetRow({ ctx }: { ctx: PlanContext }) {
         />
       </div>
       <p className="mt-1.5 text-[12px] text-muted">
+        {ctx.scaled.budget_limited
+          ? 'Portions were trimmed to fit the budget.'
+          : b.share > 0 && b.share < 0.9
+            ? 'The week’s calories are covered; the rest is for meals outside the plan.'
+            : ''}{' '}
         {b.unpriced > 0 ? `${b.unpriced} unpriced` : 'every item priced'}
         {b.estimated > 0 ? ` · ${b.estimated} estimated` : ''}
-        {b.share > 1 ? ' · over budget' : ''}
       </p>
     </div>
   );

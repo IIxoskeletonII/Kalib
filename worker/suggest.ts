@@ -26,7 +26,23 @@ export const SUGGEST_TAGS: Record<string, string> = {
   italian: 'Italian home cooking',
   spicy: 'spicy',
   'one-pot': 'one pot or one tray',
+  fakeaway:
+    'takeaway favourites cooked at home and made to fit the targets — burgers, fried chicken, kebabs, pizza, katsu, loaded fries — real versions with the same flavours, not diet imitations',
+  trending: 'in the style of what people are cooking right now, from the titles given below',
+  'air-fryer': 'cooked mainly in an air fryer',
+  'high-volume': 'a large, filling plate for the calories (volume eating)',
+  asian: 'East or South-East Asian home cooking',
+  mexican: 'Mexican or Tex-Mex',
+  'meal-prep': 'cooks once and portions into containers for several days',
+  'low-carb': 'low in carbohydrate',
 };
+
+export interface Rejected {
+  name: string;
+  /** What it was built on, so the next batch can move away from it. */
+  ingredients?: string[];
+  tags?: string[];
+}
 
 export interface SuggestRequest {
   /** Weekly budget in `currency`; 0 means none. */
@@ -41,6 +57,10 @@ export interface SuggestRequest {
   protein_per_portion?: number;
   /** Names already shown or owned, so the next batch is new. */
   exclude?: string[];
+  /** What was turned down, with what it was made of (§18.6 adaptation). */
+  rejected?: Rejected[];
+  /** Cost ceiling for one portion, in `currency`; 0 means none. */
+  max_cost_per_portion?: number;
   /** BCP 47 locale, for typical prices and ingredient availability. */
   locale?: string;
   /** Mix in up to two recipes other people kept (default true). */
@@ -141,7 +161,12 @@ Rules for every recipe:
   theme from them (an ingredient, a cuisine, a technique that is in the air right now) and
   write your own recipe for it; set inspiration to the title you drew on, or "" if none.
   Never reproduce a publisher's recipe.
-- Respect what the person says to avoid; never include it, not even as optional.`;
+- Respect what the person says to avoid; never include it, not even as optional.
+- When recipes that were turned down are listed, read what they had in common — the main
+  protein, the cuisine, the format, the cooking method — and move away from all of it. Do not
+  offer a near neighbour of something already refused: a different sauce on the same chicken
+  and rice is the same recipe to the person looking at it.
+- When a cost ceiling per portion is given, no recipe may exceed it at the prices you quote.`;
 
 function clean(req: SuggestRequest) {
   const count = Math.min(8, Math.max(1, Math.round(Number(req.count) || 4)));
@@ -159,7 +184,31 @@ function clean(req: SuggestRequest) {
   const kcal = Math.max(200, Math.min(1500, Math.round(Number(req.kcal_per_portion) || 650)));
   const protein = Math.max(10, Math.min(120, Math.round(Number(req.protein_per_portion) || 40)));
   const locale = (typeof req.locale === 'string' ? req.locale : 'en').slice(0, 12);
-  return { count, budget, currency, tags, avoid, exclude, kcal, protein, locale };
+  const rejected = (Array.isArray(req.rejected) ? req.rejected : [])
+    .filter((r): r is Rejected => !!r && typeof r.name === 'string')
+    .slice(-8)
+    .map((r) => ({
+      name: r.name.slice(0, 60),
+      ingredients: (Array.isArray(r.ingredients) ? r.ingredients : [])
+        .filter((i): i is string => typeof i === 'string')
+        .slice(0, 6)
+        .map((i) => i.slice(0, 40)),
+      tags: (Array.isArray(r.tags) ? r.tags : []).filter((t): t is string => typeof t === 'string'),
+    }));
+  const maxCost = Math.max(0, Math.min(1000, Number(req.max_cost_per_portion) || 0));
+  return {
+    count,
+    budget,
+    currency,
+    tags,
+    avoid,
+    exclude,
+    kcal,
+    protein,
+    locale,
+    rejected,
+    maxCost,
+  };
 }
 
 export function userPrompt(req: SuggestRequest, ctx: SuggestContext = {}): string {
@@ -178,6 +227,17 @@ export function userPrompt(req: SuggestRequest, ctx: SuggestContext = {}): strin
     `Prices and ingredients typical for ${region} supermarkets, in ${c.currency}.`,
     c.avoid ? `Avoid: ${c.avoid}.` : '',
     c.exclude.length ? `Do not suggest these again: ${c.exclude.join('; ')}.` : '',
+    c.rejected.length
+      ? `Turned down, with what they were built on — go somewhere else entirely:\n${c.rejected
+          .map(
+            (r) =>
+              `- ${r.name}${r.ingredients?.length ? ` (${r.ingredients.slice(0, 4).join(', ')})` : ''}`,
+          )
+          .join('\n')}`
+      : '',
+    c.maxCost > 0
+      ? `No recipe may cost more than ${c.currency}${c.maxCost.toFixed(2)} a portion at the prices you quote.`
+      : '',
     trends.length
       ? `Dish titles food publishers posted this week, for themes only:\n${trends
           .map((t) => `- ${t.title} (${t.source})`)

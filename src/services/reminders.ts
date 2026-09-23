@@ -1,5 +1,6 @@
 // Reminders: what the user asked for (a setting) plus keeping the Worker informed of what has
 // already been done today, so a nudge only goes out when it is needed.
+import { addDays, fromDateKey, todayKey } from '@/core/dates';
 import { getSetting, setSetting } from '@/db/repo/settings';
 import { authHeaders } from '@/services/apiAuth';
 import {
@@ -10,7 +11,9 @@ import {
   registerSubscription,
   sendTestNotification,
   serverStatus,
+  type DayReport,
   type ReminderPrefs,
+  type ServerStatus,
   type TestResult,
 } from '@/platform/push';
 
@@ -33,6 +36,7 @@ export async function getReminderSettings(): Promise<ReminderSettings> {
 export interface DoneToday {
   lastLoggedDate?: string | undefined;
   lastWeighedDate?: string | undefined;
+  day?: DayReport | undefined;
 }
 
 export async function turnOn(prefs: ReminderPrefs, done: DoneToday) {
@@ -67,8 +71,8 @@ export async function updatePrefs(s: ReminderSettings, done: DoneToday): Promise
 export type Health =
   | { state: 'signin' }
   | { state: 'no-subscription' }
-  | { state: 'registered' }
-  | { state: 're-registered' }
+  | { state: 'registered'; status: ServerStatus }
+  | { state: 're-registered'; status?: ServerStatus }
   | { state: 'unknown' };
 
 /**
@@ -82,9 +86,21 @@ export async function checkHealth(s: ReminderSettings, done: DoneToday): Promise
   if (!sub) return { state: 'no-subscription' };
   const status = await serverStatus(auth);
   if (!status) return { state: 'unknown' };
-  if (status.registered) return { state: 'registered' };
+  if (status.registered) return { state: 'registered', status };
   await registerSubscription(sub, { weighAt: s.weighAt, logAt: s.logAt }, done, auth);
-  return { state: 're-registered' };
+  const after = await serverStatus(auth);
+  return after?.registered ? { state: 're-registered', status: after } : { state: 're-registered' };
+}
+
+/** "today 20:00" / "tomorrow 07:30" / "Thu 07:30" from the server's local timestamp. */
+export function describeNext(next: string | null, now = new Date()): string | null {
+  if (!next) return null;
+  const [date, time] = next.split(' ');
+  if (!date || !time) return null;
+  const today = todayKey(now);
+  if (date === today) return `today ${time}`;
+  if (date === addDays(today, 1)) return `tomorrow ${time}`;
+  return `${fromDateKey(date).toLocaleDateString(undefined, { weekday: 'short' })} ${time}`;
 }
 
 /** Pushes a test notification now; the result names what the push service answered. */
@@ -101,9 +117,14 @@ let lastPing = '';
 export async function pingIfEnabled(done: DoneToday): Promise<void> {
   const s = await getReminderSettings();
   if (!s.enabled) return;
-  const stamp = `${done.lastLoggedDate ?? ''}|${done.lastWeighedDate ?? ''}`;
+  const d = done.day;
+  const stamp = `${done.lastLoggedDate ?? ''}|${done.lastWeighedDate ?? ''}|${
+    d ? `${d.date}:${d.weighed}:${d.logged}:${d.supplements_left}:${d.water_left_ml}` : ''
+  }`;
   if (stamp === lastPing) return;
   lastPing = stamp;
   const auth = await authHeaders();
-  if ('authorization' in auth) await pingReminders(done, auth);
+  if ('authorization' in auth) {
+    await pingReminders(done, auth, { weighAt: s.weighAt, logAt: s.logAt });
+  }
 }

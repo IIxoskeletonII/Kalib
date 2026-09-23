@@ -11,6 +11,8 @@ export interface PlanItem {
 }
 
 export interface PlanInputs {
+  /** §18.6 — weekly grocery budget in the user's currency; 0 or absent means none. */
+  budget?: number;
   /** Daily kcal / protein targets. */
   kcal: number;
   protein_g: number;
@@ -33,15 +35,38 @@ export interface RecipeFacts {
   portion_protein_g: number;
   portion_fiber_g: number;
   portion_g: number;
+  /**
+   * §18.3 — what the whole recipe costs at the prices on file, and how much of it is priced.
+   * The shopping list derives its figures the same way, so the planner and the list agree.
+   */
+  cost: number;
+  priced_share: number;
 }
 
-export function recipeFacts(recipe: Recipe, foods: ReadonlyMap<string, Food>): RecipeFacts {
+export function recipeFacts(
+  recipe: Recipe,
+  foods: ReadonlyMap<string, Food>,
+  prices?: ReadonlyMap<string, Price>,
+): RecipeFacts {
   const t = recipeTotals(recipe.items, foods);
   const y = effectiveYield(recipe);
   const p = portionGrams(recipe);
   const share = y > 0 ? p / y : 0;
+  let cost = 0;
+  let pricedGrams = 0;
+  let totalGrams = 0;
+  for (const it of recipe.items) {
+    totalGrams += it.grams;
+    const price = prices?.get(it.food_id);
+    if (price && price.price_per_kg > 0) {
+      cost += (it.grams / 1000) * price.price_per_kg;
+      pricedGrams += it.grams;
+    }
+  }
   return {
     recipe,
+    cost,
+    priced_share: totalGrams > 0 ? pricedGrams / totalGrams : 0,
     kcal: t.kcal,
     protein_g: t.protein_g,
     fiber_g: t.fiber_g,
@@ -65,6 +90,11 @@ export interface ScaledPlan {
   /** Portion grams per recipe after uniform scaling to hit the budget. */
   portion_g: Record<string, number>;
   budget_kcal: number;
+  /** §18.6 — projected cost of the week at the prices on file, and whether it bound. */
+  cost: number;
+  budget_limited: boolean;
+  /** Portions dropped to stay inside the budget. */
+  portions_dropped: number;
 }
 
 /**
@@ -104,9 +134,70 @@ export function scalePlan(
     }
   }
 
-  // Uniform gram factor to land inside ±5 % of the budget, bounded so portions stay real.
+  // Uniform gram factor to land inside ±5 % of the calorie budget, bounded so portions stay real.
   const planKcal = items.reduce((a, i) => a + byId.get(i.recipe_id)!.portion_kcal * i.portions, 0);
   const factor = planKcal > 0 && budget > 0 ? Math.min(1.3, Math.max(0.7, budget / planKcal)) : 1;
+
+  // §18.6 — money is a hard constraint where calories are a soft one: a week that costs more
+  // than the budget is wrong in a way the user feels. Portions come off the recipe with the
+  // worst calories-per-euro until the projected cost fits, pinned counts excepted.
+  // A few cents of headroom: the shopping list rounds each line to the whole gram, so the
+  // figure the user reads can sit a cent or two above this projection. It must never be over.
+  const money = (Number(inputs.budget) || 0) - 0.05;
+  const weekCost = (list: readonly PlanItem[]) =>
+    list.reduce((a, i) => {
+      const f = byId.get(i.recipe_id)!;
+      const g = f.portion_g * factor * i.portions;
+      return a + (f.yield_g > 0 ? (g / f.yield_g) * f.cost : 0);
+    }, 0);
+  let portions_dropped = 0;
+  let budget_limited = false;
+  if (money > 0.05) {
+    const pinnedIds = new Set(pinned.map((i) => i.recipe_id));
+    /** The calorie-optimal counts: the refill below never goes past them. */
+    const ceiling = new Map(items.map((i) => [i.recipe_id, i.portions]));
+    const costOfOnePortion = (i: PlanItem) => {
+      const f = byId.get(i.recipe_id)!;
+      return f.yield_g > 0 ? ((f.portion_g * factor) / f.yield_g) * f.cost : 0;
+    };
+    for (let guard = 0; weekCost(items) > money && guard < 500; guard++) {
+      // Only what the scaler chose may be reduced; a pinned count is the user's decision.
+      const candidates = items.filter((i) => i.portions > 1 && !pinnedIds.has(i.recipe_id));
+      if (candidates.length === 0) break;
+      /** Cost of one portion's calories: what a dropped portion saves per kcal lost. */
+      const costPerKcal = (i: PlanItem) => {
+        const f = byId.get(i.recipe_id)!;
+        if (f.portion_kcal <= 0 || f.yield_g <= 0) return 0;
+        return ((f.portion_g / f.yield_g) * f.cost) / f.portion_kcal;
+      };
+      const worst = candidates.reduce((a, b) => (costPerKcal(b) > costPerKcal(a) ? b : a));
+      worst.portions--;
+      portions_dropped++;
+      budget_limited = true;
+    }
+    // Dropping a whole portion can overshoot by several euros. Put back whatever still fits,
+    // best calories-per-euro first, never above the calorie-optimal count.
+    if (budget_limited) {
+      for (let guard = 0; guard < 500; guard++) {
+        const room = money - weekCost(items);
+        const addable = items
+          .filter(
+            (i) => !pinnedIds.has(i.recipe_id) && i.portions < (ceiling.get(i.recipe_id) ?? 0),
+          )
+          .filter((i) => costOfOnePortion(i) <= room);
+        if (addable.length === 0) break;
+        const best = addable.reduce((a, b) => {
+          const value = (i: PlanItem) => {
+            const c = costOfOnePortion(i);
+            return c > 0 ? (byId.get(i.recipe_id)!.portion_kcal * factor) / c : Infinity;
+          };
+          return value(b) > value(a) ? b : a;
+        });
+        best.portions++;
+        portions_dropped--;
+      }
+    }
+  }
   const portion_g: Record<string, number> = {};
   let kcal = 0;
   let protein = 0;
@@ -121,6 +212,9 @@ export function scalePlan(
   const days = Math.max(1, inputs.days);
   return {
     items,
+    cost: weekCost(items),
+    budget_limited,
+    portions_dropped,
     kcal_per_day: kcal / days,
     protein_per_day: protein / days,
     fiber_per_day: fiber / days,

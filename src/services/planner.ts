@@ -64,13 +64,15 @@ export async function planContext(week_start: string): Promise<PlanContext> {
   const ids = new Set<string>();
   for (const r of recipes) for (const it of r.items) ids.add(it.food_id);
   const foods = await getFoods([...ids]);
-  const facts = recipes.map((r) => recipeFacts(r, foods));
   const prices = new Map<string, Price>(
     priceRows.map((p: FoodPrice) => [
       p.food_id,
       { food_id: p.food_id, price_per_kg: p.price_per_kg, estimated: p.estimated ?? false },
     ]),
   );
+  // Prices first: a recipe's facts include what it costs, which the scaler needs.
+  const facts = recipes.map((r) => recipeFacts(r, foods, prices));
+
   const draft: PlanContext['draft'] = plan
     ? {
         week_start: plan.week_start,
@@ -95,6 +97,8 @@ export async function planContext(week_start: string): Promise<PlanContext> {
     days: draft.days,
     allowance_kcal: draft.allowance_kcal,
     allowance_protein_g: draft.allowance_protein_g,
+    // §18.6 — the week is scaled to fit the money as well as the calories.
+    ...(draft.budget ? { budget: draft.budget } : {}),
   };
   const scaled = scalePlan(facts, draft.items, inputs);
   const list = shoppingList(scaled, facts, foods, prices);

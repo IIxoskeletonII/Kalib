@@ -33,6 +33,7 @@ import {
 } from './trends';
 import {
   dueReminders,
+  nextReminderAt,
   reminderMessage,
   sendPushDetailed,
   type PushEnv,
@@ -162,6 +163,7 @@ async function handlePush(request: Request, url: URL, env: Env): Promise<Respons
   if (url.pathname === '/api/push/status' && request.method === 'POST') {
     if (!existing) return json({ registered: false });
     if (existing.user_id && existing.user_id !== user.id) return json({ error: 'forbidden' }, 403);
+    const now = new Date();
     return json({
       registered: true,
       prefs: existing.prefs,
@@ -169,6 +171,8 @@ async function handlePush(request: Request, url: URL, env: Env): Promise<Respons
       lastLoggedDate: existing.lastLoggedDate ?? null,
       lastWeighedDate: existing.lastWeighedDate ?? null,
       sent: existing.sent ?? {},
+      due: dueReminders(existing, now),
+      next: nextReminderAt(existing, now),
       updated_at: existing.updated_at,
     });
   }
@@ -193,6 +197,9 @@ async function handlePush(request: Request, url: URL, env: Env): Promise<Respons
     if (existing.user_id && existing.user_id !== user.id) return json({ error: 'forbidden' }, 403);
     if (typeof body.lastLoggedDate === 'string') existing.lastLoggedDate = body.lastLoggedDate;
     if (typeof body.lastWeighedDate === 'string') existing.lastWeighedDate = body.lastWeighedDate;
+    // A phone that has travelled must fire on its new clock, not the one it registered with.
+    if (typeof body.tz === 'string' && body.tz.length <= 64) existing.tz = body.tz;
+    if (body.prefs) existing.prefs = cleanPrefs(body.prefs);
     // Subscriptions from before sign-in was required are adopted by the first owner to ping.
     existing.user_id = user.id;
     existing.updated_at = new Date().toISOString();
@@ -244,6 +251,9 @@ export async function runReminders(
           console.warn(
             JSON.stringify({ push: 'failed', kind, status: r.status, detail: r.detail }),
           );
+          // Written to the record so a silent failure has somewhere to be seen.
+          s.last_error = { at: now.toISOString(), kind, status: r.status, detail: r.detail };
+          changed = true;
         }
       }
       if (changed) await env.PUSH.put(k.name, JSON.stringify(s));

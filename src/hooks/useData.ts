@@ -31,6 +31,7 @@ import { computeWeekBanking } from '@/services/banking';
 import { computeCoach, weekOverview, type CoachState, type WeekOverview } from '@/services/coach';
 import { ensureTargetForDate, weightFor } from '@/services/targets';
 import { planContext, type PlanContext } from '@/services/planner';
+import { sumWater } from '@/core/water';
 import { pingIfEnabled } from '@/services/reminders';
 import { tdeeState, type TdeeState } from '@/services/tdee';
 
@@ -252,16 +253,51 @@ export function useWeekOverview(date: string): WeekOverview | undefined {
 }
 
 /** Keeps the reminder service informed of what has been logged and weighed today. */
+/**
+ * Tells the Worker what the day still needs — weigh-in, food, supplements, water — so an
+ * evening nudge can name it instead of only asking whether anything was logged at all.
+ */
 export function useReminderPing() {
   const today = todayKey();
   const entries = useEntries(today);
   const weighIns = useWeighIns();
+  const waterLogs = useWaterLogs(today);
+  const supplements = useSupplements();
+  const taken = useTakenSupplements(today);
+  const target = useDailyTarget(today);
+
   const logged = entries && entries.length > 0 ? today : undefined;
   const weighed = weighIns?.some((w) => w.date === today) ? today : undefined;
+  const ready =
+    entries !== undefined &&
+    weighIns !== undefined &&
+    waterLogs !== undefined &&
+    supplements !== undefined &&
+    taken !== undefined;
+  const supplementsTotal = supplements?.length ?? 0;
+  const supplementsLeft = supplements ? supplements.filter((s) => !taken?.has(s.id)).length : 0;
+  const waterTarget = target?.water_ml ?? 0;
+  const waterLeft = waterLogs ? Math.max(0, waterTarget - sumWater(waterLogs)) : 0;
+  const day = ready
+    ? {
+        date: today,
+        weighed: weighed != null,
+        logged: logged != null,
+        supplements_left: supplementsLeft,
+        supplements_total: supplementsTotal,
+        water_left_ml: Math.round(waterLeft),
+      }
+    : undefined;
+  const stamp = day ? JSON.stringify(day) : '';
+
   useEffect(() => {
-    if (entries === undefined || weighIns === undefined) return;
-    void pingIfEnabled({ lastLoggedDate: logged, lastWeighedDate: weighed });
-  }, [entries, weighIns, logged, weighed]);
+    if (!stamp) return;
+    void pingIfEnabled({
+      lastLoggedDate: logged,
+      lastWeighedDate: weighed,
+      day: JSON.parse(stamp) as NonNullable<typeof day>,
+    });
+  }, [stamp, logged, weighed]);
 }
 
 /**

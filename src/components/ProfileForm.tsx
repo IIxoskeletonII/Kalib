@@ -33,6 +33,10 @@ const MODE_HINT: Record<Mode, string> = {
   BULK: 'Lean surplus sized to your gain rate, clamped to 5–15 %.',
 };
 const RATES = [0.25, 0.5, 0.75, 1.0];
+/** Shown only while the field is empty, in whatever order the phone writes dates. */
+const BIRTH_EXAMPLE = new Date(1994, 4, 12).toLocaleDateString();
+/** Nobody logging their macros was born today; this also blocks a stray future date. */
+const MAX_BIRTH = todayKey();
 const BULK_RATES = [0.125, 0.25, 0.375, 0.5];
 
 export function ProfileForm({
@@ -133,7 +137,7 @@ export function ProfileForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           className={INPUT}
-          placeholder="Eliya"
+          placeholder="Alex"
         />
       </Field>
 
@@ -149,15 +153,24 @@ export function ProfileForm({
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Birth date" htmlFor={`${ids}-birth`}>
-          <input
-            id={`${ids}-birth`}
-            type="date"
-            value={birth}
-            onChange={(e) => setBirth(e.target.value)}
-            className={INPUT}
-            required
-          />
+        <Field label="Birth date" hint={birth ? undefined : `e.g. ${BIRTH_EXAMPLE}`}>
+          <div className="relative">
+            <input
+              id={`${ids}-birth`}
+              type="date"
+              aria-label="Birth date"
+              value={birth}
+              max={MAX_BIRTH}
+              onChange={(e) => setBirth(e.target.value)}
+              className={`${INPUT} ${birth ? '' : 'text-transparent'}`}
+              required
+            />
+            {!birth && (
+              <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-[16px] text-muted">
+                Tap to choose
+              </span>
+            )}
+          </div>
         </Field>
         <Field label="Height" htmlFor={`${ids}-height`}>
           <Unit unit="cm">
@@ -168,7 +181,7 @@ export function ProfileForm({
               value={height}
               onChange={(e) => setHeight(e.target.value)}
               className={INPUT}
-              placeholder="186"
+              placeholder="e.g. 175"
             />
           </Unit>
         </Field>
@@ -182,7 +195,7 @@ export function ProfileForm({
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
                 className={INPUT}
-                placeholder="110.0"
+                placeholder="e.g. 72.5"
               />
             </Unit>
           </Field>
@@ -196,7 +209,7 @@ export function ProfileForm({
               value={bodyfat}
               onChange={(e) => setBodyfat(e.target.value)}
               className={INPUT}
-              placeholder="30"
+              placeholder="e.g. 22"
             />
           </Unit>
         </Field>
@@ -212,7 +225,7 @@ export function ProfileForm({
               value={targetW}
               onChange={(e) => setTargetW(e.target.value)}
               className={INPUT}
-              placeholder="90"
+              placeholder="e.g. 68"
             />
           </Unit>
         </Field>
@@ -315,7 +328,7 @@ function Field({
   children,
 }: {
   label: string;
-  hint?: string;
+  hint?: string | undefined;
   htmlFor?: string;
   children: ReactNode;
 }) {

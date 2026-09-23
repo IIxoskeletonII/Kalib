@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { budgetLine, parseSuggestions, suggestionFacts, toEstimateItems } from './discover';
+import {
+  budgetLine,
+  dropNearDuplicates,
+  parseSuggestions,
+  similarity,
+  suggestionFacts,
+  toEstimateItems,
+  TOO_SIMILAR,
+  type Suggestion,
+} from './discover';
 
 const raw = {
   recipes: [
@@ -93,5 +102,66 @@ describe('suggestionFacts and grounding items', () => {
       unpriced: 2,
     });
     expect(budgetLine(list, 0).share).toBe(0);
+  });
+});
+
+describe('not offering the same idea twice (§18.6)', () => {
+  const dish = (name: string, ingredients: string[]): Suggestion => ({
+    name,
+    blurb: '',
+    tags: [],
+    portions: 4,
+    time_min: 30,
+    steps: [],
+    ingredients: ingredients.map((search_term) => ({
+      name: search_term,
+      search_term,
+      grams: 500,
+      per_100g: { kcal: 150, protein: 10, carb: 10, fat: 5, fiber: 2 },
+      price_per_kg: 5,
+    })),
+  });
+
+  const chickenRice = dish('Chicken and rice bowl', [
+    'chicken thigh raw',
+    'rice white raw',
+    'broccoli raw',
+  ]);
+
+  it('scores a sauce swap on the same base as the same dish', () => {
+    const swap = dish('Creamy garlic chicken with rice', [
+      'chicken thigh raw',
+      'rice white raw',
+      'cream',
+    ]);
+    expect(similarity(chickenRice, swap)).toBeGreaterThanOrEqual(TOO_SIMILAR);
+  });
+
+  it('scores a genuinely different dish as different', () => {
+    const other = dish('Lentil and squash dal', [
+      'lentil red dried',
+      'squash butternut raw',
+      'coconut milk',
+    ]);
+    expect(similarity(chickenRice, other)).toBeLessThan(TOO_SIMILAR);
+    const fish = dish('Miso salmon traybake', ['salmon raw', 'potato raw', 'miso paste']);
+    expect(similarity(chickenRice, fish)).toBeLessThan(TOO_SIMILAR);
+  });
+
+  it('drops near neighbours of what was turned down, and duplicates within the batch', () => {
+    const rejected = [chickenRice];
+    const fresh = [
+      dish('Chicken rice traybake', ['chicken thigh raw', 'rice white raw', 'lemon']), // too close
+      dish('Lentil and squash dal', ['lentil red dried', 'squash butternut raw']), // keep
+      dish('Red lentil squash curry', ['lentil red dried', 'squash butternut raw']), // dup of the above
+      dish('Beef chilli', ['beef mince raw', 'kidney bean canned', 'tomato canned']), // keep
+    ];
+    const kept = dropNearDuplicates(fresh, rejected);
+    expect(kept.map((k) => k.name)).toEqual(['Lentil and squash dal', 'Beef chilli']);
+  });
+
+  it('keeps everything when nothing has been turned down', () => {
+    const fresh = [chickenRice, dish('Beef chilli', ['beef mince raw', 'bean'])];
+    expect(dropNearDuplicates(fresh, [])).toHaveLength(2);
   });
 });

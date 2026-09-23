@@ -13,6 +13,7 @@ import {
   updatePrefs,
   type ReminderSettings,
   checkHealth,
+  describeNext,
   testNow,
   type Health,
 } from '@/services/reminders';
@@ -28,6 +29,7 @@ export function RemindersCard() {
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
+  const status = health && 'status' in health ? health.status : undefined;
   const [testing, setTesting] = useState(false);
   const support = pushSupport();
 
@@ -179,29 +181,70 @@ export function RemindersCard() {
       />
       <TimeRow
         label="Evening check"
-        hint="if nothing is logged by"
+        hint="if anything is still undone by"
         value={settings.logAt}
         onChange={(v) => setTime('logAt', v)}
         disabled={!settings.enabled}
       />
       {settings.enabled && server === 'on' && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <p className="text-[13px] text-muted">
-            {health == null
-              ? 'Checking the server…'
-              : health.state === 'registered'
-                ? 'Registered on the server.'
-                : health.state === 're-registered'
-                  ? 'The server had lost this phone — registered again.'
-                  : health.state === 'signin'
-                    ? 'Sign in (Sync, above) so the server can keep this phone.'
-                    : health.state === 'no-subscription'
-                      ? 'This phone has no push subscription — turn reminders off and on.'
-                      : 'Could not reach the server.'}
+        <div className="space-y-2 px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-[13px] text-muted">
+              {health == null
+                ? 'Checking the server…'
+                : health.state === 'registered'
+                  ? 'Registered on the server.'
+                  : health.state === 're-registered'
+                    ? 'The server had lost this phone — registered again.'
+                    : health.state === 'signin'
+                      ? 'Sign in (Sync, above) so the server can keep this phone.'
+                      : health.state === 'no-subscription'
+                        ? 'This phone has no push subscription — turn reminders off and on.'
+                        : 'Could not reach the server.'}
+            </p>
+            <Button size="sm" onClick={() => void runTest()} disabled={testing}>
+              {testing ? 'Sending…' : 'Send a test'}
+            </Button>
+          </div>
+          {status && (
+            <dl className="space-y-1 text-[12px] text-muted tabular">
+              <div className="flex justify-between gap-3">
+                <dt>Next weigh-in nudge</dt>
+                <dd className="text-ink-2">
+                  {describeNext(status.next?.weigh ?? null) ??
+                    (settings.weighAt ? 'due now' : 'off')}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Next evening check</dt>
+                <dd className="text-ink-2">
+                  {describeNext(status.next?.log ?? null) ?? (settings.logAt ? 'due now' : 'off')}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Last sent</dt>
+                <dd className="text-ink-2">
+                  {status.sent?.weigh || status.sent?.log
+                    ? [
+                        status.sent.weigh && `weigh-in ${status.sent.weigh}`,
+                        status.sent.log && `log ${status.sent.log}`,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
+                    : 'none yet'}
+                </dd>
+              </div>
+            </dl>
+          )}
+          {status?.last_error && (
+            <p className="text-[12px] text-danger">
+              Last attempt failed: {status.last_error.status} {status.last_error.detail}
+            </p>
+          )}
+          <p className="text-[12px] text-muted">
+            The evening check covers the whole day — food, supplements and water. It only goes out
+            if something is still undone at that time.
           </p>
-          <Button size="sm" onClick={() => void runTest()} disabled={testing}>
-            {testing ? 'Sending…' : 'Send a test'}
-          </Button>
         </div>
       )}
       {note && <p className="px-4 py-3 text-[13px] text-danger">{note}</p>}

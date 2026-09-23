@@ -31,17 +31,145 @@ export interface Suggestion {
 
 /** The preference cards, in the order they are shown. Ids match the Worker's prompt table. */
 export const DISCOVER_TAGS: { id: string; label: string; hint: string }[] = [
+  { id: 'fakeaway', label: 'Fakeaway', hint: 'takeaway food, made to fit' },
+  { id: 'trending', label: 'Trending now', hint: 'what people are cooking' },
   { id: 'high-protein', label: 'High protein', hint: '35 g+ a portion' },
+  { id: 'high-volume', label: 'Big plate', hint: 'filling for the calories' },
   { id: 'low-calorie', label: 'Low calorie', hint: 'under 500 kcal' },
   { id: 'high-fiber', label: 'High fiber', hint: '10 g+ a portion' },
   { id: 'quick', label: 'Quick', hint: '30 min or less' },
-  { id: 'batch-friendly', label: 'Batch-friendly', hint: 'keeps for days' },
+  { id: 'air-fryer', label: 'Air fryer', hint: '' },
   { id: 'one-pot', label: 'One pot', hint: 'little washing up' },
+  { id: 'meal-prep', label: 'Meal prep', hint: 'cook once, eat all week' },
+  { id: 'batch-friendly', label: 'Batch-friendly', hint: 'keeps for days' },
   { id: 'vegetarian', label: 'Vegetarian', hint: '' },
+  { id: 'low-carb', label: 'Low carb', hint: '' },
   { id: 'budget', label: 'Cheap', hint: 'staples and cheap cuts' },
   { id: 'italian', label: 'Italian', hint: '' },
+  { id: 'asian', label: 'Asian', hint: '' },
+  { id: 'mexican', label: 'Mexican', hint: '' },
   { id: 'spicy', label: 'Spicy', hint: '' },
 ];
+
+/** Words that say nothing about what a dish is. */
+const STOPWORDS = new Set([
+  'and',
+  'with',
+  'the',
+  'a',
+  'of',
+  'in',
+  'on',
+  'style',
+  'fresh',
+  'easy',
+  'quick',
+  'simple',
+  'homemade',
+  'home',
+  'made',
+  'best',
+  'classic',
+  'one',
+  'pot',
+  'pan',
+  'tray',
+  'bake',
+  'baked',
+  'roast',
+  'roasted',
+  'fried',
+  'grilled',
+  'sauce',
+  'salad',
+  'bowl',
+  'dish',
+  'recipe',
+  'sheet',
+  'my',
+  'your',
+  'our',
+  'crispy',
+  'creamy',
+  'spicy',
+  'loaded',
+  'raw',
+  'cooked',
+  'canned',
+  'dried',
+  'fresh',
+  'chopped',
+  'sliced',
+  'boneless',
+  'skinless',
+  'extra',
+  'virgin',
+  'olive',
+  'oil',
+  'salt',
+  'pepper',
+  'water',
+  'white',
+  'black',
+  'red',
+  'green',
+  'large',
+  'small',
+  'whole',
+  'plain',
+  'low',
+  'fat',
+  'free',
+  'light',
+  'ground',
+  'powder',
+  'paste',
+  'fillet',
+  'breast',
+  'thigh',
+  'thighs',
+  'mince',
+]);
+
+function terms(s: Suggestion): Set<string> {
+  const words = [
+    ...s.name.toLowerCase().split(/[^a-z]+/),
+    // The first ingredients carry the dish: the protein and the starch, not the seasoning.
+    ...s.ingredients.slice(0, 4).flatMap((i) => i.search_term.toLowerCase().split(/[^a-z]+/)),
+  ];
+  return new Set(words.filter((w) => w.length > 2 && !STOPWORDS.has(w)));
+}
+
+/**
+ * §18.6 — how alike two suggestions are, 0 to 1, by the words that describe the dish and its
+ * main ingredients. A turned-down card should not come back with a different sauce.
+ */
+export function similarity(a: Suggestion, b: Suggestion): number {
+  const x = terms(a);
+  const y = terms(b);
+  if (x.size === 0 || y.size === 0) return 0;
+  let shared = 0;
+  for (const t of x) if (y.has(t)) shared++;
+  return shared / Math.min(x.size, y.size);
+}
+
+/** Above this, two dishes read as the same idea to the person looking at them. */
+export const TOO_SIMILAR = 0.5;
+
+/** Drops anything that is essentially a card already turned down. */
+export function dropNearDuplicates(
+  fresh: readonly Suggestion[],
+  rejected: readonly Suggestion[],
+): Suggestion[] {
+  const kept: Suggestion[] = [];
+  for (const s of fresh) {
+    const tooClose =
+      rejected.some((r) => similarity(s, r) >= TOO_SIMILAR) ||
+      kept.some((k) => similarity(s, k) >= TOO_SIMILAR);
+    if (!tooClose) kept.push(s);
+  }
+  return kept;
+}
 
 const num = (v: unknown, lo: number, hi: number, fallback = 0): number => {
   const n = typeof v === 'number' && Number.isFinite(v) ? v : Number(v);

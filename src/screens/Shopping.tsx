@@ -135,7 +135,7 @@ export default function Shopping() {
                 : 'Give or take 15 %. '
               : ''}
             {ctx.list.unpriced > 0
-              ? `${ctx.list.unpriced} ${ctx.list.unpriced === 1 ? 'item has' : 'items have'} no price yet — tap “price” once and it sticks.`
+              ? `${ctx.list.unpriced} ${ctx.list.unpriced === 1 ? 'item has' : 'items have'} no price yet — tap “price” once and it sticks, and the budget can only count what it knows.`
               : ctx.list.estimated === 0
                 ? 'Every item is priced.'
                 : ''}

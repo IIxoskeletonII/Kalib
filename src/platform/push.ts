@@ -50,9 +50,20 @@ export async function currentSubscription(): Promise<PushSubscription | null> {
   return reg.pushManager.getSubscription();
 }
 
+/** The phone's own account of the day, so a nudge can name what is still undone (§17). */
+export interface DayReport {
+  date: string;
+  weighed: boolean;
+  logged: boolean;
+  supplements_left: number;
+  supplements_total: number;
+  water_left_ml: number;
+}
+
 export interface SubscribeState {
   lastLoggedDate?: string | undefined;
   lastWeighedDate?: string | undefined;
+  day?: DayReport | undefined;
 }
 
 /** Asks permission (must come from a tap), subscribes, and registers with the Worker. */
@@ -112,6 +123,12 @@ export interface ServerStatus {
   prefs?: ReminderPrefs;
   tz?: string;
   sent?: { weigh?: string; log?: string };
+  day?: DayReport | null;
+  last_error?: { at: string; kind: string; status: number; detail: string } | null;
+  /** What the server would send right now. */
+  due?: ('weigh' | 'log')[];
+  /** Local "YYYY-MM-DD HH:MM" each reminder is next considered, or null when switched off. */
+  next?: { weigh: string | null; log: string | null };
 }
 
 /** Whether the Worker still holds this phone's subscription (it drops dead ones). */
@@ -151,12 +168,22 @@ export async function sendTestNotification(auth: AuthHeaders): Promise<TestResul
 }
 
 /** Tells the Worker what has been done today, so a due reminder is not sent needlessly. */
-export async function pingReminders(state: SubscribeState, auth: AuthHeaders): Promise<void> {
+export async function pingReminders(
+  state: SubscribeState,
+  auth: AuthHeaders,
+  prefs?: ReminderPrefs,
+): Promise<void> {
   const sub = await currentSubscription();
   if (!sub) return;
   await fetch('/api/push/ping', {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...auth },
-    body: JSON.stringify({ endpoint: sub.endpoint, ...state }),
+    body: JSON.stringify({
+      endpoint: sub.endpoint,
+      ...state,
+      // Sent every time: a phone that has travelled must nudge on its new clock.
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      ...(prefs ? { prefs } : {}),
+    }),
   }).catch(() => undefined);
 }
