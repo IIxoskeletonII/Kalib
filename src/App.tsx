@@ -87,6 +87,9 @@ export default function App() {
   if (profile === null && !onboarding && !importing) return <Navigate to="/onboarding" replace />;
   if (profile && onboarding) return <Navigate to="/" replace />;
 
+  // Logging follows the day on screen: from a past day the + button adds to that day.
+  const viewing = new URLSearchParams(location.search).get('d');
+  const logTo = location.pathname === '/' && viewing ? `/log?d=${viewing}` : '/log';
   const hideNav = /^\/(log|quick|onboarding|foods|supplements|recipes|estimate|review|plan)/.test(
     location.pathname,
   );
@@ -153,7 +156,7 @@ export default function App() {
             <Tab to="/trend" label="Trend" icon={LineChart} />
             <div className="flex justify-center">
               <Link
-                to="/log"
+                to={logTo}
                 aria-label="Log food"
                 className="-mt-7 flex h-[60px] w-[60px] items-center justify-center rounded-full bg-primary text-on-primary shadow-fab transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-90"
               >

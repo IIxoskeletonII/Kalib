@@ -2,7 +2,7 @@
 // portions (SPEC §8.2) and, in recipe mode, adding an ingredient instead of logging.
 import { Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'react-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { scaleFood } from '@/core/nutrition';
 import { formatPortions } from '@/core/recipes';
 import {
@@ -11,8 +11,11 @@ import {
   fromGrams,
   isLiquid,
   roundIn,
+  shortPortionLabel,
+  usablePortions,
   toGrams,
   type AmountUnit,
+  type Portion,
 } from '@/core/units';
 import {
   MEAL_SLOTS,
@@ -22,6 +25,7 @@ import {
   type MealSlot,
   type Recipe,
 } from '@/core/types';
+import { borrowedPortions } from '@/db/repo/foods';
 import { logFood, rescaleEntry } from '@/services/logging';
 import { addRecipeItem, logBatchPortion, removeEntry } from '@/services/recipes';
 import { NumberPad } from './NumberPad';
@@ -75,44 +79,111 @@ export function AmountSheet(p: AmountSheetProps) {
   );
 }
 
+/**
+ * What the number on screen counts. Beyond the weight units, a food's own portions are
+ * measures too: "4" against *egg* logs four eggs, without anyone doing the grams in their
+ * head (§8 — the friction budget is the point of the whole screen).
+ */
+type Measure =
+  | { kind: 'unit'; unit: AmountUnit }
+  | { kind: 'portion'; label: string; grams: number; full?: string; approx?: boolean };
+
+const measureKey = (m: Measure) => (m.kind === 'unit' ? m.unit : `p:${m.label}`);
+const measureLabel = (m: Measure) => (m.kind === 'unit' ? UNIT_LABEL[m.unit] : m.label);
+
 function AmountForm(p: AmountSheetProps & { food: Food }) {
-  // Amounts are typed in the chosen unit and stored in grams (SPEC §6). Liquids open in ml.
+  // Amounts are typed in the chosen measure and stored in grams (SPEC §6). Liquids open in ml.
   const density = useMemo(() => densityFor(p.food), [p.food]);
-  const startUnit: AmountUnit = !p.batch && !p.recipe && isLiquid(p.food) ? 'ml' : 'g';
-  const [unit, setUnit] = useState<AmountUnit>(startUnit);
-  const [amount, setAmount] = useState(() =>
-    p.initialGrams != null
-      ? String(roundIn(fromGrams(p.initialGrams, startUnit, density.g_per_ml), startUnit))
-      : '',
+  const batchPortion = p.batch ? p.batch.batch.total_g / p.batch.batch.portions_total : undefined;
+  // A food with no portion of its own borrows one from the nearest food that has it.
+  const [borrowed, setBorrowed] = useState<{ from: string; portions: Portion[] } | null>(null);
+  const ownPortions = useMemo(() => usablePortions(p.food.portions), [p.food]);
+  useEffect(() => {
+    if (batchPortion || p.recipe || ownPortions.length > 0) return;
+    let cancelled = false;
+    void borrowedPortions(p.food).then((r) => {
+      if (!cancelled && r && r.portions.length > 0) {
+        setBorrowed({ from: r.from.name, portions: r.portions });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [p.food, p.recipe, batchPortion, ownPortions.length]);
+
+  const portionMeasures = useMemo<Measure[]>(() => {
+    if (batchPortion && batchPortion > 0) {
+      return [{ kind: 'portion', label: 'portion', grams: Math.round(batchPortion) }];
+    }
+    const source = ownPortions.length > 0 ? ownPortions : (borrowed?.portions ?? []);
+    const approx = ownPortions.length === 0 && borrowed != null;
+    return source.slice(0, 4).map((po) => ({
+      kind: 'portion' as const,
+      label: shortPortionLabel(po.label),
+      grams: po.grams,
+      full: `${approx ? '≈ ' : ''}${po.label}`,
+      ...(approx ? { approx: true } : {}),
+    }));
+  }, [ownPortions, borrowed, batchPortion]);
+
+  const unitMeasures = useMemo<Measure[]>(
+    () => (['g', 'ml', 'oz', 'floz'] as AmountUnit[]).map((u) => ({ kind: 'unit', unit: u })),
+    [],
   );
+  const measures = useMemo(
+    () => [...portionMeasures, ...unitMeasures],
+    [portionMeasures, unitMeasures],
+  );
+
+  // Opening straight on "egg" or "portion" saves the arithmetic; an amount carried in from
+  // last time is a weight, so that opens in weight. Nothing is chosen until the user chooses,
+  // so a portion that arrives late (borrowed from a neighbouring food) still opens on it.
+  const unitMeasure: Measure = {
+    kind: 'unit',
+    unit: !p.batch && !p.recipe && isLiquid(p.food) ? 'ml' : 'g',
+  };
+  const [chosen, setChosen] = useState<Measure | null>(null);
+  const startMeasure: Measure =
+    p.initialGrams == null && portionMeasures[0] ? portionMeasures[0] : unitMeasure;
+  const measure = chosen ?? startMeasure;
+  const toGramsIn = (value: number, m: Measure) =>
+    m.kind === 'portion' ? value * m.grams : toGrams(value, m.unit, density.g_per_ml);
+  const fromGramsIn = (grams: number, m: Measure) =>
+    m.kind === 'portion'
+      ? Math.round((grams / m.grams) * 100) / 100
+      : roundIn(fromGrams(grams, m.unit, density.g_per_ml), m.unit);
+  const [amount, setAmount] = useState(() =>
+    p.initialGrams != null ? String(fromGramsIn(p.initialGrams, unitMeasure)) : '',
+  );
+  /** An untouched portion measure counts one of them; an untouched weight counts nothing. */
+  const shown = amount === '' && measure.kind === 'portion' ? '1' : amount;
   // A prefilled amount (last time's grams, or a portion chip) is replaced by the first key
   // press rather than appended to — "150" → tap 2 → "2", not "1502".
-  const [pristine, setPristine] = useState(p.initialGrams != null);
+  const [pristine, setPristine] = useState(
+    p.initialGrams != null || startMeasure.kind === 'portion',
+  );
   const [slot, setSlot] = useState<MealSlot>(p.initialSlot);
   const type = (u: (prev: string) => string) => {
     setAmount((prev) => u(pristine ? '' : prev));
     setPristine(false);
   };
   const preset = (gramsValue: number) => {
-    setAmount(String(roundIn(fromGrams(gramsValue, unit, density.g_per_ml), unit)));
+    setAmount(String(fromGramsIn(gramsValue, measure)));
     setPristine(true);
   };
-  const switchUnit = (next: AmountUnit) => {
-    if (next === unit) return;
-    const current = Number(amount) || 0;
-    if (current > 0) {
-      const gramsNow = toGrams(current, unit, density.g_per_ml);
-      setAmount(String(roundIn(fromGrams(gramsNow, next, density.g_per_ml), next)));
-      setPristine(true);
-    }
-    setUnit(next);
+  const switchMeasure = (next: Measure) => {
+    if (measureKey(next) === measureKey(measure)) return;
+    const current = Number(shown) || 0;
+    setAmount(current > 0 ? String(fromGramsIn(toGramsIn(current, measure), next)) : '');
+    setPristine(true);
+    setChosen(next);
   };
   const [busy, setBusy] = useState(false);
 
-  const g = Math.round(toGrams(Number(amount) || 0, unit, density.g_per_ml) * 10) / 10;
+  const g = Math.round(toGramsIn(Number(shown) || 0, measure) * 10) / 10;
   const preview = useMemo(() => scaleFood(p.food, g), [p.food, g]);
   const done = p.onSaved ?? p.onClose;
-  const portion = p.batch ? p.batch.batch.total_g / p.batch.batch.portions_total : undefined;
+  const portion = batchPortion;
 
   const save = async () => {
     if (g <= 0 || busy) return;
@@ -142,19 +213,26 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
     done();
   };
 
-  const presets = portion
-    ? [
-        { label: `1 portion · ${fmt(portion)} g`, grams: Math.round(portion) },
-        { label: '½ portion', grams: Math.round(portion / 2) },
-        { label: '2 portions', grams: Math.round(portion * 2) },
-      ]
-    : [
-        { label: '100 g', grams: 100 },
-        ...p.food.portions.map((po) => ({
-          label: `${po.label} · ${fmt(po.grams)} g`,
-          grams: po.grams,
-        })),
-      ];
+  // Quick amounts, expressed in whatever is being counted right now.
+  const presets =
+    measure.kind === 'portion'
+      ? [0.5, 1, 2, 3, 4].map((n) => ({
+          label: `${n === 0.5 ? '½' : n} ${measure.label}${n === 1 ? '' : 's'}`,
+          grams: Math.round(n * measure.grams),
+        }))
+      : portion
+        ? [
+            { label: `1 portion · ${fmt(portion)} g`, grams: Math.round(portion) },
+            { label: '½ portion', grams: Math.round(portion / 2) },
+            { label: '2 portions', grams: Math.round(portion * 2) },
+          ]
+        : [
+            { label: '100 g', grams: 100 },
+            ...p.food.portions.map((po) => ({
+              label: `${po.label} · ${fmt(po.grams)} g`,
+              grams: po.grams,
+            })),
+          ];
 
   const editHref = p.food.recipe_id
     ? `/recipes/${p.food.recipe_id}`
@@ -193,8 +271,12 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
 
       <div className="flex items-end justify-between gap-4">
         <div className="display">
-          {amount === '' ? <span className="text-surface-3">0</span> : amount}
-          <span className="ml-1.5 text-[22px] font-medium text-muted">{UNIT_LABEL[unit]}</span>
+          {shown === '' ? <span className="text-surface-3">0</span> : shown}
+          <span className="ml-1.5 text-[22px] font-medium text-muted">
+            {measure.kind === 'portion'
+              ? `× ${measure.label}${Number(shown) === 1 ? '' : 's'}`
+              : UNIT_LABEL[measure.unit]}
+          </span>
         </div>
         <div className="text-right">
           <div className="tabular text-[22px] font-semibold leading-none">
@@ -210,31 +292,39 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5" role="radiogroup" aria-label="Unit">
-        {(['g', 'ml', 'oz', 'floz'] as AmountUnit[]).map((u) => (
-          <button
-            key={u}
-            type="button"
-            role="radio"
-            aria-checked={u === unit}
-            onClick={() => switchUnit(u)}
-            className={`h-8 rounded-full px-3 text-[13px] transition-[background-color,color] duration-200 ${
-              u === unit ? 'bg-primary font-semibold text-on-primary' : 'bg-surface-2 text-ink-2'
-            }`}
-          >
-            {UNIT_LABEL[u]}
-          </button>
-        ))}
-        {(unit === 'ml' || unit === 'floz') && (
-          <span className="ml-auto text-[12px] text-muted tabular">
-            {g > 0 ? `= ${fmt(g)} g` : ''}
-            {density.basis === 'assumed' ? ' · 1 ml ≈ 1 g assumed' : ''}
-          </span>
-        )}
-        {unit === 'oz' && g > 0 && (
-          <span className="ml-auto text-[12px] text-muted tabular">= {fmt(g)} g</span>
-        )}
+      <div
+        className="rail -mx-5 flex gap-1.5 overflow-x-auto px-5"
+        role="radiogroup"
+        aria-label="Measure"
+      >
+        {measures.map((m) => {
+          const active = measureKey(m) === measureKey(measure);
+          return (
+            <button
+              key={measureKey(m)}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => switchMeasure(m)}
+              className={`h-8 shrink-0 rounded-full px-3 text-[13px] whitespace-nowrap transition-[background-color,color] duration-200 ${
+                active ? 'bg-primary font-semibold text-on-primary' : 'bg-surface-2 text-ink-2'
+              }`}
+            >
+              {measureLabel(m)}
+            </button>
+          );
+        })}
       </div>
+
+      <p className="-mt-3 text-[12px] text-muted tabular">
+        {measure.kind === 'portion'
+          ? `${measure.full ?? `1 ${measure.label}`} = ${fmt(measure.grams)} g${g > 0 ? ` · ${fmt(g)} g in total` : ''}${measure.approx && borrowed ? ` · from ${borrowed.from.split(',').slice(0, 2).join(',')}` : ''}`
+          : measure.unit === 'ml' || measure.unit === 'floz'
+            ? `${g > 0 ? `= ${fmt(g)} g` : ''}${density.basis === 'assumed' ? ' · 1 ml ≈ 1 g assumed' : ''}`
+            : measure.unit === 'oz' && g > 0
+              ? `= ${fmt(g)} g`
+              : ''}
+      </p>
 
       <div className="rail -mx-5 flex gap-2 overflow-x-auto px-5">
         {presets.map((po) => (

@@ -50,6 +50,85 @@ export function densityFor(
   return { g_per_ml: 1.0, basis: 'assumed' };
 }
 
+/** Weight or volume words: a portion labelled with one of these tells the user nothing new. */
+const WEIGHT_ONLY =
+  /^(\d+(?:\.\d+)?\s*)?(g|gram|grams|kg|oz|ounce|ounces|lb|pound|pounds|ml|millilitre|milliliter|l|litre|liter|fl\s*oz|fluid\s*ounce)s?$/i;
+
+export function isWeightLabel(label: string): boolean {
+  return WEIGHT_ONLY.test(label.trim());
+}
+
+/**
+ * USDA portion labels are written for a database, not a button: "1 small or thin/very thin
+ * slice". Drop the leading "1", and where a label offers alternatives keep the first one, so
+ * the chip reads "small slice" while the full text stays available underneath.
+ */
+export function shortPortionLabel(label: string): string {
+  let s = label.trim().replace(/^1\s+/, '');
+  // "small or thin/very thin slice" → "small slice"; "cup or bowl" → "cup".
+  s = s.replace(/\s+or\s+[^,]*?(\s+(?=\S+$))/i, '$1');
+  s = s.replace(/\s+or\s+\S+$/i, '');
+  return s.trim();
+}
+
+export interface Portion {
+  label: string;
+  grams: number;
+}
+
+/** The portions of a food that are worth offering as a unit to count. */
+export function usablePortions(portions: readonly Portion[]): Portion[] {
+  const seen = new Set<string>();
+  const out: Portion[] = [];
+  for (const p of portions) {
+    const label = shortPortionLabel(p.label);
+    if (p.grams <= 0 || !label || isWeightLabel(label) || seen.has(label)) continue;
+    seen.add(label);
+    out.push(p);
+  }
+  return out;
+}
+
+const NAME_STOP = /(raw|cooked|nfs|ns as to|prepared|without|with|added|from|fresh)/gi;
+function nameWords(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(NAME_STOP, ' ')
+    .split(/[^a-z]+/)
+    .filter((w) => w.length > 2);
+}
+
+/**
+ * Only a fifth of USDA Foundation foods carry a portion anyone counts in ("1 egg"), yet they
+ * rank first. When the chosen food has none, the best same-subject food that does lends its
+ * own — shown as an approximation, because it comes from a neighbouring row (§2.4).
+ */
+export function bestPortionDonor<T extends { name: string; portions: readonly Portion[] }>(
+  food: { name: string },
+  candidates: readonly T[],
+): T | undefined {
+  const head = food.name.split(',')[0]!.trim().toLowerCase();
+  if (!head) return undefined;
+  const want = new Set(nameWords(food.name));
+  let best: T | undefined;
+  let bestScore = -Infinity;
+  for (const c of candidates) {
+    if (c.name.split(',')[0]!.trim().toLowerCase() !== head) continue;
+    if (usablePortions(c.portions).length === 0) continue;
+    const words = nameWords(c.name);
+    const shared = words.filter((w) => want.has(w)).length;
+    // A word the donor has and the food does not is a different food ("duck" lending its egg
+    // to a hen's); that costs far more than a word it simply lacks.
+    const extra = words.filter((w) => !want.has(w)).length;
+    const score = shared * 100 - extra * 30 - c.name.length / 1000;
+    if (score > bestScore) {
+      best = c;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 /** Whether ml is the natural unit for this food (drinks, oils, dairy liquids). */
 export function isLiquid(
   food: Pick<Food, 'name' | 'category' | 'portions' | 'density_g_per_ml'>,

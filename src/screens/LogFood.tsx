@@ -16,6 +16,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useBack } from '@/hooks/useBack';
 import { useNavigate, useSearchParams } from 'react-router';
 import { AmountSheet, SOURCE_LABEL } from '@/components/AmountSheet';
+import { DateBanner } from '@/components/DateBanner';
 import {
   Badge,
   Button,
@@ -150,7 +151,7 @@ export default function LogFood() {
       if (!product) {
         setScan({
           state: 'error',
-          message: `${code} is not in Open Food Facts yet. Add it as a new food from the label.`,
+          message: `${code} is not in Open Food Facts yet — photograph its nutrition label and the fields fill themselves.`,
         });
         return;
       }
@@ -189,6 +190,7 @@ export default function LogFood() {
 
   return (
     <div className="flex h-full flex-col">
+      <DateBanner date={date} />
       <div className="flex items-center gap-1 pb-3">
         <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <div className="relative flex-1">
@@ -277,10 +279,10 @@ export default function LogFood() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => navigate(`/foods/new?d=${date}`)}
+                    onClick={() => navigate(`/foods/new?d=${date}&label=1`)}
                     className="font-semibold text-accent"
                   >
-                    New food
+                    Read the label
                   </button>
                   <button
                     type="button"

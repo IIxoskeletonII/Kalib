@@ -1,5 +1,6 @@
 // SPEC §18 — the week's plan: which recipes, how many portions, what to buy.
 import type { Suggestion } from '@/core/discover';
+import { currencyOf, currencySymbol } from '@/core/currency';
 import { weekStart } from '@/core/banking';
 import { todayKey } from '@/core/dates';
 import {
@@ -21,6 +22,11 @@ import { getSetting, setSetting } from '@/db/repo/settings';
 import { currentTargets } from './targets';
 
 export const CURRENCY_KEY = 'currency';
+
+/** §18.3 — the money the planner counts in, stored as an ISO 4217 code. */
+export async function setCurrency(code: string): Promise<void> {
+  await setSetting(CURRENCY_KEY, code.toUpperCase());
+}
 const ALLOWANCE_KEY = 'plan:allowance';
 
 export interface PlanContext {
@@ -32,6 +38,8 @@ export interface PlanContext {
   facts: RecipeFacts[];
   foods: Map<string, Food>;
   prices: Map<string, Price>;
+  /** ISO 4217 code, e.g. "OMR"; `currency` stays the symbol the screens print. */
+  currency_code: string;
   currency: string;
   inputs: PlanInputs;
   scaled: ScaledPlan;
@@ -119,7 +127,8 @@ export async function planContext(week_start: string): Promise<PlanContext> {
     facts,
     foods,
     prices,
-    currency: currency ?? '€',
+    currency_code: currencyOf(currency).code,
+    currency: currencySymbol(currency),
     inputs,
     scaled,
     list,

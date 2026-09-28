@@ -7,6 +7,7 @@ import {
   localClock,
   nextReminderAt,
   outstanding,
+  pushTopic,
   reminderMessage,
   sendPush,
   vapidAuthorization,
@@ -129,7 +130,9 @@ describe('VAPID', () => {
     const h = seen!.headers as Record<string, string>;
     expect(h['content-encoding']).toBe('aes128gcm');
     expect(h.authorization).toMatch(/^vapid t=/);
-    expect(h.topic).toBe('weigh');
+    // Encoded, not raw: a five-character topic is not valid base64url and Apple rejects it.
+    expect(h.topic).toBe(pushTopic('weigh'));
+    expect(h.topic).not.toBe('weigh');
     const gone: typeof fetch = (async () =>
       new Response(null, { status: 410 })) as unknown as typeof fetch;
     expect(await sendPush(s.subscription, { title: 'a', body: 'b' }, env, gone)).toBe('gone');
@@ -315,5 +318,21 @@ describe('the day’s checklist (§17 + reminders)', () => {
     const s = { ...base, day: day({ water_left_ml: 900 }) };
     expect(dueReminders(s, evening)).toEqual(['log']);
     expect(reminderMessage('log', outstanding(s, '2026-09-23')).body).toBe('900 ml of water.');
+  });
+});
+
+describe('the push Topic header (RFC 8030 §5.4)', () => {
+  it('is a valid base64url token for every tag the app uses', () => {
+    for (const tag of ['weigh', 'log', 'test']) {
+      const topic = pushTopic(tag);
+      expect(topic, tag).toMatch(/^[A-Za-z0-9_-]{1,32}$/);
+      // No base64 string has a length of 1 mod 4 — exactly the shape Apple refuses, and
+      // exactly what the raw word "weigh" was: five characters, rejected every morning.
+      expect(topic.length % 4, tag).not.toBe(1);
+    }
+  });
+
+  it('keeps the two reminders on separate topics so neither collapses onto the other', () => {
+    expect(pushTopic('weigh')).not.toBe(pushTopic('log'));
   });
 });

@@ -1,11 +1,14 @@
 // Create or edit a custom food (SPEC §8.1). Macros are entered per serving; the serving size
 // becomes the food's first portion so it logs in one tap.
-import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { Camera, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { macrosAgree } from '@/core/label';
+import { captureImage } from '@/platform/camera';
+import { readLabel } from '@/services/label';
 import { useBack } from '@/hooks/useBack';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { NumberPad } from '@/components/NumberPad';
-import { Button, IconButton } from '@/components/ui';
+import { Button, IconButton, fmt } from '@/components/ui';
 import { todayKey } from '@/core/dates';
 import { deleteFood, getFood } from '@/db/repo/foods';
 import { createCustomFood, fromFood, updateCustomFood } from '@/services/customFoods';
@@ -41,6 +44,53 @@ export default function FoodEditor() {
   const [focus, setFocus] = useState<Field>('kcal');
   const [loaded, setLoaded] = useState(!id);
   const [busy, setBusy] = useState(false);
+  /** Arrived from a barcode nothing recognised: the label is the fastest way through. */
+  const fromBarcode = params.get('label') === '1';
+  const [reading, setReading] = useState(false);
+  const [labelNote, setLabelNote] = useState<string | null>(null);
+  const [labelError, setLabelError] = useState(false);
+
+  /** §9.6 — the packet fills the form; every figure stays editable afterwards. */
+  const scanLabel = async () => {
+    if (reading) return;
+    const file = await captureImage();
+    if (!file) return;
+    setReading(true);
+    setLabelNote(null);
+    setLabelError(false);
+    try {
+      const { reading: r } = await readLabel(file);
+      if (r.name && !name) setName(r.name);
+      if (r.brand && !brand) setBrand(r.brand);
+      setValues({
+        serving_g: String(r.serving_g),
+        kcal: String(r.kcal),
+        protein_g: String(r.protein_g),
+        carb_g: String(r.carb_g),
+        fat_g: String(r.fat_g),
+        fiber_g: String(r.fiber_g),
+      });
+      const checks = macrosAgree(r);
+      setLabelError(!checks);
+      setLabelNote(
+        [
+          r.per_serving
+            ? `Read the per-serving column (${fmt(r.serving_g)} g).`
+            : 'Read the per-100 g column.',
+          checks ? '' : 'The macros do not account for the calories — check the figures.',
+          r.confidence === 'low' ? 'The photo was hard to read.' : '',
+          r.notes,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      );
+    } catch (err) {
+      setLabelError(true);
+      setLabelNote((err as Error).message);
+    } finally {
+      setReading(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -118,6 +168,34 @@ export default function FoodEditor() {
           </p>
         </div>
       </div>
+
+      {!id && (
+        <div>
+          <Button
+            icon={Camera}
+            variant={fromBarcode ? 'primary' : 'secondary'}
+            className={`w-full ${fromBarcode && !labelNote ? 'ring-2 ring-accent' : ''}`}
+            disabled={reading}
+            onClick={() => void scanLabel()}
+          >
+            {reading ? 'Reading the label…' : 'Photograph the nutrition label'}
+          </Button>
+          {!labelNote && fromBarcode && (
+            <p className="mt-2 px-1 text-[13px] text-muted">
+              That barcode is unknown. One photo of the nutrition table fills everything below — in
+              any language.
+            </p>
+          )}
+          {labelNote && (
+            <p
+              className={`mt-2 px-1 text-[13px] ${labelError ? 'text-danger' : 'text-muted'}`}
+              role="status"
+            >
+              {labelNote}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="space-y-2">
         <input

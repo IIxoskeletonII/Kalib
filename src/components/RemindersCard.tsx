@@ -2,8 +2,7 @@
 // time of the user's choosing. iOS only delivers these to the Home Screen app.
 import { Bell, BellOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { todayKey } from '@/core/dates';
-import { useEntries, useSetting, useWeighIns } from '@/hooks/useData';
+import { useDayReport, useSetting } from '@/hooks/useData';
 import { isStandalone, pushSupport, serverConfig } from '@/platform/push';
 import {
   DEFAULT_REMINDERS,
@@ -22,9 +21,6 @@ import { Button, Card } from './ui';
 
 export function RemindersCard() {
   const settings = useSetting<ReminderSettings>(REMINDERS_KEY, DEFAULT_REMINDERS);
-  const today = todayKey();
-  const entries = useEntries(today);
-  const weighIns = useWeighIns();
   const [server, setServer] = useState<'checking' | 'on' | 'off'>('checking');
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,22 +43,25 @@ export function RemindersCard() {
     };
   }, []);
 
+  // Exactly what the ping sends, so turning reminders on seeds the checklist immediately
+  // rather than waiting for the next change of state.
+  const day = useDayReport();
   const done = {
-    lastLoggedDate: entries && entries.length > 0 ? today : undefined,
-    lastWeighedDate: weighIns?.some((w) => w.date === today) ? today : undefined,
+    lastLoggedDate: day?.logged ? day.date : undefined,
+    lastWeighedDate: day?.weighed ? day.date : undefined,
+    ...(day ? { day } : {}),
   };
-  const doneKey = `${done.lastLoggedDate ?? ''}|${done.lastWeighedDate ?? ''}`;
+  const doneKey = day ? JSON.stringify(day) : '';
 
   // When reminders are on, make sure the server still has this phone; re-register if not.
   useEffect(() => {
-    if (!settings.enabled || server !== 'on' || entries === undefined || weighIns === undefined) {
-      return;
-    }
+    if (!settings.enabled || server !== 'on' || !doneKey) return;
     let cancelled = false;
-    const [logged, weighed] = doneKey.split('|');
+    const report = doneKey ? (JSON.parse(doneKey) as NonNullable<typeof day>) : undefined;
     void checkHealth(settings, {
-      lastLoggedDate: logged || undefined,
-      lastWeighedDate: weighed || undefined,
+      lastLoggedDate: report?.logged ? report.date : undefined,
+      lastWeighedDate: report?.weighed ? report.date : undefined,
+      ...(report ? { day: report } : {}),
     })
       .then((h) => !cancelled && setHealth(h))
       .catch(() => !cancelled && setHealth({ state: 'unknown' }));
@@ -222,6 +221,25 @@ export function RemindersCard() {
                 </dd>
               </div>
               <div className="flex justify-between gap-3">
+                <dt>This phone reported</dt>
+                <dd className="text-ink-2">
+                  {status.day
+                    ? [
+                        status.day.weighed ? 'weighed' : 'not weighed',
+                        status.day.logged ? 'logged' : 'nothing logged',
+                        status.day.supplements_total > 0
+                          ? `${status.day.supplements_left} of ${status.day.supplements_total} supplements left`
+                          : '',
+                        status.day.water_left_ml > 0
+                          ? `${(status.day.water_left_ml / 1000).toFixed(1)} L of water to go`
+                          : 'water done',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
+                    : 'nothing yet'}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
                 <dt>Last sent</dt>
                 <dd className="text-ink-2">
                   {status.sent?.weigh || status.sent?.log
@@ -235,6 +253,11 @@ export function RemindersCard() {
                 </dd>
               </div>
             </dl>
+          )}
+          {status?.app && status.app !== __APP_VERSION__ && (
+            <p className="text-[12px] text-muted">
+              The server last heard from version {status.app}; this one is {__APP_VERSION__}.
+            </p>
           )}
           {status?.last_error && (
             <p className="text-[12px] text-danger">

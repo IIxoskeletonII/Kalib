@@ -1,4 +1,5 @@
 // UI primitives. Tokens and rules: design-system/kalib/MASTER.md.
+import { useEffect } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -177,6 +178,16 @@ export function Sheet({
   title?: string | undefined;
   children: ReactNode;
 }) {
+  // Escape closes it, as a dialog should — on a phone that is the hardware keyboard, on a
+  // desktop it is the habit everyone has.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
   if (!open) return null;
   return (
     <div

@@ -4,8 +4,21 @@ import { CalendarRange, ChevronRight, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { AmountSheet } from '@/components/AmountSheet';
-import { Card, EmptyState, ListRow, SectionHeading, Skeleton, fmt } from '@/components/ui';
-import { COACH_MIN_COMPLETE_DAYS, MICRO_COVERAGE_FLOOR } from '@/core/coach';
+import {
+  Card,
+  EmptyState,
+  ListRow,
+  SectionHeading,
+  Segmented,
+  Skeleton,
+  fmt,
+} from '@/components/ui';
+import {
+  COACH_MIN_COMPLETE_DAYS,
+  MICRO_COVERAGE_FLOOR,
+  type Gap,
+  type Recommendation,
+} from '@/core/coach';
 import { mealSlotForTime, todayKey } from '@/core/dates';
 import type { MicroStat, WeekReview } from '@/core/review';
 import type { Food } from '@/core/types';
@@ -107,25 +120,12 @@ export default function Coach() {
           </Card>
 
           {coach.result.recommendations.length > 0 && (
-            <div className="mt-7">
-              <SectionHeading>Foods that close the gap</SectionHeading>
-              <Card className="divide-y divide-line">
-                {coach.result.recommendations.map((r) => (
-                  <ListRow
-                    key={r.food.id}
-                    onClick={() => setPicked({ food: r.food, grams: r.grams })}
-                    wrapTitle
-                    title={r.food.name.split(',').slice(0, 2).join(',')}
-                    subtitle={`${fmt(r.grams)} g · ${fmt(r.kcal)} kcal${r.familiar ? ' · you log this already' : ''}`}
-                    value={`+${fmt(r.adds, coach.result.gap.unit === 'g' ? 0 : 1)} ${coach.result.gap.unit}`}
-                    valueSub={coach.result.gap.label.toLowerCase()}
-                  />
-                ))}
-              </Card>
-              <p className="mt-3 px-1 text-[13px] text-muted">
-                Tap one to log it. The message stays until the weekly average reaches target.
-              </p>
-            </div>
+            <GapFoods
+              gap={coach.result.gap}
+              familiar={coach.result.familiar}
+              fresh={coach.result.fresh}
+              onPick={(food, grams) => setPicked({ food, grams })}
+            />
           )}
         </section>
       )}
@@ -303,6 +303,67 @@ function MicroRow({ m, days }: { m: MicroStat; days: number }) {
           style={{ width: `${pct * 100}%` }}
         />
       </div>
+    </div>
+  );
+}
+
+/**
+ * §16.2 — two tiers, because they answer different questions: what can I eat more of from
+ * what I already buy, and what should I add that I have never tried.
+ */
+function GapFoods({
+  gap,
+  familiar,
+  fresh,
+  onPick,
+}: {
+  gap: Gap;
+  familiar: Recommendation[];
+  fresh: Recommendation[];
+  onPick: (food: Food, grams: number) => void;
+}) {
+  // Open on whichever tier has something to say; new ideas win the tie.
+  const [tab, setTab] = useState<'fresh' | 'familiar'>(fresh.length > 0 ? 'fresh' : 'familiar');
+  const shown = tab === 'fresh' ? fresh : familiar;
+  return (
+    <div className="mt-7">
+      <SectionHeading>Foods that close the gap</SectionHeading>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        className="mb-3"
+        options={[
+          { value: 'fresh', label: `Try something new${fresh.length ? ` (${fresh.length})` : ''}` },
+          {
+            value: 'familiar',
+            label: `You already eat${familiar.length ? ` (${familiar.length})` : ''}`,
+          },
+        ]}
+      />
+      {shown.length === 0 ? (
+        <Card className="px-5 py-4 text-[14px] text-muted">
+          {tab === 'fresh'
+            ? 'Nothing new to suggest here — what you already eat covers this gap best.'
+            : 'Nothing in your rotation closes this one; the other tab has ideas.'}
+        </Card>
+      ) : (
+        <Card className="divide-y divide-line">
+          {shown.map((r) => (
+            <ListRow
+              key={r.food.id}
+              onClick={() => onPick(r.food, r.grams)}
+              wrapTitle
+              title={r.food.name.split(',').slice(0, 2).join(',')}
+              subtitle={`${fmt(r.grams)} g · ${fmt(r.kcal)} kcal${r.familiar ? ' · in your rotation' : ''}`}
+              value={`+${fmt(r.adds, gap.unit === 'g' ? 0 : 1)} ${gap.unit}`}
+              valueSub={gap.label.toLowerCase()}
+            />
+          ))}
+        </Card>
+      )}
+      <p className="mt-3 px-1 text-[13px] text-muted">
+        Tap one to log it. The message stays until the weekly average reaches target.
+      </p>
     </div>
   );
 }

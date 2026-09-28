@@ -33,6 +33,7 @@ import { ensureTargetForDate, weightFor } from '@/services/targets';
 import { planContext, type PlanContext } from '@/services/planner';
 import { sumWater } from '@/core/water';
 import { pingIfEnabled } from '@/services/reminders';
+import type { DayReport } from '@/platform/push';
 import { tdeeState, type TdeeState } from '@/services/tdee';
 
 /** undefined = still loading; null = onboarded state unknown → no profile. */
@@ -254,10 +255,11 @@ export function useWeekOverview(date: string): WeekOverview | undefined {
 
 /** Keeps the reminder service informed of what has been logged and weighed today. */
 /**
- * Tells the Worker what the day still needs — weigh-in, food, supplements, water — so an
- * evening nudge can name it instead of only asking whether anything was logged at all.
+ * What the day still needs — weigh-in, food, supplements, water. The Worker is told this so an
+ * evening nudge can name what is left instead of only asking whether anything was logged, and
+ * the reminders card shows it so there is never a doubt about what the server knows.
  */
-export function useReminderPing() {
+export function useDayReport(): DayReport | undefined {
   const today = todayKey();
   const entries = useEntries(today);
   const weighIns = useWeighIns();
@@ -266,38 +268,36 @@ export function useReminderPing() {
   const taken = useTakenSupplements(today);
   const target = useDailyTarget(today);
 
-  const logged = entries && entries.length > 0 ? today : undefined;
-  const weighed = weighIns?.some((w) => w.date === today) ? today : undefined;
   const ready =
     entries !== undefined &&
     weighIns !== undefined &&
     waterLogs !== undefined &&
     supplements !== undefined &&
     taken !== undefined;
-  const supplementsTotal = supplements?.length ?? 0;
-  const supplementsLeft = supplements ? supplements.filter((s) => !taken?.has(s.id)).length : 0;
+  if (!ready) return undefined;
   const waterTarget = target?.water_ml ?? 0;
-  const waterLeft = waterLogs ? Math.max(0, waterTarget - sumWater(waterLogs)) : 0;
-  const day = ready
-    ? {
-        date: today,
-        weighed: weighed != null,
-        logged: logged != null,
-        supplements_left: supplementsLeft,
-        supplements_total: supplementsTotal,
-        water_left_ml: Math.round(waterLeft),
-      }
-    : undefined;
-  const stamp = day ? JSON.stringify(day) : '';
+  return {
+    date: today,
+    weighed: weighIns.some((w) => w.date === today),
+    logged: entries.length > 0,
+    supplements_left: supplements.filter((s) => !taken.has(s.id)).length,
+    supplements_total: supplements.length,
+    water_left_ml: Math.round(Math.max(0, waterTarget - sumWater(waterLogs))),
+  };
+}
 
+export function useReminderPing() {
+  const day = useDayReport();
+  const stamp = day ? JSON.stringify(day) : '';
   useEffect(() => {
     if (!stamp) return;
+    const report = JSON.parse(stamp) as DayReport;
     void pingIfEnabled({
-      lastLoggedDate: logged,
-      lastWeighedDate: weighed,
-      day: JSON.parse(stamp) as NonNullable<typeof day>,
+      lastLoggedDate: report.logged ? report.date : undefined,
+      lastWeighedDate: report.weighed ? report.date : undefined,
+      day: report,
     });
-  }, [stamp, logged, weighed]);
+  }, [stamp]);
 }
 
 /**

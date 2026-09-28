@@ -567,6 +567,10 @@ list grouped by aisle, step-by-step recipe instructions.
 
 - **Offline:** all logging works offline. Only barcode lookup (uncached) and photo
   estimation require network. Queue and replay on reconnect.
+- **A push Topic must be valid base64url** (found 28 Sep 2026): Apple answers an invalid one
+  with 400 BadWebPushTopic and never delivers. The tag "weigh" is five characters, a length no
+  base64 string can have, so the morning nudge failed every day while "log" (three) and "test"
+  (four) arrived. Topics are encoded now, and the failure is recorded on the subscription.
 - **Reminders are about the day's checklist** (added 23 Sep 2026): the phone reports what the
   day still needs — weigh-in, food, supplements, water — and the evening nudge names what is
   left ("Nothing logged, 2 supplements and 1.4 L of water") instead of only asking whether
@@ -831,6 +835,15 @@ target the plan is furthest from as a share of itself, with what closes it.
 portions, pinned}])`, `prices (id, food_id, price_per_kg, currency, estimated)`,
 `recipes.steps[]`, `recipes.{blurb, tags, time_min, oven_c, source}`.
 All synced like every other table (§6).
+
+### 9.6 Reading a nutrition label (added 28 Sep 2026)
+A barcode nothing recognises is a dead end no longer: one photograph of the nutrition table
+fills the custom-food form. `/api/label` sends the image at full detail to the vision model
+with a prompt that reads *what is printed* — in any language, from either the per-100 g or the
+per-serving column, converting kJ where only kJ is given — and the client checks the reading
+before showing it: the macros must account for the calories within a quarter, or the form says
+so. Every field stays editable; nothing is saved until the user saves it. Same sign-in, rate
+limit and daily cap as §9.4.
 
 ### 18.5a The budget is a constraint, not a wish (added 23 Sep 2026)
 A recipe's facts carry what it costs at the prices on file, by the same arithmetic the shopping

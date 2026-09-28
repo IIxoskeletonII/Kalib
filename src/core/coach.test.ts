@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { findGaps, gapClosed, isCompleteDay, recommendFoods, type DaySummary } from './coach';
+import {
+  findGaps,
+  gapClosed,
+  isCompleteDay,
+  recommendByTier,
+  recommendFoods,
+  type DaySummary,
+  type Gap,
+} from './coach';
 import type { Food } from './types';
 
 const target = { kcal: 2200, protein_g: 150, carb_g: 250, fat_g: 70, fiber_g: 32 };
@@ -200,5 +208,65 @@ describe('gapClosed', () => {
     expect(gapClosed(fiber, [])).toBe(true);
     expect(gapClosed(fiber, [fiber])).toBe(false);
     expect(gapClosed(undefined, [])).toBe(false);
+  });
+});
+
+describe('two tiers of advice (§16.2)', () => {
+  const mk = (id: string, name: string, fiber: number, kcal: number, category: string): Food => ({
+    id,
+    user_id: 'local',
+    created_at: '',
+    updated_at: '',
+    source: 'usda_foundation',
+    name,
+    category,
+    per_100g: { kcal, protein: 5, carb: 20, fat: 1, fiber },
+    micros: {},
+    micro_coverage: 0,
+    portions: [],
+    verified: true,
+  });
+  const veg = 'Vegetables and Vegetable Products';
+  const legumes = 'Legumes and Legume Products';
+  const foods = [
+    mk('oats', 'Oats, rolled', 10, 380, 'Breakfast Cereals'),
+    mk('lentil', 'Lentils, cooked', 8, 116, legumes),
+    mk('bean', 'Beans, black, cooked', 9, 132, legumes),
+    mk('pea', 'Peas, green, cooked', 6, 84, veg),
+    mk('sprout', 'Brussels sprouts, cooked', 4, 36, veg),
+  ];
+  const gap: Gap = {
+    nutrient: 'fiber_g',
+    label: 'Fiber',
+    unit: 'g',
+    average: 12,
+    target: 30,
+    ratio: 0.4,
+    days: 5,
+  };
+
+  it('keeps what you already eat apart from what you do not', () => {
+    const known = new Set(['oats', 'lentil']);
+    const { familiar, fresh } = recommendByTier(gap, foods, { familiarIds: known, limit: 3 });
+    expect(familiar.length).toBeGreaterThan(0);
+    expect(familiar.every((r) => known.has(r.food.id))).toBe(true);
+    expect(fresh.length).toBeGreaterThan(0);
+    expect(fresh.every((r) => !known.has(r.food.id))).toBe(true);
+    // Nothing appears in both lists.
+    const ids = [...familiar, ...fresh].map((r) => r.food.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('gives new ideas even when everything familiar already closes the gap', () => {
+    const known = new Set(foods.map((f) => f.id));
+    const { familiar, fresh } = recommendByTier(gap, foods, { familiarIds: known });
+    expect(familiar.length).toBeGreaterThan(0);
+    expect(fresh).toEqual([]);
+  });
+
+  it('ranks new foods on value, not on habit', () => {
+    const { fresh } = recommendByTier(gap, foods, { familiarIds: new Set(), limit: 5 });
+    const plain = recommendFoods(gap, foods, { limit: 5 });
+    expect(fresh.map((r) => r.food.id)).toEqual(plain.map((r) => r.food.id));
   });
 });

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useBack } from '@/hooks/useBack';
 import { useNavigate, useSearchParams } from 'react-router';
 import { SLOT_LABEL } from '@/components/AmountSheet';
+import { DateBanner } from '@/components/DateBanner';
 import { NumberPad } from '@/components/NumberPad';
 import { Badge, Button, Card, IconButton, Segmented, Sheet, fmt } from '@/components/ui';
 import { mealSlotForTime, todayKey } from '@/core/dates';
@@ -78,6 +79,7 @@ export default function Estimate() {
 
   return (
     <div className="flex h-full flex-col pb-6">
+      <DateBanner date={date} />
       <div className="flex items-center gap-1 pt-1">
         <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <div className="flex-1">

@@ -19,6 +19,7 @@ import {
   type Limiter,
 } from './guard';
 import { normalizeOffProduct, rankOffProducts, type OffProduct, type OffHit } from './off';
+import { runLabel, type LabelEnv, type LabelRequest } from './label';
 import { runSuggest, type SuggestEnv, type SuggestRequest } from './suggest';
 import {
   addToBank,
@@ -34,15 +35,17 @@ import {
 import {
   dueReminders,
   nextReminderAt,
+  outstanding,
   reminderMessage,
   sendPushDetailed,
   type PushEnv,
+  type DayState,
   type PushSubscriptionJson,
   type ReminderPrefs,
   type StoredSubscription,
 } from './push';
 
-export interface Env extends EstimateEnv, SuggestEnv, PushEnv, GuardEnv {
+export interface Env extends EstimateEnv, SuggestEnv, LabelEnv, PushEnv, GuardEnv {
   ASSETS: Fetcher;
   /** Push subscriptions and daily quota counters. Optional: without it reminders are off. */
   PUSH?: KVNamespace;
@@ -63,6 +66,30 @@ async function subKey(endpoint: string): Promise<string> {
   return Array.from(new Uint8Array(digest).slice(0, 16), (b) =>
     b.toString(16).padStart(2, '0'),
   ).join('');
+}
+
+/**
+ * The phone's report of its own day (§17): what is still undone, so the evening nudge can name
+ * it. Anything malformed is simply not recorded — a bad report must never silence a reminder.
+ */
+function cleanDay(raw: unknown): DayState | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const d = raw as Record<string, unknown>;
+  if (typeof d.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d.date)) return undefined;
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, v) : 0);
+  return {
+    date: d.date,
+    weighed: d.weighed === true,
+    logged: d.logged === true,
+    supplements_left: Math.min(50, Math.round(n(d.supplements_left))),
+    supplements_total: Math.min(50, Math.round(n(d.supplements_total))),
+    water_left_ml: Math.min(10000, Math.round(n(d.water_left_ml))),
+  };
+}
+
+/** The build a phone speaks from; absent means older than 0.19. */
+function cleanApp(raw: unknown): string | undefined {
+  return typeof raw === 'string' && raw.length > 0 && raw.length <= 20 ? raw : undefined;
 }
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -138,6 +165,12 @@ async function handlePush(request: Request, url: URL, env: Env): Promise<Respons
         ? { lastWeighedDate: body.lastWeighedDate }
         : {}),
       ...(existing?.sent ? { sent: existing.sent } : {}),
+      ...((cleanDay(body.day) ?? existing?.day)
+        ? { day: cleanDay(body.day) ?? existing!.day! }
+        : {}),
+      ...((cleanApp(body.app) ?? existing?.app)
+        ? { app: cleanApp(body.app) ?? existing!.app! }
+        : {}),
       user_id: user.id,
       updated_at: new Date().toISOString(),
     };
@@ -171,6 +204,9 @@ async function handlePush(request: Request, url: URL, env: Env): Promise<Respons
       lastLoggedDate: existing.lastLoggedDate ?? null,
       lastWeighedDate: existing.lastWeighedDate ?? null,
       sent: existing.sent ?? {},
+      day: existing.day ?? null,
+      app: existing.app ?? null,
+      last_error: existing.last_error ?? null,
       due: dueReminders(existing, now),
       next: nextReminderAt(existing, now),
       updated_at: existing.updated_at,
@@ -200,6 +236,10 @@ async function handlePush(request: Request, url: URL, env: Env): Promise<Respons
     // A phone that has travelled must fire on its new clock, not the one it registered with.
     if (typeof body.tz === 'string' && body.tz.length <= 64) existing.tz = body.tz;
     if (body.prefs) existing.prefs = cleanPrefs(body.prefs);
+    const day = cleanDay(body.day);
+    if (day) existing.day = day;
+    const app = cleanApp(body.app);
+    if (app) existing.app = app;
     // Subscriptions from before sign-in was required are adopted by the first owner to ping.
     existing.user_id = user.id;
     existing.updated_at = new Date().toISOString();
@@ -232,7 +272,11 @@ export async function runReminders(
       const { date } = localClockFor(s, now);
       let changed = false;
       for (const kind of due) {
-        const r = await sendPushDetailed(s.subscription, reminderMessage(kind), env);
+        const r = await sendPushDetailed(
+          s.subscription,
+          reminderMessage(kind, outstanding(s, date)),
+          env,
+        );
         if (r.outcome === 'gone') {
           console.warn(
             JSON.stringify({ push: 'dropped', kind, status: r.status, detail: r.detail }),
@@ -443,8 +487,13 @@ export default {
 
     // SPEC §9.4 estimation and §18.6 suggestions both cost money: signed in, rate-limited,
     // and sharing one daily cap (a batch of suggestions counts as one estimate).
-    if (url.pathname === '/api/estimate' || url.pathname === '/api/suggest') {
+    if (
+      url.pathname === '/api/estimate' ||
+      url.pathname === '/api/suggest' ||
+      url.pathname === '/api/label'
+    ) {
       const suggesting = url.pathname === '/api/suggest';
+      const reading = url.pathname === '/api/label';
       if (request.method !== 'POST') return json({ error: 'method' }, 405);
       const origin = request.headers.get('origin') ?? '';
       if (origin && origin !== url.origin) return json({ error: 'forbidden' }, 403);
@@ -457,7 +506,9 @@ export default {
           {
             error: suggesting
               ? 'Sign in (Settings → Sync) to get suggestions.'
-              : 'Sign in (Settings → Sync) to estimate meals.',
+              : reading
+                ? 'Sign in (Settings → Sync) to read labels.'
+                : 'Sign in (Settings → Sync) to estimate meals.',
           },
           401,
         );
@@ -470,9 +521,9 @@ export default {
       }
       const size = Number(request.headers.get('content-length') ?? 0);
       if (size > (suggesting ? 20_000 : 2_500_000)) return json({ error: 'Too large.' }, 413);
-      let req: EstimateRequest & SuggestRequest;
+      let req: EstimateRequest & SuggestRequest & LabelRequest;
       try {
-        req = (await request.json()) as EstimateRequest & SuggestRequest;
+        req = (await request.json()) as EstimateRequest & SuggestRequest & LabelRequest;
       } catch {
         return json({ error: 'bad request' }, 400);
       }
@@ -522,7 +573,7 @@ export default {
           cap: admitted.capUser,
         });
       }
-      const out = await runEstimate(req, env);
+      const out = reading ? await runLabel(req, env) : await runEstimate(req, env);
       return out.ok
         ? json({
             result: out.result,

@@ -167,6 +167,15 @@ export function searchFoods(
     const used = usage?.get(d.id) ?? 0;
     if (used > 0) score += Math.log2(1 + used);
     score += 1 / Math.max(1, d.tokens.length);
+    // Fewest extra words wins, but only once the query is a description rather than a
+    // single word: someone typing "egg whole raw" means "Egg, whole, raw", not "Egg, whole,
+    // raw, frozen, pasteurized". A one-word query is inherently vague, so it is left to the
+    // head-noun and everyday rules above.
+    if (q.length > 1) {
+      const extra = Math.max(0, d.tokens.length - q.length);
+      score -= Math.min(1.5, extra * 0.3);
+      if (extra === 0) score += 1.5;
+    }
     hits.push({ ...d, score });
   }
   hits.sort(

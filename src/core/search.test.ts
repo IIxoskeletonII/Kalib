@@ -103,3 +103,21 @@ describe('everyday ranking (regressions from real use)', () => {
     expect(searchFoods(docs, 'egg')[0]!.id).toBe('egg');
   });
 });
+
+describe('a described food beats a more specific cousin', () => {
+  const mk = (id: string, name: string, source: 'usda_foundation' | 'usda_sr' | 'usda_fndds') =>
+    buildSearchDoc({ id, name, source });
+  const eggs = [
+    mk('frozen', 'Egg, whole, raw, frozen, pasteurized', 'usda_foundation'),
+    mk('plain', 'Egg, whole, raw', 'usda_fndds'),
+    mk('fresh', 'Egg, whole, raw, fresh', 'usda_sr'),
+  ];
+
+  it('ranks the exact description first, even from a lower-boosted source', () => {
+    expect(searchFoods(eggs, 'egg whole raw')[0]!.id).toBe('plain');
+  });
+
+  it('still lets the specific one be found when it is asked for', () => {
+    expect(searchFoods(eggs, 'egg frozen')[0]!.id).toBe('frozen');
+  });
+});

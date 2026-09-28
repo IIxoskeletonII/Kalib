@@ -217,6 +217,36 @@ export function recommendFoods(
   return out;
 }
 
+/**
+ * §16.2 — the same ranking, split in two: what the user already eats (easy, no shopping) and
+ * what they do not (the point of asking at all). Mixing them buries every new idea, because a
+ * familiar food always wins on familiarity.
+ */
+export function recommendByTier(
+  gap: Gap,
+  foods: readonly Food[],
+  opts: Parameters<typeof recommendFoods>[2] = {},
+): { familiar: Recommendation[]; fresh: Recommendation[] } {
+  const known = opts.familiarIds ?? new Set<string>();
+  const familiar = recommendFoods(
+    gap,
+    foods.filter((f) => known.has(f.id)),
+    opts,
+  );
+  const chosen = new Set(familiar.map((r) => r.food.id));
+  const fresh = recommendFoods(
+    gap,
+    foods.filter((f) => !known.has(f.id)),
+    // Without the familiarity bonus these rank purely on what a portion adds per calorie.
+    {
+      ...opts,
+      familiarIds: new Set<string>(),
+      exclude: new Set([...(opts.exclude ?? []), ...chosen]),
+    },
+  );
+  return { familiar, fresh };
+}
+
 /** True when a previously flagged nutrient now meets its target — the one-time "on target" note. */
 export function gapClosed(previous: Gap | undefined, current: Gap[]): boolean {
   return previous != null && !current.some((g) => g.nutrient === previous.nutrient);

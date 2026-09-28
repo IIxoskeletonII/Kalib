@@ -9,9 +9,10 @@ import {
   requestSuggestions,
   type DiscoverInputs,
 } from '@/services/discover';
-import type { PlanContext } from '@/services/planner';
+import { setCurrency, type PlanContext } from '@/services/planner';
 import { NumberPad } from './NumberPad';
-import { Button, Chip } from './ui';
+import { CurrencySheet } from './CurrencySheet';
+import { Button, Chip, Sheet } from './ui';
 
 export function DiscoverSheet({
   ctx,
@@ -26,6 +27,7 @@ export function DiscoverSheet({
   const [pristine, setPristine] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [currencyOpen, setCurrencyOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +94,13 @@ export function DiscoverSheet({
             </span>
           </span>
           <span className="text-[13px] text-muted">{budgetOpen ? 'done' : 'set'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setCurrencyOpen(true)}
+          className="mt-2 text-[13px] font-semibold text-accent"
+        >
+          {ctx.currency_code} · change currency
         </button>
         {budgetOpen && (
           <div className="mt-3">
@@ -181,6 +190,18 @@ export function DiscoverSheet({
       </button>
 
       {note && <p className="text-[13px] text-danger">{note}</p>}
+
+      <Sheet open={currencyOpen} onClose={() => setCurrencyOpen(false)} title="Currency">
+        {currencyOpen && (
+          <CurrencySheet
+            current={ctx.currency_code}
+            onPick={(code) => {
+              void setCurrency(code);
+              setCurrencyOpen(false);
+            }}
+          />
+        )}
+      </Sheet>
 
       <Button
         variant="primary"

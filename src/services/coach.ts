@@ -2,7 +2,7 @@
 import {
   findGaps,
   gapClosed,
-  recommendFoods,
+  recommendByTier,
   COACH_WINDOW_DAYS,
   type DaySummary,
   type Gap,
@@ -23,7 +23,12 @@ import { listAllSupplements, listSupplementLogsSince } from '@/db/repo/supplemen
 
 export interface CoachResult {
   gap: Gap;
+  /** Everything, familiar first — kept for anything that wants one list. */
   recommendations: Recommendation[];
+  /** §16.2 — foods already in the rotation. */
+  familiar: Recommendation[];
+  /** Foods the user has never logged: the ideas worth having. */
+  fresh: Recommendation[];
 }
 
 export type CoachState =
@@ -104,13 +109,17 @@ export async function computeCoach(date: string, sex: Sex): Promise<CoachState> 
   const serving = new Map<string, number>();
   for (const [id, spec] of pool) if (spec.grams) serving.set(id, spec.grams);
   const kcalTarget = days.at(-1)?.target.kcal;
-  const recommendations = recommendFoods(gap, candidates, {
+  const tiers = recommendByTier(gap, candidates, {
     familiarIds,
     serving,
+    limit: 4,
     ...(kcalTarget ? { kcalTarget } : {}),
   });
   if (!last || last.nutrient !== gap.nutrient) await setSetting(LAST_GAP_KEY, gap);
-  return { kind: 'gap', result: { gap, recommendations } };
+  return {
+    kind: 'gap',
+    result: { gap, recommendations: [...tiers.familiar, ...tiers.fresh], ...tiers },
+  };
 }
 
 export interface WeekOverview {

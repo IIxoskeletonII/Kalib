@@ -34,6 +34,8 @@ export interface StoredSubscription {
   lastWeighedDate?: string;
   /** The checklist as of the phone's last word on it (§17 water and supplements). */
   day?: DayState;
+  /** The app version that phone last spoke from; absent means a build older than 0.19. */
+  app?: string;
   /** The last send that did not arrive, so a silent failure has somewhere to be seen. */
   last_error?: { at: string; kind: ReminderKind; status: number; detail: string };
   /** Local date each reminder was last sent, so it fires once a day. */
@@ -195,6 +197,17 @@ export interface PushMessage {
   tag?: string;
 }
 
+/**
+ * RFC 8030 §5.4: a push Topic is a base64url token of at most 32 characters, and Apple
+ * enforces it. A plain word can be an invalid length — "weigh" is five characters, and no
+ * base64 string has a length of 1 mod 4 — which Apple answers with 400 BadWebPushTopic, so
+ * the notification is never delivered. Encoding the tag makes every topic valid by
+ * construction while keeping its collapsing behaviour.
+ */
+export function pushTopic(tag: string): string {
+  return b64urlEncode(te.encode(tag)).slice(0, 32);
+}
+
 export type PushOutcome = 'sent' | 'gone' | 'failed';
 export interface PushResult {
   outcome: PushOutcome;
@@ -230,7 +243,7 @@ export async function sendPushDetailed(
         'content-type': 'application/octet-stream',
         ttl: '3600',
         urgency: 'normal',
-        ...(msg.tag ? { topic: msg.tag } : {}),
+        ...(msg.tag ? { topic: pushTopic(msg.tag) } : {}),
       },
       body: body as BodyInit,
     });

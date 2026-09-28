@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useBack } from '@/hooks/useBack';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { SLOT_LABEL } from '@/components/AmountSheet';
+import { DateBanner } from '@/components/DateBanner';
 import { NumberPad } from '@/components/NumberPad';
 import { Button, IconButton, Segmented } from '@/components/ui';
 import { mealSlotForTime, todayKey } from '@/core/dates';
@@ -107,6 +108,7 @@ export default function QuickAdd() {
 
   return (
     <div className="flex h-full flex-col gap-4">
+      <DateBanner date={date} />
       <div className="flex items-center gap-1">
         <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <div className="flex-1">

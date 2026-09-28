@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { densityFor, fromGrams, isLiquid, roundIn, toGrams } from './units';
+import {
+  bestPortionDonor,
+  densityFor,
+  fromGrams,
+  isLiquid,
+  isWeightLabel,
+  roundIn,
+  shortPortionLabel,
+  toGrams,
+  usablePortions,
+} from './units';
 
 const food = (
   name: string,
@@ -67,5 +77,61 @@ describe('conversion', () => {
   it('rounds by unit', () => {
     expect(roundIn(8.83, 'oz')).toBe(8.8);
     expect(roundIn(257.5, 'g')).toBe(258);
+  });
+});
+
+describe('portion labels on a button (§8)', () => {
+  it('drops the leading 1 and keeps the first of several alternatives', () => {
+    expect(shortPortionLabel('1 egg')).toBe('egg');
+    expect(shortPortionLabel('1 banana')).toBe('banana');
+    expect(shortPortionLabel('1 medium or regular slice')).toBe('medium slice');
+    expect(shortPortionLabel('1 small or thin/very thin slice')).toBe('small slice');
+    expect(shortPortionLabel('1 large or thick slice')).toBe('large slice');
+    expect(shortPortionLabel('1 cup, mashed')).toBe('cup, mashed');
+    expect(shortPortionLabel('1 slice, crust not eaten')).toBe('slice, crust not eaten');
+    expect(shortPortionLabel('2 tbsp')).toBe('2 tbsp');
+  });
+
+  it('recognises a portion that is only a weight, which the unit chips already cover', () => {
+    for (const l of ['oz', '1 oz', 'g', '100 g', 'fl oz', 'ml', 'lb', 'ounces']) {
+      expect(isWeightLabel(shortPortionLabel(l)), l).toBe(true);
+    }
+    for (const l of ['egg', 'medium slice', 'cup', 'banana', 'fillet']) {
+      expect(isWeightLabel(l), l).toBe(false);
+    }
+  });
+});
+
+describe('borrowing a portion from a neighbouring food', () => {
+  const f = (name: string, portions: { label: string; grams: number }[]) => ({ name, portions });
+  const hen = f('Egg, whole, raw', [{ label: '1 egg', grams: 50 }]);
+  const duck = f('Egg, duck, whole, fresh, raw', [{ label: '1 egg', grams: 70 }]);
+  const white = f('Egg, white, raw', [{ label: '1 white', grams: 33 }]);
+  const noPortions = f('Egg, whole, dried', []);
+
+  it('lends from the closest description, not a different animal', () => {
+    const target = { name: 'Egg, whole, raw, frozen, pasteurized' };
+    expect(bestPortionDonor(target, [duck, hen, white, noPortions])?.name).toBe(hen.name);
+  });
+
+  it('will not cross to another subject', () => {
+    const target = { name: 'Chicken, breast, boneless, skinless, raw' };
+    expect(bestPortionDonor(target, [hen, duck])).toBeUndefined();
+  });
+
+  it('ignores donors whose only portions are weights', () => {
+    const ounces = f('Egg, whole, raw, fresh', [{ label: '1 oz', grams: 28 }]);
+    expect(bestPortionDonor({ name: 'Egg, whole, raw, frozen' }, [ounces])).toBeUndefined();
+  });
+
+  it('keeps only portions worth counting', () => {
+    expect(
+      usablePortions([
+        { label: '1 egg', grams: 50 },
+        { label: '1 oz', grams: 28 },
+        { label: '1 egg', grams: 50 },
+        { label: '1 cup', grams: 245 },
+      ]).map((p) => p.label),
+    ).toEqual(['1 egg', '1 cup']);
   });
 });

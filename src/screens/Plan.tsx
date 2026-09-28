@@ -239,7 +239,11 @@ export default function Plan() {
           <section className="mt-7">
             <SectionHeading
               trailing={
-                <button type="button" className="text-accent" onClick={() => setFitOpen(true)}>
+                <button
+                  type="button"
+                  className="-my-2 px-1 py-2 text-accent"
+                  onClick={() => setFitOpen(true)}
+                >
                   Details
                 </button>
               }

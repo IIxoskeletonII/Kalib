@@ -90,7 +90,7 @@ export function AuthForm({
       <div className="flex justify-between text-[13px]">
         <button
           type="button"
-          className="font-semibold text-accent"
+          className="-my-2 py-2 font-semibold text-accent"
           onClick={() => {
             setMode(mode === 'signup' ? 'signin' : 'signup');
             setNote(null);
@@ -99,7 +99,7 @@ export function AuthForm({
           {mode === 'signup' ? 'I already have an account' : 'Create an account'}
         </button>
         {mode === 'signin' && (
-          <button type="button" className="text-muted" onClick={() => void forgot()}>
+          <button type="button" className="-my-2 py-2 text-muted" onClick={() => void forgot()}>
             Forgot password?
           </button>
         )}

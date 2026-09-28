@@ -1,4 +1,5 @@
 import { buildSearchDoc, type SearchDoc } from '@/core/search';
+import { bestPortionDonor, usablePortions, type Portion } from '@/core/units';
 import type { Food, SyncMeta } from '@/core/types';
 import { db, isLive, newMeta } from '../db';
 
@@ -57,6 +58,26 @@ export async function addFood(input: FoodInput, id?: string): Promise<Food> {
 }
 
 /** Foods the user created or fetched (not the regenerable USDA seed). */
+/**
+ * Portions from the nearest food that has them, for a food that has none of its own
+ * (§8 — counting eggs beats weighing them). One scan, only when the sheet needs it.
+ */
+export async function borrowedPortions(
+  food: Food,
+): Promise<{ from: Food; portions: Portion[] } | null> {
+  const head = food.name.split(',')[0]!.trim().toLowerCase();
+  if (!head) return null;
+  const candidates: Food[] = [];
+  await db.foods.each((f) => {
+    if (f.deleted_at == null && f.id !== food.id && f.name.toLowerCase().startsWith(head)) {
+      candidates.push(f);
+    }
+  });
+  const donor = bestPortionDonor(food, candidates);
+  if (!donor) return null;
+  return { from: donor, portions: usablePortions(donor.portions).slice(0, 3) };
+}
+
 export async function listUserFoods(): Promise<Food[]> {
   return db.foods.where('source').anyOf(['custom', 'off', 'photo']).toArray();
 }

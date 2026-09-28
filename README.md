@@ -50,8 +50,15 @@ free tier, and the source is here for anyone who wants the same.
 - **Logging in seconds** — offline USDA database (13 k foods: Foundation, SR Legacy and FNDDS
   dishes as eaten), packaged products from Open Food Facts by search or **barcode photo**
   (decoded on-device; scanned offline, looked up when the connection returns), your own foods,
-  a custom number pad (no OS keyboard), amounts in g / ml / oz / fl oz with liquids opening in
-  ml, one-tap "log again" tiles, swipe to delete (with undo) or to log again, quick manual entry.
+  a custom number pad (no OS keyboard), one-tap "log again" tiles, swipe to delete (with undo)
+  or to log again, quick manual entry — and logging to any day, not only today.
+- **Count what you ate, not what it weighs** — a food's own portions are units you can multiply:
+  tap *egg* and type 4 for four eggs, *medium slice* for toast, *portion* for a batch you cooked.
+  Amounts still work in g / ml / oz / fl oz (liquids open in ml), and a food with no portion of
+  its own borrows one from the nearest food that has it, marked as the approximation it is.
+- **A label in any language** — when a barcode is unknown, photograph the nutrition table and
+  the fields fill themselves (per 100 g or per serving, kJ converted), with a check that the
+  macros account for the calories before you trust them.
 - **Targets that calibrate to you** — formula targets while calibrating, then from day 24 a
   measured TDEE from the weight trend and logged intake over a 28-day window, with a 95 %
   interval, guard rails (±150 kcal per weekly step, a hold-and-explain card when the measurement
@@ -102,8 +109,10 @@ free tier, and the source is here for anyone who wants the same.
   refilled with whatever still fits. Verified by simulation: 80 plan/budget combinations, never
   over budget, the shopping list agreeing with the projection to the cent.
 - **Reminders that know the day** — the evening check covers food, supplements and water, and
-  names what is left; Settings shows when the next one is due, when the last one went, and why
-  one failed if it did.
+  names what is left ("Nothing logged, 2 supplements and 1.4 L of water"); Settings shows when
+  the next one is due, when the last one went, and why one failed if it did.
+- **Money in your own currency** — OMR, EUR and USD one tap away, every other ISO 4217 currency
+  behind a search, with the decimals each one actually uses.
 - **Cut, maintain, recomp or bulk** — a lean surplus of 5–15 % sized from the gain rate, the
   same protein and fat rules, switchable on a schedule.
 - **Week in review** — one page with the week's calories, protein, fiber, trend, measured burn

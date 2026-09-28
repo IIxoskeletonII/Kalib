@@ -100,6 +100,7 @@ export async function registerSubscription(
       subscription: sub.toJSON(),
       prefs,
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      app: __APP_VERSION__,
       ...state,
     }),
   });
@@ -124,6 +125,8 @@ export interface ServerStatus {
   tz?: string;
   sent?: { weigh?: string; log?: string };
   day?: DayReport | null;
+  /** The app version the phone last reported from. */
+  app?: string | null;
   last_error?: { at: string; kind: string; status: number; detail: string } | null;
   /** What the server would send right now. */
   due?: ('weigh' | 'log')[];
@@ -181,8 +184,10 @@ export async function pingReminders(
     body: JSON.stringify({
       endpoint: sub.endpoint,
       ...state,
-      // Sent every time: a phone that has travelled must nudge on its new clock.
+      // Sent every time: a phone that has travelled must nudge on its new clock, and which
+      // build it runs decides what it can report at all.
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      app: __APP_VERSION__,
       ...(prefs ? { prefs } : {}),
     }),
   }).catch(() => undefined);
