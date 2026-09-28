@@ -75,10 +75,11 @@ const post = (path: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
+// Only the two methods the handler touches; the rest of the runtime's context is irrelevant.
 const ctx = {
   waitUntil: () => undefined,
   passThroughOnException: () => undefined,
-} as ExecutionContext;
+} as unknown as ExecutionContext;
 
 /** Supabase says who the bearer token is; everything else in the test is real code. */
 function mockAuth() {
