@@ -36,6 +36,12 @@ export interface WeighIn extends SyncMeta {
   date: string; // YYYY-MM-DD, unique per user
   weight_kg: number;
   bodyfat_pct?: number;
+  /**
+   * Waist circumference in cm (§14: "verify by waist measurement"). Feeds the RFM body-fat
+   * estimate in `core/body.ts`, and is the progress signal that keeps moving when the scale
+   * does not.
+   */
+  waist_cm?: number | null;
   source: WeighInSource;
 }
 
@@ -213,7 +219,10 @@ export interface Recipe extends SyncMeta {
   tags?: string[];
   time_min?: number;
   oven_c?: number;
-  source?: 'own' | 'suggested';
+  /** How the recipe came to exist. */
+  source?: 'own' | 'suggested' | 'imported';
+  /** The page an imported recipe came from, kept so the credit stays with the publisher. */
+  source_url?: string;
 }
 
 export interface Batch extends SyncMeta {

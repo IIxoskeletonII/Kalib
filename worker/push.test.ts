@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   b64urlDecode,
   b64urlEncode,
+  daysQuiet,
   dueReminders,
+  freshStartLandmark,
+  LAPSED_DAYS,
   encryptPayload,
   localClock,
   nextReminderAt,
@@ -334,5 +337,75 @@ describe('the push Topic header (RFC 8030 §5.4)', () => {
 
   it('keeps the two reminders on separate topics so neither collapses onto the other', () => {
     expect(pushTopic('weigh')).not.toBe(pushTopic('log'));
+  });
+});
+
+describe('the fresh-start nudge', () => {
+  const base: StoredSubscription = {
+    subscription: { endpoint: 'e', keys: { p256dh: '', auth: '' } },
+    prefs: { weighAt: '07:30', logAt: '20:00' },
+    tz: 'Europe/Rome',
+    updated_at: '',
+  };
+  // 2026-10-05 is a Monday; 06:00 UTC is 08:00 in Rome, past the 07:30 weigh time.
+  const monday = new Date('2026-10-05T06:00:00Z');
+  const tuesday = new Date('2026-10-06T06:00:00Z');
+  const lapsed = { ...base, lastLoggedDate: '2026-09-20' };
+
+  it('recognises the landmarks people restart on', () => {
+    expect(freshStartLandmark('2027-01-01')).toBe('year');
+    expect(freshStartLandmark('2026-11-01')).toBe('month');
+    expect(freshStartLandmark('2026-10-05')).toBe('week');
+    expect(freshStartLandmark('2026-10-06')).toBeUndefined();
+  });
+
+  it('counts the days of silence', () => {
+    expect(daysQuiet(lapsed, '2026-09-20')).toBe(0);
+    expect(daysQuiet(lapsed, '2026-09-23')).toBe(3);
+    expect(daysQuiet(base, '2026-09-23')).toBeUndefined();
+  });
+
+  it('fires on a Monday after a real gap, in place of the evening nudge', () => {
+    const due = dueReminders(lapsed, monday);
+    expect(due).toContain('fresh');
+    // It replaces the "nothing logged" nudge rather than arriving alongside it.
+    expect(due).not.toContain('log');
+  });
+
+  it('stays quiet on an ordinary day, however long the gap', () => {
+    expect(dueReminders(lapsed, tuesday)).not.toContain('fresh');
+  });
+
+  it('stays quiet on a landmark when the gap is short', () => {
+    const recent = { ...base, lastLoggedDate: '2026-10-04' };
+    expect(dueReminders(recent, monday)).not.toContain('fresh');
+    const exactly = { ...base, lastLoggedDate: '2026-10-02' };
+    expect(daysQuiet(exactly, '2026-10-05')).toBe(LAPSED_DAYS);
+    expect(dueReminders(exactly, monday)).toContain('fresh');
+  });
+
+  it('stays quiet when today has already been logged', () => {
+    const logged = { ...lapsed, lastLoggedDate: '2026-10-05' };
+    expect(dueReminders(logged, monday)).not.toContain('fresh');
+  });
+
+  it('sends once a day', () => {
+    const already = { ...lapsed, sent: { fresh: '2026-10-05' } };
+    expect(dueReminders(already, monday)).not.toContain('fresh');
+  });
+
+  it('never mentions the lapse', () => {
+    const m = reminderMessage('fresh');
+    expect(m.body).not.toMatch(/\d+ days|missed|failed|since/i);
+    expect(m.title).toBe('Clean first day');
+    expect(pushTopic(m.tag ?? '')).toMatch(/^[A-Za-z0-9_-]{1,32}$/);
+  });
+
+  it('still lets the weigh-in nudge through on the same morning', () => {
+    const due = dueReminders(lapsed, monday);
+    expect(due).toContain('fresh');
+    // The weigh-in is a separate, earlier concern and is not swallowed by the landmark.
+    const weighed = { ...lapsed, lastWeighedDate: '2026-10-05' };
+    expect(dueReminders(weighed, monday)).toEqual(['fresh']);
   });
 });

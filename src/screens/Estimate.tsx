@@ -1,6 +1,7 @@
 // SPEC §9.4 — describe a meal (photo optional), get grounded items back, adjust, log.
 import { Camera, ChevronLeft, Sparkles, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { MicButton } from '@/components/MicButton';
 import { useBack } from '@/hooks/useBack';
 import { useNavigate, useSearchParams } from 'react-router';
 import { SLOT_LABEL } from '@/components/AmountSheet';
@@ -33,6 +34,9 @@ export default function Estimate() {
   const [editing, setEditing] = useState<number | null>(null);
   const [logging, setLogging] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  // Dictation replaces the whole utterance as it is revised, so it is appended to whatever was
+  // already typed rather than overwriting the field.
+  const dictationBase = useRef('');
 
   useEffect(() => {
     textRef.current?.focus();
@@ -91,7 +95,7 @@ export default function Estimate() {
       </div>
 
       <div className="mt-4 flex gap-3">
-        <div className="min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1">
           <textarea
             ref={textRef}
             value={description}
@@ -109,7 +113,19 @@ export default function Estimate() {
                 ? 'Anything I can’t see? Oil, butter, sauce, sugar?'
                 : 'What did you eat? e.g. 2 eggs, toast with butter, a latte'
             }
-            className="w-full resize-none rounded-[20px] bg-surface px-4 py-3 text-[16px] leading-snug outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+            className="w-full resize-none rounded-[20px] bg-surface px-4 py-3 pb-12 text-[16px] leading-snug outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+          />
+          {/* Speaking a meal is the shortest path there is; it lands in the same box, so it can
+              be corrected before anything is sent. */}
+          <MicButton
+            className="absolute right-2 bottom-2"
+            label="Say what you ate"
+            onText={(text, final) => {
+              const base = dictationBase.current;
+              const joined = base && text ? `${base.replace(/\s+$/, '')} ${text}` : base + text;
+              setDescription(joined);
+              if (final) dictationBase.current = joined;
+            }}
           />
         </div>
         {photo ? (

@@ -1,13 +1,15 @@
 // Create or edit a custom food (SPEC §8.1). Macros are entered per serving; the serving size
 // becomes the food's first portion so it logs in one tap.
-import { Camera, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { Camera, Check, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { macrosAgree } from '@/core/label';
 import { captureImage } from '@/platform/camera';
 import { readLabel } from '@/services/label';
+import { contributeEnabled, contributeProduct } from '@/services/offContribute';
 import { useBack } from '@/hooks/useBack';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { NumberPad } from '@/components/NumberPad';
+import { toast } from '@/components/Toast';
 import { Button, IconButton, fmt } from '@/components/ui';
 import { todayKey } from '@/core/dates';
 import { deleteFood, getFood } from '@/db/repo/foods';
@@ -46,6 +48,10 @@ export default function FoodEditor() {
   const [busy, setBusy] = useState(false);
   /** Arrived from a barcode nothing recognised: the label is the fastest way through. */
   const fromBarcode = params.get('label') === '1';
+  /** The code nothing recognised, when the scan knew it (§7.2). */
+  const barcode = params.get('barcode') ?? '';
+  const [canContribute, setCanContribute] = useState(false);
+  const [contribute, setContribute] = useState(false);
   const [reading, setReading] = useState(false);
   const [labelNote, setLabelNote] = useState<string | null>(null);
   const [labelError, setLabelError] = useState(false);
@@ -119,6 +125,19 @@ export default function FoodEditor() {
     });
   }, [id, navigate]);
 
+  // Whether this server can write to Open Food Facts at all. Asked once, and only when there
+  // is a barcode that could be contributed.
+  useEffect(() => {
+    if (!barcode || id) return;
+    let cancelled = false;
+    void contributeEnabled().then((on) => {
+      if (!cancelled) setCanContribute(on);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [barcode, id]);
+
   const num = (f: Field) => Number(values[f]) || 0;
   const canSave = name.trim().length > 0 && num('serving_g') > 0 && num('kcal') > 0;
 
@@ -141,6 +160,25 @@ export default function FoodEditor() {
         navigate(-1);
       } else {
         const food = await createCustomFood(input);
+        if (contribute && barcode) {
+          // Per 100 g is what Open Food Facts stores, so the serving is scaled out first.
+          const per = (v: number) => (input.serving_g > 0 ? (v * 100) / input.serving_g : 0);
+          const out = await contributeProduct({
+            barcode,
+            name: input.name,
+            brand: input.brand,
+            kcal: per(input.kcal),
+            protein_g: per(input.protein_g),
+            carb_g: per(input.carb_g),
+            fat_g: per(input.fat_g),
+            fiber_g: per(input.fiber_g),
+          });
+          toast(
+            out.ok
+              ? 'Added to Open Food Facts — the next person who scans it will find it'
+              : `Not sent: ${out.error}`,
+          );
+        }
         navigate(`/log?d=${date}&q=${encodeURIComponent(food.name)}`, { replace: true });
       }
     } finally {
@@ -245,6 +283,31 @@ export default function FoodEditor() {
           decimal={focus !== 'kcal'}
           maxDigits={4}
         />
+        {/* §7.2 — opt-in, one product, and only when the server can write at all. */}
+        {canContribute && !id && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={contribute}
+            onClick={() => setContribute((v) => !v)}
+            className="mb-3 flex w-full items-start gap-3 rounded-[18px] bg-surface-2 px-4 py-3 text-left active:bg-surface-3"
+          >
+            <span
+              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md ${
+                contribute ? 'bg-primary text-on-primary' : 'bg-surface-3 text-transparent'
+              }`}
+            >
+              <Check size={13} strokeWidth={3} aria-hidden />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[14px]">Add this product to Open Food Facts</span>
+              <span className="block text-[12px] leading-snug text-muted">
+                Sends the barcode, name, brand and per-100 g figures to the public database this app
+                reads from. Nothing about you goes with it.
+              </span>
+            </span>
+          </button>
+        )}
         <div className="flex gap-2">
           {id && (
             <IconButton

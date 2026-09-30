@@ -1,11 +1,14 @@
 // Week in review as a page of its own: readable in one screen, shareable as text.
-import { Check, ChevronLeft, Share2 } from 'lucide-react';
+import { CalendarRange, Check, ChevronLeft, Share2 } from 'lucide-react';
 import { useState } from 'react';
 import { useBack } from '@/hooks/useBack';
-import { Button, Card, IconButton, fmt } from '@/components/ui';
+import { Button, Card, IconButton, SectionHeading, fmt } from '@/components/ui';
+import { consistencyLine } from '@/core/adherence';
 import { addDays, fromDateKey, todayKey } from '@/core/dates';
-import type { MicroStat, WeekReview } from '@/core/review';
-import { useCoach, useTdee, useWeekOverview, useWeighIns } from '@/hooks/useData';
+import { dayProteinDensity } from '@/core/quality';
+import type { MicroStat, MineralBalance, WeekReview } from '@/core/review';
+import { acceptDietBreak, dismissDietBreak } from '@/services/dietBreak';
+import { useCoach, useDietBreak, useTdee, useWeekOverview, useWeighIns } from '@/hooks/useData';
 import { computeTrend } from '@/core/trend';
 import { shareText } from '@/platform/share';
 
@@ -17,6 +20,7 @@ export default function Review() {
   const tdee = useTdee();
   const coach = useCoach(today);
   const weighIns = useWeighIns();
+  const dietBreak = useDietBreak(today);
   const [shared, setShared] = useState<'copied' | null>(null);
 
   const trend = computeTrend(weighIns ?? [], undefined, today);
@@ -46,6 +50,14 @@ export default function Review() {
     if (measured) {
       lines.push(
         `Measured TDEE: ${fmt(measured.tdee_kcal)} kcal (±${fmt((measured.ci_high - measured.ci_low) / 2)})${tdee?.published ? `, applied ${fmt(tdee.published.tdee)}` : ''}`,
+      );
+    }
+    if (week) {
+      lines.push(`Logged: ${consistencyLine(week.logging)}`);
+    }
+    if (week?.minerals) {
+      lines.push(
+        `Potassium:sodium ${week.minerals.ratio.toFixed(1)}:1 (aim ${week.minerals.target}:1)`,
       );
     }
     if (r?.calorieConfidence != null && r.microCoverage != null) {
@@ -82,6 +94,45 @@ export default function Review() {
         </Button>
       </div>
 
+      {dietBreak && (
+        <Card className="mt-5 p-5">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+              <CalendarRange size={17} strokeWidth={2.2} aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <div className="text-[16px] font-semibold">Take a two-week break?</div>
+              <p className="mt-1 text-[14px] leading-snug text-ink-2">{dietBreak.line}</p>
+              <p className="mt-1.5 text-[13px] leading-snug text-muted">
+                Maintenance from{' '}
+                {fromDateKey(dietBreak.from).toLocaleDateString(undefined, {
+                  day: 'numeric',
+                  month: 'long',
+                })}
+                , back to your cut on{' '}
+                {fromDateKey(dietBreak.to).toLocaleDateString(undefined, {
+                  day: 'numeric',
+                  month: 'long',
+                })}
+                . Two entries in your mode schedule, removable any time.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant="primary"
+              className="flex-1"
+              onClick={() => void acceptDietBreak(dietBreak)}
+            >
+              Schedule it
+            </Button>
+            <Button className="flex-1" onClick={() => void dismissDietBreak(today)}>
+              Not this week
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {!r ? null : r.completeDays === 0 ? (
         <Card className="mt-5 p-5 text-[14px] text-muted">
           No full days logged this week yet. A day counts once it reaches 60% of its target.
@@ -109,7 +160,10 @@ export default function Review() {
             <Stat
               label="Protein"
               value={`${fmt(r.avgProtein)} g`}
-              sub={`of ${fmt(r.proteinTarget)} g a day`}
+              sub={`of ${fmt(r.proteinTarget)} g · ${dayProteinDensity(
+                r.avgKcal,
+                r.avgProtein,
+              ).toFixed(1)} g per 100 kcal`}
               good={r.avgProtein >= 0.85 * r.proteinTarget}
             />
             <Stat
@@ -136,6 +190,19 @@ export default function Review() {
             )}
           </div>
 
+          {week && (
+            <Card className="mt-3 px-4 py-3">
+              <div className="text-[13px] font-semibold text-muted">Logging</div>
+              <p className="mt-0.5 text-[15px]">{consistencyLine(week.logging)}</p>
+              <p className="mt-1 text-[13px] leading-snug text-muted">
+                {week.logging.month} of the last 28 days.{' '}
+                {week.logging.consistent
+                  ? 'That is the level the research ties to results — how completely each day is logged matters far less.'
+                  : 'Logging something on most days does more than logging any one day perfectly.'}
+              </p>
+            </Card>
+          )}
+
           {r.calorieConfidence != null && r.microCoverage != null && (
             <p className="mt-4 px-1 text-[13px] text-muted tabular">
               {Math.round(r.calorieConfidence * 100)}% of calories weighed ·{' '}
@@ -150,6 +217,15 @@ export default function Review() {
               {fmt(coach.result.gap.target, coach.result.gap.unit === 'g' ? 0 : 1)}{' '}
               {coach.result.gap.unit} a day.
             </Card>
+          )}
+
+          {week?.minerals && (
+            <section className="mt-6">
+              <SectionHeading trailing={`${week.minerals.days} judgeable days`}>
+                Potassium and sodium
+              </SectionHeading>
+              <MineralRow m={week.minerals} />
+            </section>
           )}
 
           {low.length > 0 && (
@@ -172,6 +248,40 @@ export default function Review() {
         otherwise.
       </p>
     </div>
+  );
+}
+
+/**
+ * Sodium on its own is a number nobody can act on; the evidence is about the ratio. Shown with
+ * the coverage it was computed from, because a ratio from half a week is half a fact (§7.4).
+ */
+function MineralRow({ m }: { m: MineralBalance }) {
+  const good = m.ratio >= m.target;
+  const pct = Math.min(100, (m.ratio / (m.target * 1.5)) * 100);
+  return (
+    <Card className="p-4">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[15px] font-semibold tabular">{m.ratio.toFixed(1)}:1</span>
+        <span className={`text-[13px] tabular ${good ? 'text-fiber' : 'text-kcal'}`}>
+          aim {m.target}:1
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+        <div
+          className={`h-full rounded-full ${good ? 'bg-fiber' : 'bg-kcal'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="mt-2 text-[13px] leading-snug text-muted tabular">
+        {fmt(m.potassium_mg)} mg potassium · {fmt(m.sodium_mg)} mg sodium a day, from{' '}
+        {Math.round(m.coverage * 100)}% of what you logged.
+      </p>
+      <p className="mt-1 text-[13px] leading-snug text-muted">
+        {good
+          ? 'Above the ratio the DASH trials used — that comes from vegetables, not from avoiding salt.'
+          : 'More potassium does more here than less sodium: vegetables, beans, potatoes, dairy.'}
+      </p>
+    </Card>
   );
 }
 

@@ -9,6 +9,7 @@ import {
   Plus,
   Search,
   SearchX,
+  Utensils,
   WifiOff,
   X,
 } from 'lucide-react';
@@ -68,7 +69,10 @@ export default function LogFood() {
   const [online, setOnline] = useState<{ q: string; r: Online }>({ q: '', r: { state: 'idle' } });
   const [picked, setPicked] = useState<{ food: Food; grams: number | undefined } | null>(null);
   const [scan, setScan] = useState<
-    { state: 'idle' } | { state: 'busy'; step: string } | { state: 'error'; message: string }
+    | { state: 'idle' }
+    | { state: 'busy'; step: string }
+    // The code is kept so the label route can offer it back to Open Food Facts (§7.2).
+    | { state: 'error'; message: string; code?: string }
   >({ state: 'idle' });
   const [kcalById, setKcalById] = useState<Map<string, number>>(new Map());
 
@@ -152,6 +156,7 @@ export default function LogFood() {
         setScan({
           state: 'error',
           message: `${code} is not in Open Food Facts yet — photograph its nutrition label and the fields fill themselves.`,
+          code,
         });
         return;
       }
@@ -245,6 +250,11 @@ export default function LogFood() {
           </Chip>
         )}
         {!recipe && (
+          <Chip icon={Utensils} onClick={() => navigate(`/menu?d=${date}`)}>
+            Eating out
+          </Chip>
+        )}
+        {!recipe && (
           <Chip icon={PenLine} onClick={() => navigate(`/quick?d=${date}`)}>
             Quick add
           </Chip>
@@ -279,7 +289,11 @@ export default function LogFood() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => navigate(`/foods/new?d=${date}&label=1`)}
+                    onClick={() =>
+                      navigate(
+                        `/foods/new?d=${date}&label=1${scan.code ? `&barcode=${scan.code}` : ''}`,
+                      )
+                    }
                     className="font-semibold text-accent"
                   >
                     Read the label

@@ -3,6 +3,7 @@
 // Guard rails (§4.3) and the weekly publish step (§4.4) are pure too, so the synthetic
 // 90-day test in tdee.test.ts covers the whole thing.
 import { addDays, diffDays } from './dates';
+import { DEFAULT_FILTER, runFilter, type FilterDay, type FilterOptions } from './kalman';
 import { ENERGY_DENSITY_KCAL_PER_KG } from './targets';
 
 export interface EngineDay {
@@ -13,6 +14,13 @@ export interface EngineDay {
   low_confidence_share?: number | undefined;
   /** Trend weight for the day (carried forward on gaps). Undefined before the first weigh-in. */
   trend?: number | undefined;
+  /**
+   * The raw scale reading, when there was one. The filter (§4.5) wants this rather than the
+   * trend: the EMA's lag is exactly the bias it exists to remove.
+   */
+  raw?: number | undefined;
+  /** Multiplier on this reading's trustworthiness — see `cycle.ts` (§4.1). */
+  sigma_scale?: number | undefined;
   weighed: boolean;
 }
 
@@ -28,6 +36,8 @@ export interface EngineOptions {
   /** Uncertainty in the energy density of the change, kcal/kg. */
   density_sigma: number;
   alpha: number;
+  /** State-space filter settings; see `kalman.ts`. */
+  filter: FilterOptions;
 }
 
 // 28-day window, not the 21 of §4.2: on the synthetic benchmark (tdee.test.ts) a 21-day
@@ -43,12 +53,17 @@ export const DEFAULT_ENGINE: EngineOptions = {
   weight_sigma_kg: 0.7,
   density_sigma: 1000,
   alpha: 0.15,
+  // One energy density for the whole engine: the filter's must be the §3 constant.
+  filter: { ...DEFAULT_FILTER, energy_density: ENERGY_DENSITY_KCAL_PER_KG },
 };
 
 /** Day number on which the first estimate can exist (§4.5). */
 export function firstEstimateDay(o: EngineOptions = DEFAULT_ENGINE): number {
   return o.excluded_days + o.min_window_days;
 }
+
+/** Which estimator produced a number (§4.5). */
+export type EstimateMethod = 'filter' | 'trend';
 
 export interface Estimate {
   computed_on: string;
@@ -63,6 +78,10 @@ export interface Estimate {
   /** Diagnostics the UI can show. */
   mean_intake: number;
   delta_trend_kg: number;
+  /** How the number was reached: the filter, or the §4.2 trend difference as a fallback. */
+  method: EstimateMethod;
+  /** Days the filter learned from — the whole record after the excluded days, not a window. */
+  filter_days: number;
 }
 
 export type EngineResult =
@@ -142,18 +161,66 @@ export function estimateTdee(
 
   const delta = endTrend - startTrend; // kg, negative when losing
   const perDay = (delta * ENERGY_DENSITY_KCAL_PER_KG) / span;
-  const tdee = meanIntake - perDay;
 
-  // §4.5 confidence interval.
-  const perDaySigma = meanIntake * (0.1 * (1 - lowShare) + 0.3 * lowShare);
-  const seIntake =
-    (perDaySigma / Math.sqrt(logged.length)) * Math.sqrt(window.length / logged.length);
-  // EMA variance factor α/(2−α); two roughly independent points; gaps lengthen the effective lag.
-  const emaFactor = Math.sqrt(o.alpha / (2 - o.alpha));
-  const trendSigma = o.weight_sigma_kg * emaFactor * Math.sqrt(window.length / weighed.length);
-  const seWeight = (Math.SQRT2 * trendSigma * ENERGY_DENSITY_KCAL_PER_KG) / span;
-  const seDensity = (Math.abs(delta) * o.density_sigma) / span;
-  const se = Math.sqrt(seIntake ** 2 + seWeight ** 2 + seDensity ** 2);
+  // The filter reads the whole record after the excluded days, not the reporting window: it has
+  // no window to forget with, so every extra day narrows the interval instead of shifting it
+  // (§4.5). The window above still decides whether there is *enough* data to speak at all.
+  const filterSeries: FilterDay[] = [];
+  for (let n = o.excluded_days + 1; n <= dayNo; n++) {
+    const date = addDays(day1, n - 1);
+    const d = byDate.get(date);
+    const day: FilterDay = { date };
+    if (d?.kcal != null) {
+      day.intake = d.kcal;
+      // §7.4 reaches the filter: a day of weighed food is trusted more than a day of guesses.
+      const low = d.low_confidence_share ?? 0;
+      day.intake_sigma = d.kcal * (0.1 * (1 - low) + 0.3 * low);
+    }
+    if (d?.raw != null) day.raw = d.raw;
+    if (d?.sigma_scale != null) day.sigma_scale = d.sigma_scale;
+    filterSeries.push(day);
+  }
+  const rawReadings = filterSeries.reduce((n, d) => n + (d.raw != null ? 1 : 0), 0);
+  // Maintenance is the neutral prior: it assumes nothing about the direction of travel.
+  const run =
+    rawReadings >= o.min_weighed_days
+      ? runFilter(filterSeries, meanIntake, meanIntake, o.filter)
+      : undefined;
+
+  let tdee: number;
+  let se: number;
+  let method: EstimateMethod;
+  let filterDays: number;
+
+  if (run) {
+    // The energy density itself is uncertain (7,700 ± 1,000 kcal/kg), which scales whatever
+    // rate the filter inferred; the filter's own variance covers intake and scale noise.
+    const rate = Math.abs(meanIntake - run.state.tdee);
+    const seDensity = (rate * o.density_sigma) / ENERGY_DENSITY_KCAL_PER_KG;
+    tdee = run.state.tdee;
+    se = Math.sqrt(run.state.var_tdee + seDensity ** 2);
+    method = 'filter';
+    filterDays = run.steps + 1;
+  } else {
+    // §4.2 fallback: the difference between two trend points. Used when the record carries no
+    // raw readings — imported history, or a series assembled without them.
+    const perDaySigma = meanIntake * (0.1 * (1 - lowShare) + 0.3 * lowShare);
+    const seIntake =
+      (perDaySigma / Math.sqrt(logged.length)) * Math.sqrt(window.length / logged.length);
+    // EMA variance factor α/(2−α); two roughly independent points; gaps lengthen the lag.
+    const emaFactor = Math.sqrt(o.alpha / (2 - o.alpha));
+    const trendSigma = o.weight_sigma_kg * emaFactor * Math.sqrt(window.length / weighed.length);
+    const seWeight = (Math.SQRT2 * trendSigma * ENERGY_DENSITY_KCAL_PER_KG) / span;
+    const seDensity = (Math.abs(delta) * o.density_sigma) / span;
+    tdee = meanIntake - perDay;
+    se = Math.sqrt(seIntake ** 2 + seWeight ** 2 + seDensity ** 2);
+    method = 'trend';
+    filterDays = 0;
+  }
+
+  // A human burns somewhere in this band; anything outside it is a broken record, not a
+  // metabolism. The §4.3 divergence card still sees the raw value through `measured`.
+  tdee = Math.min(8000, Math.max(800, tdee));
   const ci = 1.96 * se;
 
   const quality =
@@ -172,6 +239,8 @@ export function estimateTdee(
       data_quality: Math.round(quality * 100) / 100,
       mean_intake: Math.round(meanIntake),
       delta_trend_kg: Math.round(delta * 100) / 100,
+      method,
+      filter_days: filterDays,
     },
   };
 }

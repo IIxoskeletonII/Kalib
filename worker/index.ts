@@ -20,6 +20,9 @@ import {
 } from './guard';
 import { normalizeOffProduct, rankOffProducts, type OffProduct, type OffHit } from './off';
 import { runLabel, type LabelEnv, type LabelRequest } from './label';
+import { runMenu, type MenuEnv, type MenuRequest } from './menu';
+import { offSubmitEnabled, submitToOff, type OffSubmission, type OffSubmitEnv } from './offSubmit';
+import { runRecipeUrl, type RecipeUrlEnv } from './recipeUrl';
 import { runSuggest, type SuggestEnv, type SuggestRequest } from './suggest';
 import {
   addToBank,
@@ -45,7 +48,16 @@ import {
   type StoredSubscription,
 } from './push';
 
-export interface Env extends EstimateEnv, SuggestEnv, LabelEnv, PushEnv, GuardEnv {
+export interface Env
+  extends
+    EstimateEnv,
+    SuggestEnv,
+    LabelEnv,
+    MenuEnv,
+    OffSubmitEnv,
+    RecipeUrlEnv,
+    PushEnv,
+    GuardEnv {
   ASSETS: Fetcher;
   /** Push subscriptions and daily quota counters. Optional: without it reminders are off. */
   PUSH?: KVNamespace;
@@ -485,15 +497,49 @@ export default {
       return json({ ok: true, size: bank.length });
     }
 
+    // SPEC §7.2 — giving a scanned product back to Open Food Facts. Opt-in per product on the
+    // client; inert here unless the operator configured an account.
+    if (url.pathname === '/api/off/contribute') {
+      if (request.method === 'GET') return json({ enabled: offSubmitEnabled(env) });
+      if (request.method !== 'POST') return json({ error: 'method' }, 405);
+      const origin = request.headers.get('origin') ?? '';
+      if (origin && origin !== url.origin) return json({ error: 'forbidden' }, 403);
+      if (!offSubmitEnabled(env)) {
+        return json({ error: 'Contributing is not set up on this server.' }, 503);
+      }
+      if (!authConfigured(env)) return json({ error: 'not configured' }, 503);
+      const user = await requireUser(request, env);
+      if (!user) return json({ error: 'Sign in (Settings → Sync) to contribute products.' }, 401);
+      if (!(await underLimit(env.ESTIMATE_LIMIT, `off-write:${user.id}`))) {
+        return json({ error: 'One at a time — try again in a minute.' }, 429);
+      }
+      let body: OffSubmission;
+      try {
+        body = (await request.json()) as OffSubmission;
+      } catch {
+        return json({ error: 'bad request' }, 400);
+      }
+      const out = await submitToOff(body, env);
+      return out.ok
+        ? json({ ok: true, barcode: out.barcode })
+        : json({ error: out.error }, out.status);
+    }
+
     // SPEC §9.4 estimation and §18.6 suggestions both cost money: signed in, rate-limited,
     // and sharing one daily cap (a batch of suggestions counts as one estimate).
     if (
       url.pathname === '/api/estimate' ||
       url.pathname === '/api/suggest' ||
-      url.pathname === '/api/label'
+      url.pathname === '/api/label' ||
+      url.pathname === '/api/menu' ||
+      url.pathname === '/api/recipe'
     ) {
       const suggesting = url.pathname === '/api/suggest';
       const reading = url.pathname === '/api/label';
+      const menu = url.pathname === '/api/menu';
+      // A recipe link is usually read straight from the page's own structured data, at no cost
+      // at all, but it shares the gate because the fallback can reach the model.
+      const linking = url.pathname === '/api/recipe';
       if (request.method !== 'POST') return json({ error: 'method' }, 405);
       const origin = request.headers.get('origin') ?? '';
       if (origin && origin !== url.origin) return json({ error: 'forbidden' }, 403);
@@ -508,7 +554,11 @@ export default {
               ? 'Sign in (Settings → Sync) to get suggestions.'
               : reading
                 ? 'Sign in (Settings → Sync) to read labels.'
-                : 'Sign in (Settings → Sync) to estimate meals.',
+                : menu
+                  ? 'Sign in (Settings → Sync) to read menus.'
+                  : linking
+                    ? 'Sign in (Settings → Sync) to import recipes from a link.'
+                    : 'Sign in (Settings → Sync) to estimate meals.',
           },
           401,
         );
@@ -520,10 +570,12 @@ export default {
         return json({ error: 'One at a time — try again in a minute.' }, 429);
       }
       const size = Number(request.headers.get('content-length') ?? 0);
-      if (size > (suggesting ? 20_000 : 2_500_000)) return json({ error: 'Too large.' }, 413);
-      let req: EstimateRequest & SuggestRequest & LabelRequest;
+      if (size > (suggesting || linking ? 20_000 : 2_500_000)) {
+        return json({ error: 'Too large.' }, 413);
+      }
+      let req: EstimateRequest & SuggestRequest & LabelRequest & MenuRequest & { url?: string };
       try {
-        req = (await request.json()) as EstimateRequest & SuggestRequest & LabelRequest;
+        req = (await request.json()) as typeof req;
       } catch {
         return json({ error: 'bad request' }, 400);
       }
@@ -573,7 +625,23 @@ export default {
           cap: admitted.capUser,
         });
       }
-      const out = reading ? await runLabel(req, env) : await runEstimate(req, env);
+      if (linking) {
+        const link = typeof req.url === 'string' ? req.url : '';
+        const read = await runRecipeUrl(link, env);
+        return read.ok
+          ? json({
+              recipe: read.recipe,
+              via: read.via,
+              used: admitted.usedToday,
+              cap: admitted.capUser,
+            })
+          : json({ error: read.error }, read.status);
+      }
+      const out = menu
+        ? await runMenu(req, env)
+        : reading
+          ? await runLabel(req, env)
+          : await runEstimate(req, env);
       return out.ok
         ? json({
             result: out.result,

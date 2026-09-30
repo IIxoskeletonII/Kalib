@@ -22,6 +22,7 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ProfileForm } from '@/components/ProfileForm';
 import { RemindersCard } from '@/components/RemindersCard';
+import { CycleCard } from '@/components/CycleCard';
 import { Button, Card, ListRow, Row, SectionHeading, Segmented, Sheet, fmt } from '@/components/ui';
 import { fromDateKey, todayKey } from '@/core/dates';
 import { nextSwitch, resolveMode, type ModeSwitch } from '@/core/targets';
@@ -462,6 +463,8 @@ export default function Settings() {
           </div>
         </Card>
       </section>
+
+      <CycleCard />
 
       <section>
         <SectionHeading>Reminders</SectionHeading>

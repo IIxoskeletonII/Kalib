@@ -100,9 +100,12 @@ describe('tdeeState', () => {
   });
 
   it('parks a measurement >600 kcal from the formula, and applies it only on request', async () => {
-    // 2,200 kcal and −0.2 kg/day → measured ≈ 3,740, far above any formula for this profile.
-    await seedDays(24, 2200, 0.2);
-    const today = addDays(DAY1, 23);
+    // 2,200 kcal and −0.2 kg/day → the truth is ≈ 3,740, far above any formula for this
+    // profile. The filter needs more than the minimum fourteen days to get there: on day 24 it
+    // is still shrunk toward its maintenance prior (≈ 3,300, inside its own ±680 interval), so
+    // the divergence card is exercised once the record is long enough to be confident.
+    await seedDays(45, 2200, 0.2);
+    const today = addDays(DAY1, 44);
     const s = await tdeeState(today);
     expect(s.result.status).toBe('ok');
     expect(s.published).toBeUndefined();

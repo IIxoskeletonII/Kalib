@@ -6,11 +6,20 @@ import { WeighInSheet } from '@/components/WeighInSheet';
 import { SwipeRow } from '@/components/SwipeRow';
 import { toast } from '@/components/Toast';
 import { deleteWeighIn, upsertWeighIn } from '@/db/repo/weighIns';
+import { relativeFatMass, waistToHeight, WHTR_HEALTHY_MAX } from '@/core/body';
+import { retentionWindows } from '@/core/cycle';
 import { addDays, fromDateKey, todayKey } from '@/core/dates';
 import { computeTrend, trendDelta } from '@/core/trend';
 import { fmt } from '@/components/ui';
 import { setSetting } from '@/db/repo/settings';
-import { useSetting, useTdee, useWeighIns } from '@/hooks/useData';
+import { useCycle, useProfile, useSetting, useTdee, useWeighIns } from '@/hooks/useData';
+
+/** Which measurement the chart is showing. Both live in the same card, one tap apart. */
+type Series = 'weight' | 'waist';
+const SERIES: { value: Series; label: string }[] = [
+  { value: 'weight', label: 'Weight' },
+  { value: 'waist', label: 'Waist' },
+];
 
 type Range = '28' | '84' | 'all';
 const RANGES: { value: Range; label: string }[] = [
@@ -21,24 +30,51 @@ const RANGES: { value: Range; label: string }[] = [
 
 export default function Trend() {
   const weighIns = useWeighIns();
+  const profile = useProfile();
   const showRaw = useSetting<boolean>('show_raw_weight', false);
   const tdee = useTdee();
+  const [series, setSeries] = useState<Series>('weight');
   const [range, setRange] = useState<Range>('28');
   const [editDate, setEditDate] = useState<string | null>(null);
   const today = todayKey();
+  const cycle = useCycle(today);
 
   const all = useMemo(() => computeTrend(weighIns ?? [], undefined, today), [weighIns, today]);
-  const points = useMemo(() => {
-    if (range === 'all') return all;
-    const from = addDays(today, -Number(range));
-    return all.filter((p) => p.date >= from);
-  }, [all, range, today]);
+  // Waist is measured weekly rather than daily, so smoothing it would say nothing. alpha = 1
+  // carries each reading forward until the next one: the readings themselves are the line.
+  const waistAll = useMemo(() => {
+    const readings = (weighIns ?? [])
+      .filter((w) => w.waist_cm != null)
+      .map((w) => ({ date: w.date, weight_kg: w.waist_cm! }));
+    return readings.length > 0 ? computeTrend(readings, 1, today) : [];
+  }, [weighIns, today]);
 
-  const latest = all.at(-1);
-  const d7 = trendDelta(all, 7);
-  const d28 = trendDelta(all, 28);
-  const sinceStart = all.length > 1 ? latest!.trend - all[0]!.trend : undefined;
+  const source = series === 'weight' ? all : waistAll;
+  const points = useMemo(() => {
+    if (range === 'all') return source;
+    const from = addDays(today, -Number(range));
+    return source.filter((p) => p.date >= from);
+  }, [source, range, today]);
+
+  // The stretches where water retention is expected, shaded behind the line.
+  const bands = useMemo(() => {
+    if (!cycle.enabled || points.length === 0) return [];
+    return retentionWindows(points[0]!.date, points[points.length - 1]!.date, cycle.starts);
+  }, [cycle.enabled, cycle.starts, points]);
+
+  const latest = source.at(-1);
+  const unit = series === 'weight' ? 'kg' : 'cm';
+  const d7 = trendDelta(source, 7);
+  const d28 = trendDelta(source, 28);
+  const sinceStart = source.length > 1 ? latest!.trend - source[0]!.trend : undefined;
   const weighedDays = all.filter((p) => p.weighed).length;
+  const waistDays = waistAll.filter((p) => p.weighed).length;
+  const lastWaist = waistAll.filter((p) => p.weighed).at(-1);
+  const rfm =
+    profile && lastWaist
+      ? relativeFatMass(profile.height_cm, lastWaist.raw!, profile.sex)
+      : undefined;
+  const whtr = profile && lastWaist ? waistToHeight(profile.height_cm, lastWaist.raw!) : undefined;
 
   return (
     <div className="pb-32">
@@ -51,10 +87,12 @@ export default function Trend() {
         <Card className="mt-6 p-5">
           <div className="flex items-end justify-between">
             <div>
-              <div className="text-[13px] font-semibold text-muted">Trend weight</div>
+              <div className="text-[13px] font-semibold text-muted">
+                {series === 'weight' ? 'Trend weight' : 'Waist'}
+              </div>
               <div className="display mt-1">
                 {latest.trend.toFixed(1)}
-                <span className="ml-1.5 text-[20px] font-medium text-muted">kg</span>
+                <span className="ml-1.5 text-[20px] font-medium text-muted">{unit}</span>
               </div>
             </div>
             {d7 != null && (
@@ -67,24 +105,40 @@ export default function Trend() {
                   <TrendingUp size={16} aria-hidden />
                 )}
                 {d7 > 0 ? '+' : ''}
-                {d7.toFixed(2)} kg in 7 days
+                {d7.toFixed(series === 'weight' ? 2 : 1)} {unit} in 7 days
               </div>
             )}
           </div>
           <div className="mt-4">
             {points.length >= 2 ? (
-              <TrendChart points={points} showRaw={showRaw} />
+              <TrendChart
+                points={points}
+                showRaw={showRaw}
+                bands={bands}
+                decimals={series === 'weight' ? 1 : 0}
+              />
             ) : (
               <p className="py-10 text-center text-[14px] text-muted">
-                Two or more weigh-ins needed for a chart.
+                {series === 'weight'
+                  ? 'Two or more weigh-ins needed for a chart.'
+                  : 'Two or more waist measurements needed. Add one with your weigh-in — it keeps moving when the scale stalls.'}
               </p>
             )}
           </div>
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <Segmented value={range} options={RANGES} onChange={setRange} className="flex-1" />
-            <Chip active={showRaw} onClick={() => setSetting('show_raw_weight', !showRaw)}>
-              Raw
-            </Chip>
+          {bands.length > 0 && (
+            <p className="mt-2 text-[12px] text-muted">
+              Shaded days are when water retention is likely — the trend allows for them rather than
+              reading them as weight gained.
+            </p>
+          )}
+          <div className="mt-3 space-y-2">
+            <Segmented value={series} options={SERIES} onChange={setSeries} />
+            <div className="flex items-center justify-between gap-3">
+              <Segmented value={range} options={RANGES} onChange={setRange} className="flex-1" />
+              <Chip active={showRaw} onClick={() => setSetting('show_raw_weight', !showRaw)}>
+                Raw
+              </Chip>
+            </div>
           </div>
         </Card>
       ) : (
@@ -99,9 +153,22 @@ export default function Trend() {
 
       {latest && (
         <Card className="mt-3 divide-y divide-line">
-          {d28 != null && <Row label="Last 28 days" value={signed(d28)} sub="kg" />}
-          {sinceStart != null && <Row label="Since start" value={signed(sinceStart)} sub="kg" />}
-          <Row label="Days weighed" value={String(weighedDays)} sub={`of ${all.length}`} />
+          {d28 != null && <Row label="Last 28 days" value={signed(d28)} sub={unit} />}
+          {sinceStart != null && <Row label="Since start" value={signed(sinceStart)} sub={unit} />}
+          {series === 'weight' ? (
+            <Row label="Days weighed" value={String(weighedDays)} sub={`of ${all.length}`} />
+          ) : (
+            <Row label="Measurements" value={String(waistDays)} sub="taken" />
+          )}
+          {series === 'waist' && rfm != null && whtr != null && (
+            <Row
+              label="Body fat"
+              value={`${rfm.toFixed(0)}%`}
+              sub={`RFM · waist ${Math.round(whtr * 100)}% of height${
+                whtr <= WHTR_HEALTHY_MAX ? '' : ', aim under 50%'
+              }`}
+            />
+          )}
         </Card>
       )}
 
@@ -123,7 +190,9 @@ export default function Trend() {
                 <div className="flex items-end justify-between gap-4">
                   <div>
                     <div className="text-[13px] font-semibold text-muted">
-                      TDEE, last {tdee.result.estimate.window_days} days
+                      {tdee.result.estimate.method === 'filter'
+                        ? `TDEE, from ${tdee.result.estimate.filter_days} days`
+                        : `TDEE, last ${tdee.result.estimate.window_days} days`}
                     </div>
                     <div className="display mt-1">
                       {fmt(tdee.result.estimate.tdee_kcal)}
@@ -234,8 +303,6 @@ export default function Trend() {
       <WeighInSheet
         open={editDate != null}
         date={editDate ?? today}
-        current={weighIns?.find((w) => w.date === editDate)?.weight_kg}
-        previous={weighIns?.filter((w) => editDate != null && w.date < editDate).at(-1)?.weight_kg}
         onClose={() => setEditDate(null)}
       />
     </div>

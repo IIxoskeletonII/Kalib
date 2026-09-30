@@ -17,6 +17,7 @@ import { firstActivityDate, listEntriesSince } from '@/db/repo/logEntries';
 import { getSetting, setSetting } from '@/db/repo/settings';
 import { upsertTdeeEstimate } from '@/db/repo/tdeeEstimates';
 import { listWeighIns } from '@/db/repo/weighIns';
+import { sigmaScales } from './cycle';
 import {
   PUBLISHED_TDEE_KEY,
   formulaTargets,
@@ -51,7 +52,11 @@ export async function buildEngineDays(today: string): Promise<{ day1: string; da
     listEntriesSince(day1),
     listDailyTargets(),
   ]);
-  const trend = new Map(computeTrend(weighIns, undefined, today).map((p) => [p.date, p]));
+  const trendPoints = computeTrend(weighIns, undefined, today);
+  const trend = new Map(trendPoints.map((p) => [p.date, p]));
+  // §4.1: days the scale is known to mislead are handed to the filter as less trustworthy
+  // readings rather than being altered or dropped.
+  const scales = await sigmaScales(trendPoints.filter((p) => p.weighed).map((p) => p.date));
   const targetByDate = new Map(targets.map((t) => [t.date, t.kcal]));
   const byDate = new Map<string, LogEntry[]>();
   for (const e of entries) {
@@ -76,6 +81,8 @@ export async function buildEngineDays(today: string): Promise<{ day1: string; da
       kcal: logged ? kcal : undefined,
       low_confidence_share: logged && kcal > 0 ? low / kcal : undefined,
       trend: t?.trend,
+      raw: t?.raw,
+      sigma_scale: scales.get(date),
       weighed: t?.weighed ?? false,
     });
   }

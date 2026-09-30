@@ -95,13 +95,7 @@ export function DailyChecks({
         />
       </div>
 
-      <WeighInSheet
-        open={open === 'weight'}
-        date={date}
-        current={todaysWeighIn?.weight_kg}
-        previous={previousWeighIn?.weight_kg}
-        onClose={() => setOpen(null)}
-      />
+      <WeighInSheet open={open === 'weight'} date={date} onClose={() => setOpen(null)} />
       <WaterSheet
         open={open === 'water'}
         date={date}

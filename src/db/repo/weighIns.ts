@@ -6,7 +6,11 @@ import { db, isLive, LOCAL_USER_ID, newMeta, nowIso } from '../db';
 export async function upsertWeighIn(
   date: string,
   weight_kg: number,
-  opts: { bodyfat_pct?: number | undefined; source?: WeighInSource } = {},
+  opts: {
+    bodyfat_pct?: number | undefined;
+    waist_cm?: number | undefined;
+    source?: WeighInSource;
+  } = {},
 ): Promise<WeighIn> {
   return db.transaction('rw', db.weigh_ins, async () => {
     const existing = await db.weigh_ins
@@ -17,14 +21,25 @@ export async function upsertWeighIn(
     if (existing) {
       const patch: Partial<WeighIn> = { weight_kg, source, updated_at: nowIso() };
       if (opts.bodyfat_pct != null) patch.bodyfat_pct = opts.bodyfat_pct;
+      if (opts.waist_cm != null) patch.waist_cm = opts.waist_cm;
       await db.weigh_ins.update(existing.id, { ...patch, deleted_at: null });
       return { ...existing, ...patch, deleted_at: null } as WeighIn;
     }
     const row: WeighIn = { ...newMeta(), date, weight_kg, source };
     if (opts.bodyfat_pct != null) row.bodyfat_pct = opts.bodyfat_pct;
+    if (opts.waist_cm != null) row.waist_cm = opts.waist_cm;
     await db.weigh_ins.add(row);
     return row;
   });
+}
+
+/**
+ * Removes a waist reading without touching the weight — a mistyped tape measure. Stored as
+ * null rather than deleted so the clearing travels through sync, the same way `deleted_at` does.
+ */
+export async function clearWaist(date: string): Promise<void> {
+  const row = await db.weigh_ins.where('[user_id+date]').equals([LOCAL_USER_ID, date]).first();
+  if (row) await db.weigh_ins.update(row.id, { waist_cm: null, updated_at: nowIso() });
 }
 
 export async function getWeighIn(date: string): Promise<WeighIn | undefined> {

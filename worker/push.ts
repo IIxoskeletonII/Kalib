@@ -39,7 +39,7 @@ export interface StoredSubscription {
   /** The last send that did not arrive, so a silent failure has somewhere to be seen. */
   last_error?: { at: string; kind: ReminderKind; status: number; detail: string };
   /** Local date each reminder was last sent, so it fires once a day. */
-  sent?: { weigh?: string; log?: string };
+  sent?: { weigh?: string; log?: string; fresh?: string };
   /** Supabase user the subscription belongs to (records from before auth was required lack it). */
   user_id?: string;
   updated_at: string;
@@ -274,7 +274,37 @@ export function localClock(now: Date, tz: string): { date: string; time: string 
   return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${hour}:${get('minute')}` };
 }
 
-export type ReminderKind = 'weigh' | 'log';
+export type ReminderKind = 'weigh' | 'log' | 'fresh';
+
+/** Days of silence before a landmark is worth speaking on. */
+export const LAPSED_DAYS = 3;
+/** When no weigh-in time is set, the fresh-start nudge goes out mid-morning. */
+export const FRESH_START_TIME = '09:00';
+
+export type Landmark = 'year' | 'month' | 'week';
+
+/**
+ * Whether a local date is one of the landmarks people restart on. Goal-directed behaviour
+ * spikes right after a Monday, a first of the month or a new year, because a landmark separates
+ * someone from a past imperfect self. Checked in descending order so 1 January is a new year.
+ */
+export function freshStartLandmark(date: string): Landmark | undefined {
+  const [, mm, dd] = date.split('-');
+  if (mm === '01' && dd === '01') return 'year';
+  if (dd === '01') return 'month';
+  // Parsed as UTC deliberately: `date` is already the subscriber's own local calendar day.
+  if (new Date(`${date}T00:00:00Z`).getUTCDay() === 1) return 'week';
+  return undefined;
+}
+
+/** Days since the last logged day, or undefined when nothing was ever logged. */
+export function daysQuiet(s: StoredSubscription, date: string): number | undefined {
+  const last = s.lastLoggedDate;
+  if (!last) return undefined;
+  const ms = Date.parse(`${date}T00:00:00Z`) - Date.parse(`${last}T00:00:00Z`);
+  if (!Number.isFinite(ms)) return undefined;
+  return Math.max(0, Math.round(ms / 86400000));
+}
 
 /**
  * Which reminders are due for a subscription right now: the local time has passed the
@@ -310,6 +340,21 @@ export function dueReminders(s: StoredSubscription, now: Date): ReminderKind[] {
   const due: ReminderKind[] = [];
   const passed = (at: string | null) => at != null && time >= at;
   if (passed(s.prefs.weighAt) && left.weigh && s.sent?.weigh !== date) due.push('weigh');
+
+  // A landmark after a real gap earns a different message: an invitation to start rather than
+  // a note about what is missing. It replaces the evening nudge that day, never doubles it.
+  const quiet = daysQuiet(s, date);
+  const fresh =
+    freshStartLandmark(date) != null &&
+    quiet != null &&
+    quiet >= LAPSED_DAYS &&
+    left.log &&
+    s.sent?.fresh !== date &&
+    passed(s.prefs.weighAt ?? FRESH_START_TIME);
+  if (fresh) {
+    due.push('fresh');
+    return due;
+  }
   if (passed(s.prefs.logAt) && left.any && s.sent?.log !== date) due.push('log');
   return due;
 }
@@ -370,6 +415,15 @@ export function reminderMessage(
       body: 'Step on the scale — it takes five seconds.',
       url: '/',
       tag: 'weigh',
+    };
+  }
+  if (kind === 'fresh') {
+    // Deliberately says nothing about how long the gap was. The point is the beginning.
+    return {
+      title: 'Clean first day',
+      body: 'New week, new start. Log one thing and you are going again.',
+      url: '/',
+      tag: 'fresh',
     };
   }
   const text = left ? outstandingText(left) : '';

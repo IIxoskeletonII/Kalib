@@ -31,6 +31,7 @@ const Supplements = lazy(() => import('@/screens/Supplements'));
 const Recipes = lazy(() => import('@/screens/Recipes'));
 const RecipeEditor = lazy(() => import('@/screens/RecipeEditor'));
 const Estimate = lazy(() => import('@/screens/Estimate'));
+const Menu = lazy(() => import('@/screens/Menu'));
 const Review = lazy(() => import('@/screens/Review'));
 const RecipeImport = lazy(() => import('@/screens/RecipeImport'));
 const Plan = lazy(() => import('@/screens/Plan'));
@@ -119,6 +120,7 @@ export default function App() {
               <Route path="/plan" element={<Plan />} />
               <Route path="/plan/shopping" element={<Shopping />} />
               <Route path="/estimate" element={<Estimate />} />
+              <Route path="/menu" element={<Menu />} />
               <Route path="/review" element={<Review />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="*" element={<Navigate to="/" replace />} />

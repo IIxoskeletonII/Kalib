@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { DaySummary } from './coach';
-import { microPanel, weekReview } from './review';
+import { daySodium, K_NA_TARGET, microPanel, potassiumSodium, weekReview } from './review';
 import type { TrendPoint } from './trend';
+import type { LogEntry } from './types';
 
 const target = { kcal: 2200, protein_g: 160, carb_g: 200, fat_g: 70, fiber_g: 35 };
 
@@ -111,5 +112,126 @@ describe('microPanel', () => {
     const p = microPanel([day('2026-09-14', 500)], 'male');
     expect(p.stats).toEqual([]);
     expect(p.unknown.length).toBe(22);
+  });
+});
+
+describe('daySodium', () => {
+  const foods = new Map([
+    ['salty', { per_100g: { kcal: 100, protein: 5, carb: 10, fat: 2, fiber: 1, sodium: 800 } }],
+    ['veg', { per_100g: { kcal: 50, protein: 2, carb: 8, fat: 0, fiber: 3, sodium: 10 } }],
+    ['nosalt', { per_100g: { kcal: 100, protein: 5, carb: 10, fat: 2, fiber: 1 } }],
+  ]);
+
+  const entry = (over: Partial<LogEntry>): LogEntry =>
+    ({
+      id: over.id ?? 'e',
+      user_id: 'local',
+      created_at: '',
+      updated_at: '',
+      logged_at: '',
+      date: '2026-09-14',
+      meal_slot: 'lunch',
+      name: 'x',
+      grams: 100,
+      servings: 1,
+      kcal: 100,
+      protein_g: 5,
+      carb_g: 10,
+      fat_g: 2,
+      fiber_g: 1,
+      micros: {},
+      entry_method: 'search',
+      confidence: 'high',
+      ...over,
+    }) as LogEntry;
+
+  it('scales sodium from the food behind the entry', () => {
+    const s = daySodium(
+      [entry({ food_id: 'salty', grams: 200 })],
+      foods,
+      '2026-09-14',
+      '2026-09-20',
+    );
+    expect(s).toHaveLength(1);
+    expect(s[0]!.sodium_mg).toBeCloseTo(1600, 6);
+    expect(s[0]!.coverage).toBe(1);
+  });
+
+  it('counts an entry with no food as uncovered rather than as zero salt', () => {
+    const s = daySodium(
+      [entry({ id: 'a', food_id: 'salty' }), entry({ id: 'b' })],
+      foods,
+      '2026-09-14',
+      '2026-09-20',
+    );
+    expect(s[0]!.sodium_mg).toBeCloseTo(800, 6);
+    expect(s[0]!.coverage).toBeCloseTo(0.5, 6);
+  });
+
+  it('treats a food without a sodium figure as unknown too', () => {
+    const s = daySodium([entry({ food_id: 'nosalt' })], foods, '2026-09-14', '2026-09-20');
+    expect(s[0]!.coverage).toBe(0);
+  });
+
+  it('ignores entries outside the window', () => {
+    const s = daySodium(
+      [entry({ date: '2026-09-01', food_id: 'salty' })],
+      foods,
+      '2026-09-14',
+      '2026-09-20',
+    );
+    expect(s).toEqual([]);
+  });
+});
+
+describe('potassiumSodium', () => {
+  const withK = (date: string, potassium: number) =>
+    day(date, 2200, { micros: { potassium } }, [{ kcal: 2200, micros: { potassium } }]);
+
+  it('reports the ratio against the 2:1 target', () => {
+    const days = [withK('2026-09-14', 3400), withK('2026-09-15', 3400)];
+    const sodium = [
+      { date: '2026-09-14', sodium_mg: 1700, coverage: 1 },
+      { date: '2026-09-15', sodium_mg: 1700, coverage: 1 },
+    ];
+    const b = potassiumSodium(days, sodium)!;
+    expect(b.ratio).toBeCloseTo(2, 6);
+    expect(b.target).toBe(K_NA_TARGET);
+    expect(b.days).toBe(2);
+    expect(b.coverage).toBe(1);
+  });
+
+  it('reads an inverted diet as below target', () => {
+    const b = potassiumSodium(
+      [withK('2026-09-14', 2000)],
+      [{ date: '2026-09-14', sodium_mg: 3500, coverage: 1 }],
+    )!;
+    expect(b.ratio).toBeLessThan(1);
+  });
+
+  it('refuses to judge a day it barely knows, rather than guessing', () => {
+    expect(
+      potassiumSodium(
+        [withK('2026-09-14', 3400)],
+        [{ date: '2026-09-14', sodium_mg: 1700, coverage: 0.2 }],
+      ),
+    ).toBeUndefined();
+  });
+
+  it('needs potassium coverage too', () => {
+    const noK = day('2026-09-14', 2200, {}, [{ kcal: 2200, micros: {} }]);
+    expect(
+      potassiumSodium([noK], [{ date: '2026-09-14', sodium_mg: 1700, coverage: 1 }]),
+    ).toBeUndefined();
+  });
+
+  it('skips incomplete days and says nothing when nothing is judgeable', () => {
+    const half = day('2026-09-14', 400, { micros: { potassium: 3400 } }, [
+      { kcal: 400, micros: { potassium: 3400 } },
+    ]);
+    expect(
+      potassiumSodium([half], [{ date: '2026-09-14', sodium_mg: 1700, coverage: 1 }]),
+    ).toBeUndefined();
+    expect(potassiumSodium([], [])).toBeUndefined();
   });
 });

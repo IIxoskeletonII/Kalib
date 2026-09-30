@@ -76,6 +76,25 @@ All formulas are parameterised so the app calibrates to any user.
 ### 3.1 Inputs
 `sex, age, height_cm, weight_kg, bodyfat_pct (optional), activity_level, goal_rate_kg_per_week`
 
+### 3.1a Waist, and body fat without a scan (added 30 Sep 2026)
+
+§14 records body fat as "30–40 % self-estimated — **low confidence**, verify by waist
+measurement", and the project's third success criterion is judged on waist rather than scale
+weight. That verification now exists. `core/body.ts` implements **Relative Fat Mass**
+(Woolcott & Bergman, Nature Sci Rep 2018): `RFM = 64 − 20 × (height / waist) + 12 for women`,
+validated against DXA at R² = 0.84 — better than BMI, comparable to a consumer impedance scale,
+from a tape measure and no device-to-device bias.
+
+- Stored as `weigh_ins.waist_cm`, entered in the weigh-in sheet behind a Weight/Waist segmented
+  control, so the five-second weight path is untouched.
+- The freshest evidence wins for §3.2: an entered body-fat reading, else RFM from the most recent
+  waist, else the onboarding estimate. It therefore sharpens Katch-McArdle **and** the protein
+  target, which is 2.0 g per kg of lean mass.
+- Also shown: waist-to-height, where under 0.5 is the widely used low-risk screen.
+- The trend screen carries waist as its own series (readings carried forward rather than
+  smoothed — a weekly measurement has nothing to smooth), because it keeps moving when the scale
+  stalls, which is the most common moment someone quits.
+
 ### 3.2 Baseline metabolic rate
 
 ```
@@ -138,6 +157,21 @@ an automatic switch to MAINTAIN on 24 Dec 2026 and back to CUT on return).
 
 ---
 
+### 3.5a Diet breaks (added 30 Sep 2026)
+
+The MATADOR trial (Byrne et al., Int J Obesity 2018) ran two weeks of deficit against two weeks
+at maintenance, repeatedly, against continuous restriction of the same total dose: the
+intermittent group lost substantially more fat over the same time, with no extra fat-free mass
+lost. A break needs no new concept here — it is two entries in the §3.5 mode schedule, so daily
+targets, banking and the planner all follow it unchanged.
+
+`core/dietBreak.ts` offers one after **eight weeks** of unbroken deficit, or after **four** when
+the trend has produced less than a quarter of the expected loss. The offer appears on the weekly
+review with its reasoning, can be declined for the week, and is never made while a maintenance
+block is already within three weeks. A suggestion with its evidence, never an instruction.
+
+---
+
 ## 4. The adaptive TDEE engine
 
 This is the core of the product. Everything else is a data entry surface for it.
@@ -196,9 +230,36 @@ churn is psychologically destabilising and statistically unjustified.
   ±150 publish cap, so targets would have bounced; 28 days halves the variance and TDEE
   drifts far too slowly (≈ 15 kcal per kg lost) for the extra week to matter. `delta_trend`
   is taken between the trend on `start` and on `today`, over `span = today − start` days.
-- Known, accepted: the trend on day 11 still remembers days 1–10, so the first estimates run
-  ≈ 200 kcal high, decaying to zero by day ~45. It sits inside the interval and the ±150 cap
-  clips it. Alternatives (regression on raw weigh-ins) remove the bias but are 2× noisier.
+- **Superseded 30 Sep 2026 — the estimator is now a Kalman filter** (`core/kalman.ts`). Two
+  quantities are unknown and evolve together: true weight and TDEE. Energy balance links them
+  (a day of eating I against a burn of E moves true weight by (I − E)/ρ) and the scale is a
+  noisy look at weight alone. Written as a linear Gaussian system, a filter over **raw**
+  weigh-ins uses every reading, needs no window, tolerates missing days, gates outliers, and
+  returns a posterior variance rather than an error bar assembled by hand.
+  Measured on the same ten synthetic people, filter against the old trend difference:
+
+  | | trend difference | filter |
+  |---|---|---|
+  | bias, days ≤ 30 | +273 kcal | −81 kcal |
+  | RMS error from day 45 | 108 kcal | **71 kcal** |
+  | within ±150 on day 90 | 90 % | **100 %** |
+  | interval coverage | 0.92 | **0.98** |
+  | interval half-width, day 90 | ±248 | **±217** |
+
+  The old note read: "the trend on day 11 still remembers days 1–10, so the first estimates run
+  ≈ 200 kcal high… alternatives (regression on raw weigh-ins) remove the bias but are 2× noisier."
+  The filter removes the bias *without* the noise, which is the whole reason for the change. It
+  is deliberately **wider early** (±677 on day 24 against ±441) because fourteen days genuinely
+  is that uncertain — and coverage rose, so the old interval was overconfident, not better.
+- The filter reads the whole record after the excluded days, so **the interval keeps narrowing**
+  instead of flooring near ±250. It passes ±200 at about eight weeks, which makes the §14
+  criterion ("under ±200 by mid-October") reachable after all. The 28-day window survives only
+  as the gate that decides whether there is enough data to speak at all.
+- §7.4 confidence reaches the filter: a day's intake noise is its own 1σ (10 % of a weighed day,
+  30 % of an estimated one), so a week of guesswork widens the interval rather than silently
+  moving the estimate.
+- The §4.2 trend difference remains as a fallback for a record with no raw readings (imported
+  history), and `Estimate.method` says which produced a number.
 - Realistic scale noise (σ ≈ 0.7 kg/day) bounds the 95 % interval near **±250 kcal** for a
   28-day window; the §14 "under ±200 by mid-October" criterion is not reachable by any
   estimator on 21–28 days of data and is read as "under ±300 with the truth inside".
@@ -214,6 +275,27 @@ churn is psychologically destabilising and statistically unjustified.
   most ±150 kcal from the previously published TDEE (the formula TDEE before the first
   publish). A measured value more than 600 kcal from the formula is not applied; the card
   explains why and offers to apply it deliberately.
+
+---
+
+### 4.1a Cycle-aware trend weight (added 30 Sep 2026)
+
+Luteal-phase progesterone raises aldosterone and vasopressin, and the fluid it holds moves the
+scale by roughly 0.5–2 kg, peaking around the first day of menses and resolving over the days
+after. To an energy-balance engine that reads weight change as fat change that looks like a
+stalled cut, and to the person reading the chart it looks like failure. The research sweep found
+**no published algorithm** for correcting it and **no competitor that does it**.
+
+`core/cycle.ts` takes the honest route rather than inventing one. It never alters a reading and
+never subtracts a fabricated offset. It says how far into the retention window a day sits, and
+the filter widens that reading's measurement variance accordingly — a Kalman gain that drops in
+the window and recovers after it. Cycle length is the median of the person's own logged starts
+(clamped to 21–35 days, outliers from a forgotten log discarded), predictions stop after two
+cycles rather than guessing further, and the trend chart shades the affected days with a line
+saying why.
+
+Off by default and never inferred. Settings → Cycle turns it on; a "Period started today" row
+then appears in the weigh-in sheet, where the daily ritual already is.
 
 ---
 
@@ -709,11 +791,6 @@ shipped apps already do better.
 
 ---
 
-*Not medical advice. Targets are general-population formulas. If any medical condition
-or medication applies, they should be reviewed by a clinician.*
-
----
-
 ## 16. Coach — gap-aware recommendations (added 19 Sep 2026)
 
 Requested by the owner after v0: once a few days of logging exist, the app must see where
@@ -892,3 +969,97 @@ in the week — from there scaling (§18.2), the shopping list (§18.3) and cook
 apply unchanged. **Swipe left** discards it. The plan shows *≈ cost of budget* once a budget
 is set. The model's numbers are estimates; the honest ±15 % of §18.3 widens to "rough" while
 prices are estimated, and the list says how many are.
+
+---
+
+## 19. Where the market leaves gaps (added 30 Sep 2026)
+
+A survey of twenty shipping trackers, the CGM/wearable frontier, the 2026 PWA platform limits and
+the nutrition literature produced one clear finding: every differentiator §15 claims still holds.
+Nothing surveyed does bounded weekly banking, scheduled mode switching, or coverage and
+provenance indicators. Adaptive TDEE is table stakes as §15 says, but the most respected
+algorithm in the category ships **no photo or voice logging at all**.
+
+So this release does not add more of what exists. It closes the gaps that were real.
+
+### 19.1 Reducing what logging costs
+
+The retention evidence is lopsided: a median **70 % of users abandon a lifestyle app within 100
+days**, and abandonment is driven by burden and friction rather than by the goal being met.
+Everything here is judged against the daily loop first.
+
+- **Dictation** (`platform/speech.ts`, §8). "Three eggs and toast with butter" is one sentence,
+  and §9.4 already knows how to ground a sentence. A named premium feature elsewhere; here it is
+  the browser's own recogniser, so no audio reaches this app or its Worker, and the control is
+  simply absent where the engine is.
+- **Recipe from a link** (§8.2, `/api/recipe`). Almost every recipe site publishes
+  schema.org/Recipe as JSON-LD for search engines, so the common path costs nothing and invents
+  nothing. `core/ingredientLine.ts` reads the published lines — weights, spoons, tins, bracketed
+  weights, vulgar fractions, ranges (taking the lower bound) — and a bare count like "2 eggs" is
+  answered by the *food's own portions*, because USDA already knows an egg is 50 g. Seasoning and
+  amounts the page never stated are shown as left out, never rounded to zero.
+- **Eating out** (§9.7, `/api/menu`). The market's most-cited unsolved problem. No database can
+  hold an independent kitchen's recipes, so the honest error is about a fifth either way — and
+  every app that hides that behind one tidy number is lying about the meal where the number
+  matters least. This reads the *printed dish names*, which are real data, estimates a restaurant
+  portion, grounds each dish against the FNDDS "as eaten" foods, and leads with the range.
+
+### 19.2 Measuring what the scale cannot
+
+- **Waist and RFM** (§3.1a) — the §14 verification that was specified and never built.
+- **Cycle-aware trend** (§4.1a) — genuine whitespace: no published algorithm, no competitor.
+- **A Kalman filter for TDEE** (§4.5) — the one place the engine could be made both less biased
+  and less noisy at once, proven against the existing synthetic benchmark.
+
+### 19.3 Saying the useful thing
+
+- **Consistency, not streaks** (`core/adherence.ts`). Logging on most days predicts outcomes;
+  logging every gram on the days you do log does not. And a hard streak reset raises the odds of
+  abandoning the app, while habit-formation work finds a single missed occasion does not
+  measurably slow automaticity. So the review counts days, forgives one miss inside a run, and
+  says "1 day off, which is fine". Landmarks (Monday, the first of a month, new year) carry a
+  fresh-start push after a real gap, and it never mentions the gap's length.
+- **Diet breaks** (§3.5a).
+- **Protein and satiety density** (`core/quality.ts`). Protein per 100 kcal, energy density, and
+  an ordinal satiety score from the directions Holt et al. measured — protein, fibre and water up,
+  fat down — calibrated so the landmark foods fall in the measured order (potato 50, white bread
+  34, croissant 14). Labelled an estimate wherever it appears, with its weights stated in the
+  source and asserted in the test, because the lesson of front-of-pack scoring is that an opaque
+  score is worse than none.
+- **Potassium against sodium** (`core/review.ts`). The DASH evidence is about the ratio, not
+  about sodium alone; roughly 2:1 is the aim, and most diets have it inverted. Sodium is a
+  `per_100g` field rather than a tracked micronutrient, so it is recomputed from the food behind
+  each entry and the panel reports what share of the week it actually knew about.
+- **Supplement interactions** (§17.3). Calcium and iron in the same dose cost 28–60 % of
+  non-heme iron absorption; zinc above 25 mg long-term depresses copper; the fat-soluble vitamins
+  need dietary fat. None of it is visible to someone reading four labels separately, and all of it
+  is fixed by moving one dose. **Vitamin B6 now carries EFSA's 2023 upper level of 12 mg/day**,
+  not the 25–100 mg still printed on many B-complex labels, because peripheral neuropathy is
+  reported far below the old figure.
+- **Contributing back to Open Food Facts** (§7.2). When §9.6 reads a label OFF has never seen,
+  the app is holding exactly what OFF is missing. Strictly opt-in per product, and inert unless
+  the operator configured an account, so a fork cannot write to the commons under someone else's
+  name.
+
+### 19.4 Considered and deliberately not built
+
+- **A native wrapper for HealthKit or Health Connect.** Confirmed: no PWA can reach either in
+  2026, by any path. Capacitor means App Store review and a yearly fee, which breaks the §12 cost
+  ceiling and the zero-running-cost positioning. The cross-platform workaround, if automatic
+  weigh-ins ever matter enough, is the Withings API — server-side OAuth, works on iOS.
+- **CGM and glucose.** Hardware at ~€150/month, and the evidence for non-diabetics is contested;
+  the category's own leader dropped measured glucose in 2025 and now estimates it.
+- **A food-quality letter grade.** The best-known implementation is under sustained criticism
+  from nutrition scientists for dose-blind additive penalties and a flat organic bonus. §7.4's
+  provenance framing is the honest version of the same idea.
+- **Gamification, leaderboards, social features.** Social comparison lowers intrinsic motivation
+  over time, and this is an app for two people.
+- **On-device OCR to cut AI cost.** A label read costs about €0.0007. Not a problem worth solving
+  with worse accuracy.
+
+---
+
+*Not medical advice. Targets are general-population formulas. If any medical condition
+or medication applies, they should be reviewed by a clinician.*
+
+---

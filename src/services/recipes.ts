@@ -70,7 +70,7 @@ export async function setRecipeSteps(id: string, steps: string[]): Promise<void>
 /** §18.6 — what a suggestion knows about itself beyond ingredients and steps. */
 export async function setRecipeMeta(
   id: string,
-  meta: Pick<Recipe, 'blurb' | 'tags' | 'time_min' | 'oven_c' | 'source'>,
+  meta: Pick<Recipe, 'blurb' | 'tags' | 'time_min' | 'oven_c' | 'source' | 'source_url'>,
 ): Promise<void> {
   await updateRecipe(id, meta);
 }

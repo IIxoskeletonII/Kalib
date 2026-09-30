@@ -4,6 +4,7 @@ import { toast } from '@/components/Toast';
 import { drainBarcodeQueue } from '@/services/barcodeQueue';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { DEFAULT_CYCLE_DAYS } from '@/core/cycle';
 import { addDays, todayKey } from '@/core/dates';
 import type { Batch, Food, Recipe } from '@/core/types';
 import { rankFavourites } from '@/core/favourites';
@@ -28,6 +29,8 @@ import { listWaterForDate } from '@/db/repo/water';
 import { listWeighIns } from '@/db/repo/weighIns';
 import { personFor } from '@/services/supplements';
 import { computeWeekBanking } from '@/services/banking';
+import { cycleView, type CycleView } from '@/services/cycle';
+import { dietBreakProposal } from '@/services/dietBreak';
 import { computeCoach, weekOverview, type CoachState, type WeekOverview } from '@/services/coach';
 import { ensureTargetForDate, weightFor } from '@/services/targets';
 import { planContext, type PlanContext } from '@/services/planner';
@@ -104,6 +107,20 @@ export function useLoggedDates(from: string, to: string): ReadonlySet<string> | 
 export function useSetting<T>(key: string, fallback: T): T {
   const v = useLiveQuery(() => getSetting<T>(key), [key]);
   return v === undefined ? fallback : v;
+}
+
+/**
+ * §4.1 cycle awareness: whether it is on, the logged starts, and the cycle `date` sits in.
+ * Always returns a value so callers never branch on undefined for a feature that is off.
+ */
+export function useCycle(date: string): CycleView {
+  const view = useLiveQuery(() => cycleView(date), [date]);
+  return view ?? { enabled: false, starts: [], length: DEFAULT_CYCLE_DAYS };
+}
+
+/** §3.5 — the diet break worth offering today, if any. */
+export function useDietBreak(date: string) {
+  return useLiveQuery(async () => (await dietBreakProposal(date)) ?? null, [date]) ?? undefined;
 }
 
 export function useFirstActivityDate() {

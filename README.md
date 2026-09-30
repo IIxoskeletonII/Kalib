@@ -60,14 +60,42 @@ free tier, and the source is here for anyone who wants the same.
   the fields fill themselves (per 100 g or per serving, kJ converted), with a check that the
   macros account for the calories before you trust them.
 - **Targets that calibrate to you** — formula targets while calibrating, then from day 24 a
-  measured TDEE from the weight trend and logged intake over a 28-day window, with a 95 %
-  interval, guard rails (±150 kcal per weekly step, a hold-and-explain card when the measurement
-  is >600 kcal from the formula) and a synthetic 90-day ground-truth test behind it (SPEC §4).
-  Fiber is a first-class target next to protein.
+  measured TDEE, with a 95 % interval, guard rails (±150 kcal per weekly step, a hold-and-explain
+  card when the measurement is >600 kcal from the formula) and a synthetic 90-day ground-truth
+  test behind it (SPEC §4). Fiber is a first-class target next to protein.
+- **An estimator that keeps getting sharper** — a Kalman filter over true weight and burn, run on
+  raw weigh-ins rather than the difference between two smoothed points. It uses every reading,
+  survives missed days, and has no window to forget with, so the interval keeps narrowing
+  instead of flooring. Measured against the old method on the same ten synthetic people: RMS
+  error from day 45 down from 108 to **71 kcal**, early bias from +273 to —81, interval coverage
+  up from 0.92 to 0.98. It is deliberately wider in the first fortnight, because a fortnight
+  really is that uncertain.
+- **Waist, not just weight** — one tape measurement in the same sheet as the scale gives a body-fat
+  estimate (Relative Fat Mass, validated against DXA at R² 0.84 — better than BMI) that sharpens
+  your lean mass and therefore your protein target, plus waist-to-height. It has its own trend
+  line, because it keeps moving in the weeks the scale sulks.
+- **Cycle-aware trend** — optional. Water retention around a period can move the scale a kilo or
+  two; with this on, the trend expects it and the chart shades those days instead of reading them
+  as weight gained. No reading is ever altered — the filter is simply told to trust them less.
 - **Weekly banking** — a big day is spread across the week within bounds (never more than
   300 kcal off a day, never below the safety floor, one rollover then forgiven); an under-day
   rolls forward. The ring runs on the banked target.
 - **Weight trend, not scale noise** — exponentially smoothed trend, raw readings hidden by default.
+- **Eating out, honestly** — photograph a menu and every dish comes back with what a serving
+  costs you, as a range. No database holds an independent kitchen's recipes, so the error is
+  about a fifth either way, and the app says so rather than inventing one confident number.
+- **Say it instead of typing it** — dictate a meal into the describe box. Recognition happens in
+  the browser, so no audio reaches this app or its server.
+- **Recipes from a link** — paste a recipe URL and it reads the page's own structured data:
+  ingredient lines become weights (spoons, tins, fractions and all), "2 eggs" is answered by the
+  database's own 50 g egg, and seasoning or unstated amounts are shown as left out rather than
+  quietly counted as zero. The page it came from stays on the recipe.
+- **A run that forgives a day** — the review counts days logged, not grams accounted for, because
+  that is what the evidence ties to results. One missed day never breaks the run, and a lapse is
+  met on the next Monday with an invitation rather than a tally.
+- **A break when a break is due** — after eight weeks of deficit (or four that produced almost
+  nothing) it offers a two-week hold at maintenance, with the trial behind it named. Accepting
+  writes two entries in your mode schedule; nothing else changes.
 - **Coach** — after a few full days it finds what is running short (protein, fiber, then
   micronutrients when the data is good enough) and names everyday foods that close the gap.
   The same tab carries the week in review (calories, protein, fiber, trend, adherence) and a
@@ -77,6 +105,15 @@ free tier, and the source is here for anyone who wants the same.
 - **Recipes and batches** — weigh ingredients as you cook, weigh the pot, say how many portions;
   every recipe becomes one of your foods, and a cooked batch logs a portion in one tap from
   Today with the count of portions left.
+- **A supplement list that reads itself** — calcium and iron in the same dose compete, zinc
+  above 25 mg long-term costs you copper, the fat-soluble vitamins want a meal with some fat in
+  it, and vitamin B6 carries EFSA's 2023 limit of 12 mg/day — not the 25–100 mg still printed on
+  many B-complex labels. None of that is visible reading four bottles separately.
+- **Potassium against sodium** — the ratio is what the evidence is about (roughly 2:1), not sodium
+  on its own, and the panel says what share of the week it could actually judge.
+- **What a food is, not only what is in it** — protein per 100 kcal, energy density, and a
+  fullness estimate built from the directions the satiety research measured. Shown as one line
+  where it says something, with its weights written down in the source rather than hidden.
 - **Water and supplements** — one tap adds a glass toward the 35 ml/kg target; a daily checklist
   for creatine, vitamins and minerals with a suggested dose worked out from sex, age and weight
   (NIH ODS / EFSA / ISSN references, shown with their basis). Micronutrient supplements count
@@ -180,6 +217,22 @@ npm run seed:usda
 Packaged foods come from Open Food Facts through `/api/off/search`, which re-ranks OFF's results
 for label completeness and popularity (see `worker/off.ts`). Picked products are cached locally.
 
+### Giving products back (optional)
+
+When a barcode is unknown and you fill the food in from its label, Kalib can offer to add the
+product to Open Food Facts so the next person who scans it finds it. Strictly opt-in per product,
+and switched off entirely unless an OFF account is configured:
+
+```sh
+npx wrangler secret put OFF_USER_ID
+npx wrangler secret put OFF_PASSWORD
+```
+
+Without those two secrets the checkbox never appears. The request carries the barcode, name,
+brand and per-100 g figures and nothing about you; a record whose macros do not account for its
+calories is refused before it is sent, because a wrong entry in a public database is worse than
+no entry.
+
 ## Cloud sync (optional)
 
 Sign-in is email + password (Supabase Auth, no SMTP needed); sync is last-write-wins by
@@ -188,7 +241,7 @@ its own rows (RLS), and a phone binds to the first account it syncs with. Withou
 environment variables the build runs local-only and Settings says so.
 
 1. Create a free Supabase project, open the SQL editor and run every file in
-   `supabase/migrations/` in order (`0001_init.sql` … `0006_discover.sql`).
+   `supabase/migrations/` in order (`0001_init.sql` … `0007_body_and_cycle.sql`).
 2. Authentication → Providers → Email: turn **Confirm email** off (accounts sign in immediately).
 3. Authentication → URL configuration: Site URL = the app's URL; add it to Redirect URLs (password reset).
 4. Copy `.env.example` to `.env.local` with the project URL and publishable key, then `npm run deploy`.
@@ -219,6 +272,20 @@ it to particular people instead, list their emails in `ESTIMATE_ALLOWED_EMAILS` 
    €0.005 and counts as one estimate toward the daily caps). This week's publisher titles are
    fetched by the Monday cron from the RSS feeds listed in `worker/trends.ts` — free, no keys —
    and kept in KV alongside the bank of accepted recipes.
+
+## Reading menus and recipe links (optional)
+
+Both run on the same key, sign-in rule and daily cap as meal estimation, so there is nothing more
+to configure once that is set up.
+
+- `/api/menu` reads a photographed menu into a list of dishes with per-serving estimates. Each
+  dish is grounded against the offline database exactly as a described meal is, and the app shows
+  a range rather than a single figure.
+- `/api/recipe` reads a recipe from a link. The common path costs nothing at all: most recipe
+  sites publish schema.org/Recipe as JSON-LD, so the page answers for itself and the model is
+  only asked when a page has no structured data. The endpoint refuses private addresses, IP
+  literals, non-standard ports and oversized pages, and re-checks every redirect hop by hand
+  (`worker/recipeUrl.ts`, tested in `worker/recipeUrl.test.ts`).
 
 ## Reminders (optional)
 

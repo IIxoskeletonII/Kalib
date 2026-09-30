@@ -1,6 +1,6 @@
 // SPEC §17.2–17.3 — manage the supplement list. Add from the catalogue (dose worked out for
 // this person, with its basis) or by hand; edit dose, unit and timing; remove.
-import { ChevronLeft, Pill, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, Lightbulb, Pill, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useBack } from '@/hooks/useBack';
 import { NumberPad } from '@/components/NumberPad';
@@ -8,6 +8,7 @@ import { SwipeRow } from '@/components/SwipeRow';
 import { toast } from '@/components/Toast';
 import { Button, Card, EmptyState, IconButton, ListRow, Segmented, Sheet } from '@/components/ui';
 import {
+  stackNotes,
   SUPPLEMENT_CATALOGUE,
   TIMING_LABEL,
   UNIT_OPTIONS,
@@ -39,6 +40,16 @@ export default function Supplements() {
   const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState<Editing | null>(null);
   const have = new Set(supplements?.map((s) => s.catalogue_id).filter(Boolean));
+  const notes = stackNotes(
+    (supplements ?? []).map((s) => ({
+      name: s.name,
+      nutrient: s.nutrient,
+      dose: s.dose,
+      unit: s.unit,
+      timing: s.timing,
+      catalogue_id: s.catalogue_id,
+    })),
+  );
 
   return (
     <div className="pb-32">
@@ -100,6 +111,27 @@ export default function Supplements() {
               </SwipeRow>
             );
           })}
+        </Card>
+      )}
+
+      {/* What the bottles do to each other. Invisible to someone reading four labels
+          separately, and every item of it is fixed by moving one dose. */}
+      {notes.length > 0 && (
+        <Card className="mt-3 divide-y divide-line">
+          {notes.map((n, i) => (
+            <div key={`${n.kind}-${i}`} className="flex items-start gap-3 px-4 py-3">
+              <span
+                className={`mt-0.5 shrink-0 ${n.kind === 'conflict' ? 'text-kcal' : 'text-fiber'}`}
+              >
+                {n.kind === 'conflict' ? (
+                  <AlertTriangle size={16} strokeWidth={2.2} aria-hidden />
+                ) : (
+                  <Lightbulb size={16} strokeWidth={2.2} aria-hidden />
+                )}
+              </span>
+              <p className="text-[14px] leading-snug text-ink-2">{n.text}</p>
+            </div>
+          ))}
         </Card>
       )}
 

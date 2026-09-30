@@ -1,4 +1,5 @@
 // Orchestration between the profile/weigh-in repos and the pure §3 formulas.
+import { resolveBodyFat, type BodyFatEstimate } from '@/core/body';
 import { ageOn } from '@/core/dates';
 import {
   computeTargets,
@@ -45,19 +46,46 @@ export async function getPublishedTdee(): Promise<PublishedTdee | undefined> {
   return (await getSetting<PublishedTdee>(PUBLISHED_TDEE_KEY)) ?? undefined;
 }
 
+/**
+ * The freshest body-fat evidence on or before `date`: a reading entered on a weigh-in, else RFM
+ * from the most recent waist measurement, else the onboarding estimate §14 calls low-confidence.
+ * Feeds §3.2 (Katch-McArdle needs lean mass) and therefore the protein target too.
+ */
+export function bodyFatFor(
+  profile: Profile,
+  weighIns: readonly WeighIn[],
+  date: string,
+): BodyFatEstimate | undefined {
+  let measured_pct: number | undefined;
+  let waist_cm: number | undefined;
+  for (const w of weighIns) {
+    if (w.date > date) break; // listWeighIns is ascending
+    if (w.bodyfat_pct != null) measured_pct = w.bodyfat_pct;
+    if (w.waist_cm != null) waist_cm = w.waist_cm;
+  }
+  return resolveBodyFat({
+    sex: profile.sex,
+    height_cm: profile.height_cm,
+    measured_pct,
+    waist_cm,
+    profile_pct: profile.bodyfat_pct,
+  });
+}
+
 export function targetInputsFor(
   profile: Profile,
   weight_kg: number,
   date: string,
   schedule: readonly ModeSwitch[] = [],
   published?: PublishedTdee | undefined,
+  bodyfat?: BodyFatEstimate | undefined,
 ): TargetInputs {
   return {
     sex: profile.sex,
     age: ageOn(profile.birth_date, date),
     height_cm: profile.height_cm,
     weight_kg,
-    bodyfat_pct: profile.bodyfat_pct,
+    bodyfat_pct: bodyfat?.pct ?? profile.bodyfat_pct,
     activity_level: profile.activity_level,
     mode: resolveMode(profile.mode, schedule, date),
     goal_rate_kg_per_week: profile.goal_rate_kg_per_week,
@@ -102,7 +130,8 @@ export async function currentTargets(date: string): Promise<Targets | undefined>
   ]);
   const weight = weightFor(weighIns, date);
   if (weight == null) return undefined;
-  return computeTargets(targetInputsFor(profile, weight, date, schedule, published));
+  const bodyfat = bodyFatFor(profile, weighIns, date);
+  return computeTargets(targetInputsFor(profile, weight, date, schedule, published, bodyfat));
 }
 
 /** The §3.3 scaffold for `date`, ignoring any published measurement — the §4.3 reference. */
@@ -112,7 +141,8 @@ export async function formulaTargets(date: string): Promise<Targets | undefined>
   const [weighIns, schedule] = await Promise.all([listWeighIns(), getModeSchedule()]);
   const weight = weightFor(weighIns, date);
   if (weight == null) return undefined;
-  return computeTargets(targetInputsFor(profile, weight, date, schedule));
+  const bodyfat = bodyFatFor(profile, weighIns, date);
+  return computeTargets(targetInputsFor(profile, weight, date, schedule, undefined, bodyfat));
 }
 
 /** Stored target for `date`, computing it on first sight of the day. */

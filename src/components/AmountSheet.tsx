@@ -4,6 +4,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { scaleFood } from '@/core/nutrition';
+import { qualityNote } from '@/core/quality';
 import { formatPortions } from '@/core/recipes';
 import {
   UNIT_LABEL,
@@ -156,6 +157,7 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
     p.initialGrams != null ? String(fromGramsIn(p.initialGrams, unitMeasure)) : '',
   );
   /** An untouched portion measure counts one of them; an untouched weight counts nothing. */
+  const note = qualityNote(p.food.per_100g);
   const shown = amount === '' && measure.kind === 'portion' ? '1' : amount;
   // A prefilled amount (last time's grams, or a portion chip) is replaced by the first key
   // press rather than appended to — "150" → tap 2 → "2", not "1502".
@@ -267,6 +269,9 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
           )}
         </div>
         <h2 className="mt-1 line-clamp-2 text-[18px] font-semibold leading-snug">{p.food.name}</h2>
+        {/* One fact about the food itself, and only when there is one worth saying: protein per
+            calorie, fullness per calorie, or a warning that eyeballing the portion will not do. */}
+        {note && <p className="mt-0.5 text-[13px] text-muted">{note}</p>}
       </div>
 
       <div className="flex items-end justify-between gap-4">

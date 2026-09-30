@@ -1,13 +1,20 @@
 // Import a shared recipe from a link (#code) or a pasted code. Works without a profile so a
 // link opened in Safari still shows the code to carry into the Home Screen app.
-import { Check, ChefHat, ChevronLeft, Copy } from 'lucide-react';
+import { Check, ChefHat, ChevronLeft, Copy, Link as LinkIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useBack } from '@/hooks/useBack';
-import { Badge, Button, Card, IconButton, ListRow, fmt } from '@/components/ui';
+import { Badge, Button, Card, IconButton, ListRow, Spinner, fmt } from '@/components/ui';
 import { decodeShare, extractShareCode, type SharedRecipe } from '@/core/recipeShare';
 import { useProfile } from '@/hooks/useData';
 import { importRecipe, previewImport, type ImportPreview } from '@/services/recipes';
+import {
+  importUrlRecipe,
+  looksLikeUrl,
+  readRecipeLink,
+  readyCount,
+  type UrlRecipe,
+} from '@/services/recipeUrl';
 
 export default function RecipeImport() {
   const navigate = useNavigate();
@@ -22,6 +29,9 @@ export default function RecipeImport() {
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  // A pasted web link takes the §8.2 route instead of the share-code one.
+  const [link, setLink] = useState<UrlRecipe | null>(null);
+  const [reading, setReading] = useState(false);
 
   // Decoding is derived from the code; only the async database preview touches state.
   const decoded = useMemo<{ shared: SharedRecipe } | { error: string } | null>(() => {
@@ -50,9 +60,40 @@ export default function RecipeImport() {
 
   const paste = (v: string) => {
     setText(v);
+    setLink(null);
     const c = extractShareCode(v);
     setCode(c);
-    setPasteError(v.trim() && !c ? 'That does not look like a Kalib recipe code.' : null);
+    if (!v.trim() || c) {
+      setPasteError(null);
+      return;
+    }
+    setPasteError(
+      looksLikeUrl(v) ? null : 'That is neither a Kalib recipe code nor a link. Paste either one.',
+    );
+  };
+
+  const readLink = async () => {
+    if (reading) return;
+    setReading(true);
+    setPasteError(null);
+    try {
+      setLink(await readRecipeLink(text));
+    } catch (err) {
+      setPasteError((err as Error).message);
+    } finally {
+      setReading(false);
+    }
+  };
+
+  const addFromLink = async () => {
+    if (!link || busy) return;
+    setBusy(true);
+    try {
+      const id = await importUrlRecipe(link);
+      navigate(`/recipes/${id}`, { replace: true });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const add = async () => {
@@ -85,21 +126,104 @@ export default function RecipeImport() {
           <h1 className="text-[22px] leading-tight font-bold tracking-[-0.01em]">
             Import a recipe
           </h1>
-          <p className="text-[13px] text-muted">From a link or a code someone shared.</p>
+          <p className="text-[13px] text-muted">From a recipe page, or a code someone shared.</p>
         </div>
       </div>
 
-      {!code && (
-        <textarea
-          value={text}
-          onChange={(e) => paste(e.target.value)}
-          rows={3}
-          autoFocus
-          placeholder="Paste the link or the code here"
-          className="mt-4 w-full resize-none rounded-[20px] bg-surface px-4 py-3 text-[15px] leading-snug outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
-        />
+      {!code && !link && (
+        <>
+          <textarea
+            value={text}
+            onChange={(e) => paste(e.target.value)}
+            rows={3}
+            autoFocus
+            placeholder="Paste a recipe link, or a Kalib code"
+            className="mt-4 w-full resize-none rounded-[20px] bg-surface px-4 py-3 text-[15px] leading-snug outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+          />
+          {looksLikeUrl(text) && (
+            <Button
+              variant="primary"
+              {...(reading ? {} : { icon: LinkIcon })}
+              className="mt-3 w-full"
+              disabled={reading}
+              onClick={readLink}
+            >
+              {reading ? (
+                <>
+                  <Spinner size={16} /> Reading the page
+                </>
+              ) : (
+                'Read this recipe'
+              )}
+            </Button>
+          )}
+        </>
       )}
       {error && <p className="mt-3 px-1 text-[13px] text-danger">{error}</p>}
+
+      {link && (
+        <>
+          <Card className="mt-5 px-5 py-4">
+            <div className="flex items-center gap-2 text-[14px] font-semibold text-ink-2">
+              <ChefHat size={16} className="text-accent" aria-hidden />
+              {link.name}
+            </div>
+            {link.blurb && <p className="mt-1 text-[13px] text-muted">{link.blurb}</p>}
+            <p className="mt-1 text-[13px] text-muted tabular">
+              {readyCount(link)} of {link.lines.length} ingredients matched
+              {link.servings ? ` · ${link.servings} portions` : ''}
+              {link.time_min ? ` · ${link.time_min} min` : ''}
+              {link.steps.length ? ` · ${link.steps.length} steps` : ''}
+            </p>
+            <p className="mt-2 text-[12px] leading-snug text-muted">
+              {link.via === 'json-ld'
+                ? 'Read from the page’s own recipe data.'
+                : 'The page had no recipe data, so it was read from the text — check the amounts.'}
+            </p>
+          </Card>
+
+          <Card className="mt-3 divide-y divide-line">
+            {link.lines.map((l, i) => (
+              <ListRow
+                key={i}
+                wrapTitle
+                title={l.parsed.name || l.parsed.raw}
+                subtitle={l.food ? l.note : `${l.note} · no database match`}
+                badge={
+                  l.skipped ? <Badge tone="kcal">left out</Badge> : <Badge tone="accent">in</Badge>
+                }
+                value={l.grams != null ? `${fmt(l.grams)} g` : undefined}
+              />
+            ))}
+          </Card>
+
+          <p className="mt-3 px-1 text-[12px] leading-snug text-muted">
+            Lines marked <span className="font-medium">left out</span> are seasoning, or amounts the
+            page never stated. Add them by hand on the recipe afterwards.
+          </p>
+
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant="primary"
+              size="lg"
+              className="flex-1"
+              disabled={busy || readyCount(link) === 0}
+              onClick={addFromLink}
+            >
+              {busy ? 'Saving' : 'Save recipe'}
+            </Button>
+            <Button
+              size="lg"
+              onClick={() => {
+                setLink(null);
+                setText('');
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </>
+      )}
 
       {preview && (
         <>

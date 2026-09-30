@@ -182,6 +182,32 @@ export const SUPPLEMENT_CATALOGUE: readonly CatalogueItem[] = [
     },
   },
   {
+    id: 'b6',
+    name: 'Vitamin B6',
+    tagline: 'Nerve function, amino-acid metabolism',
+    unit: 'mg',
+    // The limit most stacks quietly exceed: EFSA reassessed B6 in 2023 and cut the adult upper
+    // level to 12 mg/day, well under the 25–100 mg still printed on many B-complex labels,
+    // because peripheral neuropathy has been reported at chronic intakes far below the old
+    // figure. Worth flagging loudly rather than reassuring.
+    timing: 'with_food',
+    tip: 'Check your B-complex or multivitamin before adding this — together they often pass the 12 mg daily upper limit, and chronic excess damages nerves.',
+    nutrient: 'b6',
+    nutrientPerUnit: 1,
+    recommend(p) {
+      const rda = p.age > 50 ? (p.sex === 'male' ? 1.7 : 1.5) : 1.3;
+      return {
+        dose: rda,
+        unit: 'mg',
+        low: rda,
+        high: 10,
+        upper: 12,
+        basis: `RDA ${rda} mg for ${sexWord(p.sex)} ${ageBand(p.age)}; upper limit 12 mg/day (EFSA 2023)`,
+        factor: 'sex_age',
+      };
+    },
+  },
+  {
     id: 'vitamin_c',
     name: 'Vitamin C',
     tagline: 'Antioxidant, iron absorption',
@@ -423,4 +449,129 @@ export function doseWarning(dose: number, guide: DoseGuide): string | undefined 
     return `Above the ${formatDose(guide.upper, guide.unit)} upper limit.`;
   if (dose > guide.high * 2) return `Well above the usual ${formatDose(guide.high, guide.unit)}.`;
   return undefined;
+}
+
+// --- what the items in a stack do to each other -------------------------------------------
+//
+// Absorption competition is well established and entirely avoidable by moving one dose: calcium
+// taken with a meal cuts non-heme iron absorption substantially, and iron, zinc and calcium all
+// compete for the same transporters. Vitamin C pulls the other way and helps iron absorb. The
+// fat-soluble vitamins need dietary fat present. None of this is exotic, and none of it is
+// visible to someone reading four separate labels — so the app reads them together.
+
+/** The minimum a stack entry has to look like for the notes below. */
+export interface StackItem {
+  name: string;
+  nutrient?: MicroKey | undefined;
+  dose: number;
+  unit: SupplementUnit;
+  timing: SupplementTiming;
+  /** Catalogue id, when it came from the catalogue. */
+  catalogue_id?: string | undefined;
+}
+
+export interface StackNote {
+  /** 'conflict' costs absorption or risks harm; 'tip' is a free improvement. */
+  kind: 'conflict' | 'tip';
+  /** Names of the items involved, for the UI to highlight. */
+  items: string[];
+  text: string;
+}
+
+/** Hours to leave between two doses that compete for the same transporter. */
+export const SEPARATE_HOURS = 2;
+/** EFSA 2023 adult upper level for vitamin B6, mg/day. */
+export const B6_UPPER_MG = 12;
+/** Above this, long-term zinc starts to depress copper. */
+export const ZINC_COPPER_MG = 25;
+
+const FAT_SOLUBLE: readonly (MicroKey | 'omega3')[] = ['vit_a', 'vit_d', 'vit_e', 'vit_k'];
+
+function suppliesB6Mg(i: StackItem): number {
+  if (i.nutrient !== 'b6') return 0;
+  return i.unit === 'mg' ? i.dose : 0;
+}
+
+function sameTime(a: StackItem, b: StackItem): boolean {
+  // 'any' can be moved freely, so it never counts as a clash.
+  return a.timing === b.timing && a.timing !== 'any';
+}
+
+/**
+ * Notes about a whole stack, most important first. Conflicts before tips; each pair is reported
+ * once. Every note names the items so the UI never makes the reader guess.
+ */
+export function stackNotes(items: readonly StackItem[]): StackNote[] {
+  const conflicts: StackNote[] = [];
+  const tips: StackNote[] = [];
+  const by = (n: MicroKey) => items.filter((i) => i.nutrient === n);
+
+  const iron = by('iron');
+  const calcium = by('calcium');
+  const zinc = by('zinc');
+  const vitC = by('vit_c');
+
+  // Competing minerals, only worth mentioning when they are actually taken together.
+  for (const [a, b] of [
+    [iron, calcium],
+    [iron, zinc],
+    [calcium, zinc],
+  ] as const) {
+    for (const x of a) {
+      for (const y of b) {
+        if (!sameTime(x, y)) continue;
+        conflicts.push({
+          kind: 'conflict',
+          items: [x.name, y.name],
+          text: `${x.name} and ${y.name} compete for absorption — leave at least ${SEPARATE_HOURS} hours between them.`,
+        });
+      }
+    }
+  }
+
+  // Vitamin B6 across everything that declares it.
+  const b6 = items.filter((i) => suppliesB6Mg(i) > 0);
+  const b6Total = b6.reduce((n, i) => n + suppliesB6Mg(i), 0);
+  if (b6Total > B6_UPPER_MG) {
+    conflicts.push({
+      kind: 'conflict',
+      items: b6.map((i) => i.name),
+      text: `${b6Total.toLocaleString(undefined, { maximumFractionDigits: 1 })} mg of vitamin B6 a day is above the ${B6_UPPER_MG} mg upper limit (EFSA 2023); chronic excess damages nerves.`,
+    });
+  }
+
+  // Zinc without copper, long term.
+  const highZinc = zinc.filter((i) => i.unit === 'mg' && i.dose > ZINC_COPPER_MG);
+  if (highZinc.length > 0 && by('copper').length === 0) {
+    conflicts.push({
+      kind: 'conflict',
+      items: highZinc.map((i) => i.name),
+      text: `Zinc above ${ZINC_COPPER_MG} mg a day for long stretches lowers copper — worth a break or a copper source.`,
+    });
+  }
+
+  // Free improvements.
+  for (const x of iron) {
+    for (const y of vitC) {
+      if (!sameTime(x, y)) continue;
+      tips.push({
+        kind: 'tip',
+        items: [x.name, y.name],
+        text: `${y.name} alongside ${x.name} helps the iron absorb — good pairing.`,
+      });
+    }
+  }
+  for (const i of items) {
+    const fatSoluble =
+      (i.nutrient != null && FAT_SOLUBLE.includes(i.nutrient)) || i.catalogue_id === 'omega3';
+    if (fatSoluble && i.timing !== 'with_food') {
+      tips.push({
+        kind: 'tip',
+        items: [i.name],
+        text: `${i.name} absorbs better with a meal that has some fat in it.`,
+      });
+    }
+  }
+
+  return [...conflicts, ...tips];
 }

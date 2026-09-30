@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  B6_UPPER_MG,
   SUPPLEMENT_CATALOGUE,
   catalogueItem,
   doseWarning,
   formatDose,
+  stackNotes,
   type Person,
+  type StackItem,
 } from './supplements';
 
 const eliya: Person = { sex: 'male', age: 23, weight_kg: 110, height_cm: 186 };
@@ -105,5 +108,99 @@ describe('formatting and warnings', () => {
     expect(doseWarning(500, mg)).toMatch(/upper limit/);
     const cr = catalogueItem('creatine')!.recommend(eliya);
     expect(doseWarning(20, cr)).toMatch(/usual 5 g/);
+  });
+});
+
+describe('vitamin B6 uses the limit that actually applies', () => {
+  it('carries the EFSA 2023 upper level, not the older permissive figure', () => {
+    const guide = catalogueItem('b6')!.recommend({ sex: 'male', age: 23 });
+    expect(guide.upper).toBe(B6_UPPER_MG);
+    expect(guide.upper).toBe(12);
+    expect(guide.basis).toContain('EFSA 2023');
+  });
+
+  it('flags a single dose over that limit', () => {
+    const guide = catalogueItem('b6')!.recommend({ sex: 'male', age: 23 });
+    expect(doseWarning(50, guide)).toContain('upper limit');
+    expect(doseWarning(2, guide)).toBeUndefined();
+  });
+});
+
+describe('stackNotes', () => {
+  const item = (over: Partial<StackItem>): StackItem => ({
+    name: 'Thing',
+    dose: 1,
+    unit: 'mg',
+    timing: 'any',
+    ...over,
+  });
+  const iron = item({ name: 'Iron', nutrient: 'iron', dose: 18, timing: 'morning' });
+  const calcium = item({ name: 'Calcium', nutrient: 'calcium', dose: 500, timing: 'morning' });
+  const vitC = item({ name: 'Vitamin C', nutrient: 'vit_c', dose: 200, timing: 'morning' });
+
+  it('says nothing about an empty or harmless stack', () => {
+    expect(stackNotes([])).toEqual([]);
+    expect(stackNotes([item({ name: 'Creatine', dose: 5, unit: 'g' })])).toEqual([]);
+  });
+
+  it('spots calcium and iron taken together', () => {
+    const notes = stackNotes([iron, calcium]);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.kind).toBe('conflict');
+    expect(notes[0]!.items).toEqual(['Iron', 'Calcium']);
+    expect(notes[0]!.text).toContain('2 hours');
+  });
+
+  it('stays quiet once they are at different times of day', () => {
+    expect(stackNotes([iron, { ...calcium, timing: 'evening' }])).toEqual([]);
+  });
+
+  it('never treats an any-time dose as a clash, because it can simply be moved', () => {
+    expect(
+      stackNotes([
+        { ...iron, timing: 'any' },
+        { ...calcium, timing: 'any' },
+      ]),
+    ).toEqual([]);
+  });
+
+  it('adds up B6 across the whole stack, not just one bottle', () => {
+    const notes = stackNotes([
+      item({ name: 'B complex', nutrient: 'b6', dose: 10 }),
+      item({ name: 'Extra B6', nutrient: 'b6', dose: 5 }),
+    ]);
+    expect(notes[0]!.text).toContain('15 mg of vitamin B6');
+    expect(notes[0]!.text).toContain('EFSA 2023');
+    expect(notes[0]!.items).toEqual(['B complex', 'Extra B6']);
+  });
+
+  it('accepts a B6 total inside the limit without comment', () => {
+    expect(stackNotes([item({ name: 'B complex', nutrient: 'b6', dose: 10 })])).toEqual([]);
+  });
+
+  it('warns about long-term high zinc with no copper alongside it', () => {
+    const zinc = item({ name: 'Zinc', nutrient: 'zinc', dose: 40 });
+    expect(stackNotes([zinc])[0]!.text).toContain('lowers copper');
+    const withCopper = stackNotes([zinc, item({ name: 'Copper', nutrient: 'copper', dose: 2 })]);
+    expect(withCopper).toEqual([]);
+  });
+
+  it('points out the pairing that helps rather than only the ones that hurt', () => {
+    const notes = stackNotes([iron, vitC]);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.kind).toBe('tip');
+    expect(notes[0]!.text).toContain('helps the iron absorb');
+  });
+
+  it('reminds fat-soluble vitamins to ride along with a meal', () => {
+    const d = item({ name: 'Vitamin D3', nutrient: 'vit_d', dose: 4000, unit: 'IU' });
+    expect(stackNotes([d])[0]!.text).toContain('some fat in it');
+    expect(stackNotes([{ ...d, timing: 'with_food' }])).toEqual([]);
+  });
+
+  it('puts what costs absorption before what would merely improve it', () => {
+    const notes = stackNotes([iron, calcium, vitC]);
+    expect(notes[0]!.kind).toBe('conflict');
+    expect(notes[notes.length - 1]!.kind).toBe('tip');
   });
 });

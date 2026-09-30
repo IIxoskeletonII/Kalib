@@ -457,13 +457,7 @@ export default function Today() {
         </section>
       )}
 
-      <WeighInSheet
-        open={weighOpen}
-        date={date}
-        current={todaysWeighIn?.weight_kg}
-        previous={previousWeighIn?.weight_kg}
-        onClose={() => setWeighOpen(false)}
-      />
+      <WeighInSheet open={weighOpen} date={date} onClose={() => setWeighOpen(false)} />
       <AmountSheet
         open={sheet != null}
         food={sheet?.food}

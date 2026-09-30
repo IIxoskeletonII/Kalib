@@ -22,10 +22,12 @@ anyone to try. This file is the threat model the code is written against and how
 
 | Asset                              | Where it lives                                    | Guard                                                                                                                                       |
 | ---------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| OpenRouter key (costs money)       | Worker secret only                                | `/api/estimate` and `/api/suggest` require a Supabase session verified server-side, per-user rate limit (6/min), shared daily caps per user (30) and global (100), optional email allow-list; the balance behind it is small and prepaid, so the worst case is a paused feature, never a bill |
+| OpenRouter key (costs money)       | Worker secret only                                | `/api/estimate`, `/api/suggest`, `/api/label`, `/api/menu` and `/api/recipe` require a Supabase session verified server-side, per-user rate limit (6/min), shared daily caps per user (30) and global (100), optional email allow-list; the balance behind it is small and prepaid, so the worst case is a paused feature, never a bill |
 | Recipe bank and weekly trends (KV) | Worker KV                                         | `/api/suggest/keep` requires a session and stores recipe content only (no user id, no personal data), capped at 500 entries; trends are titles fetched server-side from public RSS feeds, never user input |
 | VAPID private key                  | Worker secret only                                | Never leaves the Worker; push messages are encrypted per RFC 8291 and signed per RFC 8292                                                   |
 | Push subscriptions (KV)            | Worker KV                                         | Writes require a session; a subscription belongs to the user who created it; ≤ 5 devices per user; endpoints must be a browser push service |
+| Fetching a user-supplied URL (`/api/recipe`) | Worker, no credentials forwarded | The one place the Worker fetches an address a user chose, so the guard fails closed: https/http only, no IP literals in any spelling (dotted, decimal, hex, IPv6), no `localhost`/`.local`/`.internal`/`.lan`/single-label hosts, no ports but 80 and 443, every redirect hop re-checked by hand rather than followed, ≤ 3 hops, ≤ 1.2 MB, 8 s timeout, HTML only. No cookies, no `Authorization`, nothing from the caller's session travels with it. 27 tests in `worker/recipeUrl.test.ts` cover the refusals, including the cloud metadata address |
+| Writing to Open Food Facts (`/api/off/contribute`) | Worker secret only | Opt-in per product in the UI and inert unless `OFF_USER_ID` and `OFF_PASSWORD` are set, so a fork cannot write to the commons under someone else's name. Requires a session, rate-limited per user, and refuses a record whose macros do not account for its calories. Sends the barcode, name, brand and per-100 g figures only |
 | Supabase `service_role` key        | Nowhere in this project                           | Never needed: erasure is a `security definer` function callable only by the row's own user (`0005_erasure.sql`)                             |
 | Health data                        | Device IndexedDB; Supabase rows under RLS         | Export any time (CSV/JSON); one button deletes the account and cascades every row                                                           |
 | Personal email of the maintainer   | Not in the repository                             | `VAPID_SUBJECT` is the site URL                                                                                                             |
@@ -33,6 +35,12 @@ anyone to try. This file is the threat model the code is written against and how
 The Worker's session check (`worker/guard.ts`) asks Supabase's own auth service who the bearer
 token belongs to, so it works whether the project signs JWTs with a shared secret or with
 asymmetric keys, and it fails closed: any error is "not signed in".
+
+### Microphone
+
+Dictation uses the browser's own `SpeechRecognition`. No audio reaches this app or its Worker,
+the control is absent where the browser has no recogniser, and a live session is cancelled when
+the screen unmounts (`src/platform/speech.ts`).
 
 ## Browser hardening
 

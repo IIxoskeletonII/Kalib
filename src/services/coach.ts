@@ -4,18 +4,28 @@ import {
   gapClosed,
   recommendByTier,
   COACH_WINDOW_DAYS,
+  COMPLETE_DAY_RATIO,
   type DaySummary,
   type Gap,
   type Recommendation,
 } from '@/core/coach';
+import { consistency, MONTH_WINDOW, type Consistency, type LoggedDay } from '@/core/adherence';
 import { selectEverydayPool } from '@/core/coachFoods';
 import { addDays } from '@/core/dates';
-import { microPanel, weekReview, type MicroPanel, type WeekReview } from '@/core/review';
+import {
+  daySodium,
+  microPanel,
+  potassiumSodium,
+  weekReview,
+  type MicroPanel,
+  type MineralBalance,
+  type WeekReview,
+} from '@/core/review';
 import { computeTrend } from '@/core/trend';
 import { dayTotals } from '@/core/nutrition';
 import type { Food, LogEntry, MicroKey, Micros, Sex } from '@/core/types';
 import { listDailyTargets } from '@/db/repo/dailyTargets';
-import { listCandidateFoods } from '@/db/repo/foods';
+import { getFoods, listCandidateFoods } from '@/db/repo/foods';
 import { foodUsageCounts, listEntriesSince } from '@/db/repo/logEntries';
 import { getSetting, setSetting } from '@/db/repo/settings';
 import { listWeighIns } from '@/db/repo/weighIns';
@@ -127,17 +137,58 @@ export interface WeekOverview {
   to: string;
   review: WeekReview;
   panel: MicroPanel;
+  /** Potassium against sodium; undefined when too little of the week carried sodium data. */
+  minerals: MineralBalance | undefined;
+  /** Days logged over the trailing week and month, and the current forgiving run. */
+  logging: Consistency;
+}
+
+/**
+ * Whether each of the last four weeks' days counts as logged, by the same 60%-of-target rule
+ * the coach uses (SPEC §16.1). Days with no target at all never existed, so they are not misses.
+ */
+export async function loggedDays(date: string): Promise<LoggedDay[]> {
+  const from = addDays(date, -(MONTH_WINDOW - 1));
+  const [entries, targets] = await Promise.all([listEntriesSince(from), listDailyTargets()]);
+  const kcalByDate = new Map<string, number>();
+  for (const e of entries) {
+    if (e.date < from || e.date > date) continue;
+    kcalByDate.set(e.date, (kcalByDate.get(e.date) ?? 0) + e.kcal);
+  }
+  const targetByDate = new Map(targets.map((t) => [t.date, t.kcal]));
+  const out: LoggedDay[] = [];
+  for (let i = 0; i < MONTH_WINDOW; i++) {
+    const day = addDays(date, -i);
+    const kcal = kcalByDate.get(day) ?? 0;
+    const target = targetByDate.get(day);
+    out.push({
+      date: day,
+      logged: kcal > 0 && (target == null || kcal >= COMPLETE_DAY_RATIO * target),
+    });
+  }
+  return out;
 }
 
 /** v2 week in review + §7.4 micronutrient panel for the 7 days ending on `date`. */
 export async function weekOverview(date: string, sex: Sex): Promise<WeekOverview> {
   const from = addDays(date, -(COACH_WINDOW_DAYS - 1));
-  const [days, weighIns] = await Promise.all([buildWeek(date), listWeighIns()]);
+  const [days, weighIns, entries, logged] = await Promise.all([
+    buildWeek(date),
+    listWeighIns(),
+    listEntriesSince(from),
+    loggedDays(date),
+  ]);
   const trend = computeTrend(weighIns, undefined, date);
+  // Sodium is a per_100g field rather than a tracked micronutrient (§6), so the ratio needs the
+  // foods behind the entries; only the ones actually referenced are loaded.
+  const foodIds = [...new Set(entries.map((e) => e.food_id).filter((id): id is string => !!id))];
+  const foodById = foodIds.length > 0 ? await getFoods(foodIds) : new Map<string, Food>();
   return {
     from,
     to: date,
     review: weekReview(days, trend, from, date),
     panel: microPanel(days, sex),
+    minerals: potassiumSodium(days, daySodium(entries, foodById, from, date)),
+    logging: consistency(logged, date),
   };
 }
