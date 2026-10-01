@@ -64,6 +64,9 @@ export default function Trend() {
 
   const latest = source.at(-1);
   const unit = series === 'weight' ? 'kg' : 'cm';
+  const dp = series === 'weight' ? 2 : 0;
+  // The hero shows what the instrument reads: the scale to 0.1 kg, the tape to the centimetre.
+  const heroDp = series === 'weight' ? 1 : 0;
   const d7 = trendDelta(source, 7);
   const d28 = trendDelta(source, 28);
   const sinceStart = source.length > 1 ? latest!.trend - source[0]!.trend : undefined;
@@ -79,7 +82,9 @@ export default function Trend() {
   return (
     <div className="pb-32">
       <header className="pt-2">
-        <p className="text-[14px] font-medium text-muted">Smoothed weight</p>
+        <p className="text-[14px] font-medium text-muted">
+          {series === 'weight' ? 'Smoothed weight' : 'Tape measurements'}
+        </p>
         <h1 className="mt-0.5 text-[34px] leading-none font-extrabold tracking-[-0.03em]">Trend</h1>
       </header>
 
@@ -91,7 +96,7 @@ export default function Trend() {
                 {series === 'weight' ? 'Trend weight' : 'Waist'}
               </div>
               <div className="display mt-1">
-                {latest.trend.toFixed(1)}
+                {latest.trend.toFixed(heroDp)}
                 <span className="ml-1.5 text-[20px] font-medium text-muted">{unit}</span>
               </div>
             </div>
@@ -105,7 +110,7 @@ export default function Trend() {
                   <TrendingUp size={16} aria-hidden />
                 )}
                 {d7 > 0 ? '+' : ''}
-                {d7.toFixed(series === 'weight' ? 2 : 1)} {unit} in 7 days
+                {d7.toFixed(series === 'weight' ? 2 : 0)} {unit} in 7 days
               </div>
             )}
           </div>
@@ -128,7 +133,7 @@ export default function Trend() {
           {bands.length > 0 && (
             <p className="mt-2 text-[12px] text-muted">
               Shaded days are when water retention is likely — the trend allows for them rather than
-              reading them as weight gained.
+              reading them as a gain.
             </p>
           )}
           <div className="mt-3 space-y-2">
@@ -153,8 +158,10 @@ export default function Trend() {
 
       {latest && (
         <Card className="mt-3 divide-y divide-line">
-          {d28 != null && <Row label="Last 28 days" value={signed(d28)} sub={unit} />}
-          {sinceStart != null && <Row label="Since start" value={signed(sinceStart)} sub={unit} />}
+          {d28 != null && <Row label="Last 28 days" value={signed(d28, dp)} sub={unit} />}
+          {sinceStart != null && (
+            <Row label="Since start" value={signed(sinceStart, dp)} sub={unit} />
+          )}
           {series === 'weight' ? (
             <Row label="Days weighed" value={String(weighedDays)} sub={`of ${all.length}`} />
           ) : (
@@ -318,6 +325,8 @@ function Mini({ label, value }: { label: string; value: string }) {
   );
 }
 
-function signed(n: number): string {
-  return `${n > 0 ? '+' : ''}${n.toFixed(2)}`;
+// §2.4 — never more precise than the data. The scale reads to 0.1 kg and the trend resolves
+// hundredths of it; a tape measure reads to the centimetre and nothing finer.
+function signed(n: number, dp: number): string {
+  return `${n > 0 ? '+' : ''}${n.toFixed(dp)}`;
 }

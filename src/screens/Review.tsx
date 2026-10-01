@@ -94,45 +94,6 @@ export default function Review() {
         </Button>
       </div>
 
-      {dietBreak && (
-        <Card className="mt-5 p-5">
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
-              <CalendarRange size={17} strokeWidth={2.2} aria-hidden />
-            </span>
-            <div className="min-w-0">
-              <div className="text-[16px] font-semibold">Take a two-week break?</div>
-              <p className="mt-1 text-[14px] leading-snug text-ink-2">{dietBreak.line}</p>
-              <p className="mt-1.5 text-[13px] leading-snug text-muted">
-                Maintenance from{' '}
-                {fromDateKey(dietBreak.from).toLocaleDateString(undefined, {
-                  day: 'numeric',
-                  month: 'long',
-                })}
-                , back to your cut on{' '}
-                {fromDateKey(dietBreak.to).toLocaleDateString(undefined, {
-                  day: 'numeric',
-                  month: 'long',
-                })}
-                . Two entries in your mode schedule, removable any time.
-              </p>
-            </div>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <Button
-              variant="primary"
-              className="flex-1"
-              onClick={() => void acceptDietBreak(dietBreak)}
-            >
-              Schedule it
-            </Button>
-            <Button className="flex-1" onClick={() => void dismissDietBreak(today)}>
-              Not this week
-            </Button>
-          </div>
-        </Card>
-      )}
-
       {!r ? null : r.completeDays === 0 ? (
         <Card className="mt-5 p-5 text-[14px] text-muted">
           No full days logged this week yet. A day counts once it reaches 60% of its target.
@@ -163,7 +124,7 @@ export default function Review() {
               sub={`of ${fmt(r.proteinTarget)} g · ${dayProteinDensity(
                 r.avgKcal,
                 r.avgProtein,
-              ).toFixed(1)} g per 100 kcal`}
+              ).toFixed(1)} g/100 kcal`}
               good={r.avgProtein >= 0.85 * r.proteinTarget}
             />
             <Stat
@@ -190,12 +151,50 @@ export default function Review() {
             )}
           </div>
 
+          {dietBreak && (
+            <Card className="mt-5 p-5">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+                  <CalendarRange size={17} strokeWidth={2.2} aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[16px] font-semibold">Take a two-week break?</div>
+                  <p className="mt-1 text-[14px] leading-snug text-ink-2">{dietBreak.line}</p>
+                  <p className="mt-1.5 text-[13px] leading-snug text-muted">
+                    Maintenance from{' '}
+                    {fromDateKey(dietBreak.from).toLocaleDateString(undefined, {
+                      day: 'numeric',
+                      month: 'long',
+                    })}
+                    , back to your cut on{' '}
+                    {fromDateKey(dietBreak.to).toLocaleDateString(undefined, {
+                      day: 'numeric',
+                      month: 'long',
+                    })}
+                    . Two entries in your mode schedule, removable any time.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <Button
+                  variant="primary"
+                  className="flex-1"
+                  onClick={() => void acceptDietBreak(dietBreak)}
+                >
+                  Schedule it
+                </Button>
+                <Button className="flex-1" onClick={() => void dismissDietBreak(today)}>
+                  Not this week
+                </Button>
+              </div>
+            </Card>
+          )}
+
           {week && (
             <Card className="mt-3 px-4 py-3">
               <div className="text-[13px] font-semibold text-muted">Logging</div>
               <p className="mt-0.5 text-[15px]">{consistencyLine(week.logging)}</p>
               <p className="mt-1 text-[13px] leading-snug text-muted">
-                {week.logging.month} of the last 28 days.{' '}
                 {week.logging.consistent
                   ? 'That is the level the research ties to results — how completely each day is logged matters far less.'
                   : 'Logging something on most days does more than logging any one day perfectly.'}

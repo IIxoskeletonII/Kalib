@@ -184,16 +184,25 @@ export default function RecipeImport() {
 
           <Card className="mt-3 divide-y divide-line">
             {link.lines.map((l, i) => (
-              <ListRow
+              <div
                 key={i}
-                wrapTitle
-                title={l.parsed.name || l.parsed.raw}
-                subtitle={l.food ? l.note : `${l.note} · no database match`}
-                badge={
-                  l.skipped ? <Badge tone="kcal">left out</Badge> : <Badge tone="accent">in</Badge>
-                }
-                value={l.grams != null ? `${fmt(l.grams)} g` : undefined}
-              />
+                className="rise-in"
+                style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+              >
+                <ListRow
+                  wrapTitle
+                  title={l.parsed.name || l.parsed.raw}
+                  subtitle={l.food ? l.note : `${l.note} · no database match`}
+                  badge={
+                    l.skipped ? (
+                      <Badge tone="kcal">left out</Badge>
+                    ) : (
+                      <Badge tone="accent">in</Badge>
+                    )
+                  }
+                  value={l.grams != null ? `${fmt(l.grams)} g` : undefined}
+                />
+              </div>
             ))}
           </Card>
 

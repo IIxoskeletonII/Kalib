@@ -108,6 +108,51 @@ bar toned `accent` ≥ 85 %, `kcal` ≥ 60 %, `fat` below. Tone here is informat
 Lucide, 2 px stroke, 22 px in icon buttons, 24 px in the tab bar, `aria-hidden` beside text,
 `aria-label` on icon-only controls.
 
+## v0.20 surfaces (30 Sep 2026)
+
+Twelve features landed before this file was consulted, and the audit that followed found nine
+drifts. They are fixed; the rules they broke are written down here so the next pass has them.
+
+**Precision follows the instrument, not the component.** §2.4 is a UI rule, not only a data one.
+The scale reads to 0.1 kg and its trend resolves hundredths of that; a tape measure reads to the
+centimetre and nothing finer. A shared `signed()` helper hard-coded to two decimals printed
+"−3.00 cm", which claims a precision no tape has. Any formatter shared across units takes its
+decimals from the unit.
+
+**A page header describes what is on the page.** The trend screen's eyebrow said "Smoothed
+weight" while showing the waist series, which is explicitly not smoothed. Eyebrows, units and
+empty-state copy all follow the selected series.
+
+**Numbers first, then the decision.** The week in review opened with a full-height diet-break
+card, pushing the week's own headline below the fold on a screen named for that week. Cards are
+for things you tap and they sit *after* the figures they are about. This is the §"Page
+structure" rule applied to a screen that is mostly prose.
+
+**One row, one rhythm.** A list row's primary text never truncates to make room for a badge: the
+badge moves to the meta line. If the meta line then cannot fit, the fix is to carry fewer
+numbers, not to clip a value. The menu row dropped fiber for exactly this reason — calories are
+already the right-hand column and protein is the other number that decides an order.
+
+**Say it once.** The logging card printed the same count in two consecutive sentences because a
+summary line and an explanatory line were written independently. Copy that sits together is read
+together.
+
+**No spec references in the interface.** "the §4 engine" reached a user-facing paragraph. Section
+numbers are for SPEC.md and source comments.
+
+**Reuse the mark.** A tick means one thing in this app: a 28 pt circle, 2 pt `surface-3` ring when
+open, `accent` fill with a 3 px check when done (`DailyChecks`). Two new checkboxes had invented
+their own square and their own fill colour; both now use the checklist mark.
+
+**New lists arrive like old lists.** `.rise-in` staggered 40 ms apart, capped at eight, on any
+list that appears after an async step — the menu dishes and the imported ingredient lines were
+static while the identical list on the estimate screen animated.
+
+Two conventions the audit confirmed rather than changed: `A · B` is a legitimate separator inside
+a data line (the Refuse entry is about eyebrow meta, not compact figures), and a `Spinner` inside
+a button is the busy state for a network call, distinct from the skeletons that stand in for
+loading content.
+
 ## Refuse
 
 Eyebrow labels · tracked caps · `A · B · C` meta · identical cards as page structure · nested

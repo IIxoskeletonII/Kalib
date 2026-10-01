@@ -210,12 +210,13 @@ function WeighInForm({
           aria-pressed={periodToday}
           className="flex w-full items-center gap-3 rounded-[18px] bg-surface-2 px-4 py-3 text-left active:bg-surface-3"
         >
+          {/* The same mark the supplement checklist uses, so a tick means one thing here. */}
           <span
-            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-              periodToday ? 'bg-primary text-on-primary' : 'bg-surface-3 text-transparent'
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition-[background-color,border-color] duration-200 ${
+              periodToday ? 'border-accent bg-accent text-on-accent' : 'border-surface-3'
             }`}
           >
-            <Check size={15} strokeWidth={3} aria-hidden />
+            {periodToday && <Check size={16} strokeWidth={3} aria-hidden />}
           </span>
           <span className="min-w-0">
             <span className="block text-[15px]">Period started today</span>

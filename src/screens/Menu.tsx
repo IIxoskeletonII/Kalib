@@ -208,21 +208,31 @@ export default function Menu() {
                   type="button"
                   aria-pressed={picked}
                   onClick={() => toggle(i)}
-                  className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150 ${
+                  className={`rise-in flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150 ${
                     picked ? 'bg-accent/10' : 'active:bg-surface-2'
                   }`}
+                  style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                      <span className="truncate text-[16px] font-medium">{g.item.name}</span>
+                    {/* A menu is read for its dish names; the badge moves down rather than
+                        squeezing the one thing the row exists to say. */}
+                    <span className="block text-[16px] leading-snug font-medium">
+                      {g.item.name}
+                    </span>
+                    {/* One line, always: the badge leads and the macros clip, so every row in
+                        the list has the same two-line rhythm whatever the dish is called. */}
+                    <span className="mt-1 flex items-center gap-2 text-[13px] text-muted">
                       {g.kind === 'matched' ? (
                         <Badge tone="accent">database</Badge>
                       ) : (
                         <Badge>estimate</Badge>
                       )}
-                    </span>
-                    <span className="mt-0.5 block text-[13px] text-muted tabular">
-                      {fmt(g.grams)} g · {fmt(g.protein_g)} g protein · {fmt(g.fiber_g)} g fiber
+                      {/* Calories are the column on the right and protein is the other number
+                          that decides an order; fiber is detail, and detail that clips is worse
+                          than detail left for the log. */}
+                      <span className="truncate tabular">
+                        {fmt(g.grams)} g · {fmt(g.protein_g)} g protein
+                      </span>
                     </span>
                   </span>
                   <span className="shrink-0 text-right">
@@ -272,8 +282,8 @@ export default function Menu() {
           </div>
 
           <p className="mt-4 px-1 text-[12px] leading-snug text-muted">
-            Logged as medium confidence, so the §4 engine treats it as the estimate it is. Adjust
-            the amount afterwards on Today if the plate was bigger than it looked.
+            Logged as a medium-confidence estimate, so your measured burn stays honest about it.
+            Adjust the amount on Today if the plate turned out bigger than it looked.
           </p>
         </>
       )}

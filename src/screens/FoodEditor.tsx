@@ -293,11 +293,11 @@ export default function FoodEditor() {
             className="mb-3 flex w-full items-start gap-3 rounded-[18px] bg-surface-2 px-4 py-3 text-left active:bg-surface-3"
           >
             <span
-              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md ${
-                contribute ? 'bg-primary text-on-primary' : 'bg-surface-3 text-transparent'
+              className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition-[background-color,border-color] duration-200 ${
+                contribute ? 'border-accent bg-accent text-on-accent' : 'border-surface-3'
               }`}
             >
-              <Check size={13} strokeWidth={3} aria-hidden />
+              {contribute && <Check size={16} strokeWidth={3} aria-hidden />}
             </span>
             <span className="min-w-0">
               <span className="block text-[14px]">Add this product to Open Food Facts</span>
