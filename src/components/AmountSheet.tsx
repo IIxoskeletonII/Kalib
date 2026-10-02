@@ -62,6 +62,8 @@ export const SOURCE_LABEL: Record<Food['source'], string> = {
   usda_foundation: 'USDA',
   usda_sr: 'USDA SR',
   usda_fndds: 'USDA FNDDS',
+  ciqual: 'Ciqual (ANSES)',
+  mena: 'Middle East tables',
   off: 'Open Food Facts',
   custom: 'My food',
   photo: 'Photo estimate',

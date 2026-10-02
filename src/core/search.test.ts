@@ -121,3 +121,40 @@ describe('a described food beats a more specific cousin', () => {
     expect(searchFoods(eggs, 'egg frozen')[0]!.id).toBe('frozen');
   });
 });
+
+describe('aliases', () => {
+  // FDC records that a chickpea is also "garbanzos" and "ceci"; the words are free and already
+  // in the download, and they are the cheapest coverage the database gets (§7.1).
+  const chickpeas = buildSearchDoc({
+    id: 'n1',
+    name: 'Chickpeas, NFS',
+    aliases: ['garbanzos', 'ceci'],
+    source: 'usda_fndds',
+  });
+  const pool = [chickpeas, buildSearchDoc({ id: 'n2', name: 'Rice, white', source: 'usda_sr' })];
+
+  it('finds a food by a name it is not called', () => {
+    expect(searchFoods(pool, 'ceci')[0]?.id).toBe('n1');
+    expect(searchFoods(pool, 'garbanzos')[0]?.id).toBe('n1');
+  });
+
+  it('still finds it by its own name', () => {
+    expect(searchFoods(pool, 'chickpeas')[0]?.id).toBe('n1');
+  });
+
+  it('shows the database name, never the alias that matched', () => {
+    expect(searchFoods(pool, 'ceci')[0]?.name).toBe('Chickpeas, NFS');
+  });
+
+  it('does not let an alias pull in unrelated foods', () => {
+    expect(searchFoods(pool, 'ceci').map((h) => h.id)).toEqual(['n1']);
+  });
+
+  it('is unchanged for a food with no aliases', () => {
+    const plain = buildSearchDoc({ id: 'n3', name: 'Rice, white', source: 'usda_sr' });
+    expect(plain.tokens).toEqual(['rice', 'white']);
+    expect(
+      buildSearchDoc({ id: 'n4', name: 'Rice, white', aliases: [], source: 'usda_sr' }).tokens,
+    ).toEqual(['rice', 'white']);
+  });
+});

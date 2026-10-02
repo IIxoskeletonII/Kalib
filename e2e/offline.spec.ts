@@ -1,6 +1,13 @@
 // SPEC §2.3 / §12: logging works with no network at all. After one online visit (service worker
 // installed, food database seeded) the app is cut off, reloaded, and used.
+import { readdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+
+/**
+ * How many seed files the build ships. Counted rather than hard-coded: this assertion silently
+ * went stale when Ciqual was added as a fourth source (SPEC §7.1a).
+ */
+const SEED_SOURCES = readdirSync('public/data').filter((f) => /^foods-.+\.json$/.test(f)).length;
 
 async function pad(page: Page, digits: string) {
   const keys = page.getByRole('group', { name: 'Number pad' });
@@ -9,7 +16,7 @@ async function pad(page: Page, digits: string) {
 
 /** True once every seed file has been written (settings `seed_version:*` at the current version). */
 async function seeded(page: Page): Promise<boolean> {
-  return page.evaluate(async () => {
+  return page.evaluate(async (expected: number) => {
     const open = indexedDB.open('kalib');
     const db = await new Promise<IDBDatabase>((res, rej) => {
       open.onsuccess = () => res(open.result);
@@ -21,8 +28,8 @@ async function seeded(page: Page): Promise<boolean> {
     });
     db.close();
     const seeds = rows.filter((s) => s.key.startsWith('seed_version:'));
-    return seeds.length === 3 && seeds.every((s) => typeof s.value === 'number');
-  });
+    return seeds.length === expected && seeds.every((s) => typeof s.value === 'number');
+  }, SEED_SOURCES);
 }
 
 test('the app loads and logs with the network cut', async ({ page, context }) => {

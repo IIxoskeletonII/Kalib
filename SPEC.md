@@ -391,6 +391,118 @@ describe-to-log (§9.4) grounds against. Ranking prefers the head noun of a name
 singular/plural as the same word, and demotes dried/powdered/baby forms; sources break ties
 (own foods, Foundation, packaged, FNDDS, SR). 12.9 k foods index in ~300 ms on a phone.
 
+### 7.1a European foods, and the vocabulary problem (added 1 Oct 2026)
+
+USDA answers plain English well and European food badly. Measured with the real §8 search over
+the real seed, on 88 terms of the vocabulary two people actually type:
+
+| | USDA alone | after this change |
+|---|---|---|
+| Plain English staples | 95% | **100%** |
+| Supermarket shorthand | 72% | **89%** |
+| Italian everyday | 32% | **76%** |
+| Gulf and Levantine | 24% | 24% |
+| **Overall** | **52%** | **69%** |
+
+Two changes produced that, in order of cost.
+
+**The alternative names USDA already publishes.** FNDDS records carry an "Additional Description"
+attribute nested in `foodAttributes` — a chickpea is also `garbanzos` and `ceci`. The seed script
+read `description` and dropped the rest, so 8,068 alias strings across 3,536 foods were being
+discarded from a file already downloaded. They are indexed now (searched, never displayed) at a
+cost of 48 KB. On their own they took Italian from 32% to 52%.
+
+**Ciqual 2025 (Anses).** The French national table: 3,484 foods against 74 constituents, lab
+analysed, covering every micronutrient §7 tracks plus iodine, with English *and* French names for
+every food. Published under the Licence Ouverte / Etalab 2.0, which permits redistribution with
+attribution. 3,323 foods survive the macro filter, at 291 KB compressed. It carries pancetta,
+bresaola, grana padano, pecorino, gorgonzola, mascarpone, mozzarella, polenta, pesto, burrata,
+provolone, speck and passata — all of which USDA lacks entirely.
+
+The English name is displayed and the French name is a search alias, so either finds the food.
+Ciqual publishes no household portions, so those foods rely on grams and the §8.1 borrowing path.
+
+**Values that are not numbers.** Ciqual writes `-` for not measured, `traces`, and `< 0,5` for
+below the limit of quantification. For a macro, a trace is zero. For a micronutrient it is left
+*absent* rather than recorded as zero, because §7.4 counts coverage and §16.1 refuses to diagnose
+a gap from weak data; recording a fabricated zero would corrupt both.
+
+**Why not an Italian table.** The authoritative ones are closed. IEO's BDA states data "can be
+employed for commercial use only upon written authorization", under the Italian database right
+(D.Lgs. 169/1999); CREA's tables state they "non possono essere copiati o in altro modo
+riprodotti". A public repo under a permissive licence is inherently open to commercial use, so
+neither can ship here. Asking IEO for a CC-BY subset is the only route to Italian-authoritative
+data and has not been attempted.
+
+**Why not Open Food Facts in the seed.** ODbL share-alike would put any bundled derivative under
+ODbL, and the full export is gigabytes. OFF stays what it is: a live barcode and packaged-food
+lookup whose results are cached per user (§7.2).
+
+**The open gap: Gulf and Levantine food, still 24%.** No openly licensed source covers it. The
+database holds zero entries for shawarma, kebab or doner. The Saudi SFDA tables (130 dishes) and
+the Bahrain tables (82) are government PDFs with no stated licence; FAO's Near East table is from
+1982 and non-commercial. The one clearly reusable source found is the Omani Foods 2024 paper
+(CC BY, 221 packaged products, no dishes). The route for §14's Oman travel window is therefore a
+small curated table whose dish values are derived from standard recipes over USDA (CC0)
+ingredients — which is what §8.2 recipes already compute — with published values cited per row
+where they exist.
+
+### 7.1b Middle Eastern dishes (added 1 Oct 2026)
+
+§7.1a left Gulf and Levantine food at 24%, with **zero** entries for shawarma, kebab or doner
+under any name. §14 puts the owner in Oman from late December, so this was the gap that mattered
+next. It is now **64%**, and the whole database answers 81% of the probe against 52% a day
+earlier.
+
+**There is no openly licensed Arabic food composition database.** Checked directly:
+
+| Source | Content | Status |
+|---|---|---|
+| myfood24 Arabic FCDB | 2,016 items, 120 nutrients | Paper is CC BY; the **data is not published** — its supplementary holds a nutrient list and item counts |
+| Omani Foods 2024 (PMC10930989) | 221 Omani packaged products | **CC BY**, redistributable, no dishes |
+| SFDA Saudi Food Composition Tables (2026) | 130 dishes, 49 nutrients, ISO/IEC 17025 labs | Free access per FAO's catalogue; no licence stated |
+| Lebanon FCT (2021) | 30 dishes, 37 sweets, 46 market foods | Lab-analysed; no licence stated |
+
+FAO's *statistical* datasets are CC BY 4.0, not non-commercial as is often assumed; its INFOODS
+tables are publications and carry no such grant.
+
+**What ships, and on what basis.** 147 dishes transcribed into `data/mena-sources.json` — 30
+from the Lebanon report, 117 from the Saudi tables — each row carrying a `source_ref` naming
+the publisher, title, year and table it came from. Nutrient values are facts and facts are not
+copyrightable; what a database right protects is the selection and arrangement of a whole table,
+which is why this is a transcription of named rows rather than an import of either publication.
+
+**The transcription is gated, because the Saudi PDF lies.** Its plain text layer sits one row out
+of step with its visual table: parsed naively, Lamb Kabsa's ash becomes its fibre.
+`pdftotext -table` reads it correctly, and three independent checks decide whether a dish is kept
+at all:
+
+- the energy identity, protein×4 + available carbohydrate×4 + fat×9 near the stated kcal;
+- the table's own nitrogen figure, protein ≈ N × 6.25;
+- the table's own kJ figure, kJ ≈ kcal × 4.184.
+
+Six of 130 Saudi dishes failed and were dropped rather than guessed at (one claimed a nitrogen
+figure implying 136 g of protein against 6 g stated). Seven more were dropped because the
+extraction mangled their names, and a name that reads as nonsense is worse than a missing row.
+The Lebanese rows were reconciled against that report's own independent per-serving table:
+Shawarma lahma reads 179 kcal/100 g one way and 89.5 kcal per 50 g serving the other. All 147
+rows satisfy the energy identity, and `seed-mena.ts` re-checks it at build time so a hand edit to
+the committed source cannot quietly ship a wrong row.
+
+**Micronutrients.** The Saudi tables carry nearly the whole §7 panel and 117 dishes ship with it,
+each value dropped if it falls outside a plausible range. The Lebanese report reports vitamins
+and minerals as traces throughout, so those 30 rows carry none and report coverage 0 — §16.1
+then declines to diagnose a gap from them, which is the honest outcome.
+
+**Aliases carry as much weight as the values.** Transliteration is not standardised, so kabsa
+also answers to machboos, majboos and makbous; kibbeh to kebba and kubba; kunafa to knafeh and
+kanafeh; and khubz, which simply means bread, surfaces every bread in the table for the person to
+choose from.
+
+**Still missing:** labneh, halloumi, shuwa, harees, luqaimat, mandi, camel milk, zaatar and
+sumac. The Omani Foods 2024 set (CC BY) would add labneh and other Gulf dairy; the rest have no
+source found yet.
+
 ### 7.2 Open Food Facts — barcodes
 Free, ODbL-licensed, strong Italian and EU packaged-goods coverage. Two hard limits to
 design around:
@@ -668,7 +780,7 @@ list grouped by aisle, step-by-step recipe instructions.
 - **Cold start:** interactive in <1.5s on a mid-range phone over 4G. *Measured 21 Sep 2026
   (Lighthouse 12, production build, returning visit): 0.84 s interactive under a regular-4G
   throttle (70 ms RTT, 10 Mbps, 2× CPU slowdown); 2.6 s under Lighthouse's "slow 4G" preset.
-  The first-run food seed (~1.2 MB compressed, 13 k rows) waits for an idle moment and writes
+  The first-run food seed (~1.4 MB compressed, 16 k rows) waits for an idle moment and writes
   in 150-row chunks so it never blocks the first screen.*
 - **Privacy:** this is health data. Single-user for now. **Before any multi-user
   release, GDPR Article 9 (special category data) obligations apply** — explicit consent,

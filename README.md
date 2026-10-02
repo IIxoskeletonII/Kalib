@@ -47,7 +47,7 @@ free tier, and the source is here for anyone who wants the same.
 
 ## What it does
 
-- **Logging in seconds** — offline USDA database (13 k foods: Foundation, SR Legacy and FNDDS
+- **Logging in seconds** — offline food database (16 k foods: USDA Foundation, SR Legacy and FNDDS,
   dishes as eaten), packaged products from Open Food Facts by search or **barcode photo**
   (decoded on-device; scanned offline, looked up when the connection returns), your own foods,
   a custom number pad (no OS keyboard), one-tap "log again" tiles, swipe to delete (with undo)
@@ -201,18 +201,34 @@ Lighthouse 12, mobile emulation against the production build, returning visit:
 | Regular 4G (70 ms RTT, 10 Mbps, 2× CPU slowdown)    | 0.84 s      | 0.84 s | 0 ms     | 100   |
 | Lighthouse "slow 4G" (150 ms, 1.6 Mbps, 4× slowdown) | 2.6 s       | 2.6 s  | 6 ms     | 95    |
 
-The first launch also downloads the food database (~1.2 MB compressed) and writes 13 k rows;
+The first launch also downloads the food database (~1.4 MB compressed) and writes 16 k rows;
 that runs in small chunks after the first screen is interactive, so it does not move the numbers.
 
 ## Food database
 
-`public/data/foods-*.json` is generated from USDA FoodData Central (Foundation Foods, a filtered
-slice of SR Legacy, and FNDDS) and committed. Regenerate after changing `scripts/seed-usda.ts` or
-`src/core/nutrients.ts`, then bump `SEED_VERSION` in `src/db/seed.ts` so installed clients reload:
+`public/data/foods-*.json` is generated and committed. Regenerate after changing a seed script
+or `src/core/nutrients.ts`, then bump `SEED_VERSION` in `src/db/seed.ts` so installed clients
+reload:
 
 ```sh
-npm run seed:usda
+npm run seed:usda     # Foundation Foods, a filtered slice of SR Legacy, and FNDDS
+npm run seed:ciqual   # Anses Ciqual, the French national table
 ```
+
+**Why two sources.** USDA answers plain English well and European food badly. On an 88-term
+search probe of the vocabulary two people actually type, USDA alone found 95% of English staples
+but 32% of everyday Italian ones — and the authoritative Italian tables (CREA, and IEO's BDA)
+both forbid redistribution, so neither can ship here. Ciqual is lab-analysed, carries every
+micronutrient this app tracks plus iodine, ships English and French names for all 3,484 foods,
+and is openly licensed. It brings pancetta, bresaola, grana padano, pecorino, gorgonzola,
+mascarpone, polenta, pesto, burrata, provolone and speck. Measured after adding it, and after
+indexing the alternative names USDA already publishes: **English 100%, Italian 76%, overall 69%**,
+up from 52%.
+
+Gulf and Levantine food was the open gap at 24%. 147 lab-analysed Middle Eastern dishes
+(§7.1b) took it to **64%** for 12 KB — kabsa and machboos, shawarma, mansaf, haneeth, kunafa,
+falafel, fattoush, tabbouleh, kibbeh, hummus, ful medames and a hundred more, 117 of them with a
+full micronutrient panel. Still missing: labneh, halloumi, shuwa, harees, luqaimat and mandi.
 
 Packaged foods come from Open Food Facts through `/api/off/search`, which re-ranks OFF's results
 for label completeness and popularity (see `worker/off.ts`). Picked products are cached locally.
@@ -330,6 +346,21 @@ npx skills add vercel-labs/agent-skills --skill web-design-guidelines
 ## Data sources
 
 U.S. Department of Agriculture, Agricultural Research Service — FoodData Central (Foundation
-Foods, SR Legacy, FNDDS). Open Food Facts — Open Database License (ODbL).
+Foods, SR Legacy, FNDDS), public domain.
+
+Anses — Table de composition nutritionnelle des aliments Ciqual 2025, under the
+[Licence Ouverte / Open Licence 2.0](https://www.etalab.gouv.fr/licence-ouverte-open-licence/)
+(DOI [10.57745/RDMHWY](https://doi.org/10.57745/RDMHWY)). Regenerate with `npm run seed:ciqual`.
+
+Lebanese University, Faculty of Public Health, with WHO EMRO — *Lebanon Food Composition
+Data: Traditional Dishes, Arabic Sweets and Market Foods* (2021).
+
+Saudi Food and Drug Authority, National Nutrition Committee — *Saudi Food Composition Tables*
+(2026).
+
+147 dishes transcribed from those two tables, cited per row in `data/mena-sources.json`.
+Regenerate with `npm run seed:mena`.
+
+Open Food Facts — Open Database License (ODbL).
 
 Not medical advice. Targets are general-population formulas.

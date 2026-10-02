@@ -23,6 +23,11 @@ const SOURCE_BOOST: Record<FoodSource, number> = {
   photo: 0.5,
   // FNDDS is "as eaten" (cooked dishes, restaurant items): a touch above SR's raw ingredients.
   usda_fndds: 0.25,
+  // Ciqual is lab-analysed and European, so it outranks SR for the foods it has; below
+  // Foundation, which is the deeper panel.
+  ciqual: 1,
+  // Lab-analysed dishes nothing else in the database has; when one matches, it is the answer.
+  mena: 1.25,
   usda_sr: 0,
 };
 
@@ -39,14 +44,19 @@ export function buildSearchDoc(f: {
   id: string;
   name: string;
   brand?: string | undefined;
+  /** Other names the food answers to (§7.1): searched, never shown. */
+  aliases?: string[] | undefined;
   source: FoodSource;
   recipe_id?: string | undefined;
 }): SearchDoc {
+  // Aliases join the token index but not the name, so a match on "ceci" still shows the food
+  // by the name the database gives it.
+  const text = [f.name, f.brand, ...(f.aliases ?? [])].filter(Boolean).join(' ');
   const doc: SearchDoc = {
     id: f.id,
     name: f.name,
     source: f.source,
-    tokens: tokenize(f.brand ? `${f.name} ${f.brand}` : f.name),
+    tokens: tokenize(text),
   };
   if (f.brand) doc.brand = f.brand;
   if (f.recipe_id) doc.recipe = true;

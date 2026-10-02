@@ -758,8 +758,12 @@ export default function Settings() {
             <Database size={14} className="mt-0.5 shrink-0" aria-hidden />
             <span>
               Nutrient data: U.S. Department of Agriculture, Agricultural Research Service, FoodData
-              Central (Foundation Foods, SR Legacy). Packaged foods: Open Food Facts, Open Database
-              License (ODbL).
+              Central (Foundation Foods, SR Legacy, FNDDS). European foods: Anses, Table de
+              composition nutritionnelle des aliments Ciqual 2025, Licence Ouverte (Etalab 2.0).
+              Middle Eastern dishes: Lebanese University Faculty of Public Health with WHO EMRO,
+              Lebanon Food Composition Data (2021); Saudi Food and Drug Authority, Saudi Food
+              Composition Tables (2026). Packaged foods: Open Food Facts, Open Database License
+              (ODbL).
             </span>
           </p>
           <p>Kalib {__APP_VERSION__}. Not medical advice.</p>

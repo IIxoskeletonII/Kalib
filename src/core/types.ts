@@ -4,7 +4,17 @@
 export type Sex = 'male' | 'female';
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'heavy';
 export type Mode = 'CUT' | 'MAINTAIN' | 'RECOMP' | 'BULK';
-export type FoodSource = 'usda_foundation' | 'usda_sr' | 'usda_fndds' | 'off' | 'custom' | 'photo';
+export type FoodSource =
+  | 'usda_foundation'
+  | 'usda_sr'
+  | 'usda_fndds'
+  /** ANSES Ciqual, the French national table (§7.1a) — European foods USDA does not carry. */
+  | 'ciqual'
+  /** Middle Eastern dishes transcribed from published lab analyses (§7.1b). */
+  | 'mena'
+  | 'off'
+  | 'custom'
+  | 'photo';
 export type EntryMethod = 'favourite' | 'search' | 'barcode' | 'batch' | 'photo' | 'manual';
 export type Confidence = 'high' | 'medium' | 'low';
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -94,6 +104,10 @@ export interface Food extends SyncMeta {
   name: string;
   brand?: string;
   barcode?: string;
+  /** Other names this food is searched by (§7.1). Not shown in the UI. */
+  aliases?: string[];
+  /** The published table a compiled value came from, for §7.4 provenance. */
+  source_ref?: string;
   /** Source's food group (USDA category) — used to keep coach suggestions to real dishes. */
   category?: string;
   per_100g: Per100g;

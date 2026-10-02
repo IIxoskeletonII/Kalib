@@ -92,7 +92,12 @@ describe('looksLikeUrl', () => {
 
 describe('gramsFor', () => {
   it('takes a stated weight and says so', () => {
-    expect(gramsFor({ raw: '', term: '', name: '', seasoning: false, grams: 250, basis: 'weight' }, undefined)).toEqual({
+    expect(
+      gramsFor(
+        { raw: '', term: '', name: '', seasoning: false, grams: 250, basis: 'weight' },
+        undefined,
+      ),
+    ).toEqual({
       grams: 250,
       note: '250 g as written',
     });
@@ -100,10 +105,16 @@ describe('gramsFor', () => {
 
   it('names the assumption behind a spoon or a tin', () => {
     expect(
-      gramsFor({ raw: '', term: '', name: '', seasoning: false, grams: 30, basis: 'measure' }, undefined).note,
+      gramsFor(
+        { raw: '', term: '', name: '', seasoning: false, grams: 30, basis: 'measure' },
+        undefined,
+      ).note,
     ).toContain('spoon measure');
     expect(
-      gramsFor({ raw: '', term: '', name: '', seasoning: false, grams: 400, basis: 'package' }, undefined).note,
+      gramsFor(
+        { raw: '', term: '', name: '', seasoning: false, grams: 400, basis: 'package' },
+        undefined,
+      ).note,
     ).toContain('standard pack');
   });
 
@@ -113,7 +124,10 @@ describe('gramsFor', () => {
       name: 'Egg, whole, raw',
       portions: [{ label: 'large egg', grams: 50 }],
     });
-    const out = gramsFor({ raw: '', term: 'eggs', name: 'eggs', seasoning: false, count: 2, basis: 'count' }, egg);
+    const out = gramsFor(
+      { raw: '', term: 'eggs', name: 'eggs', seasoning: false, count: 2, basis: 'count' },
+      egg,
+    );
     expect(out.grams).toBe(100);
     expect(out.note).toContain('large egg');
   });
