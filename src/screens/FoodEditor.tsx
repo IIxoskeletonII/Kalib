@@ -3,7 +3,7 @@
 import { Camera, Check, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { macrosAgree } from '@/core/label';
-import { captureImage } from '@/platform/camera';
+import { pickImage } from '@/platform/camera';
 import { readLabel } from '@/services/label';
 import { contributeEnabled, contributeProduct } from '@/services/offContribute';
 import { useBack } from '@/hooks/useBack';
@@ -59,7 +59,7 @@ export default function FoodEditor() {
   /** §9.6 — the packet fills the form; every figure stays editable afterwards. */
   const scanLabel = async () => {
     if (reading) return;
-    const file = await captureImage();
+    const file = await pickImage();
     if (!file) return;
     setReading(true);
     setLabelNote(null);
@@ -216,7 +216,7 @@ export default function FoodEditor() {
             disabled={reading}
             onClick={() => void scanLabel()}
           >
-            {reading ? 'Reading the label…' : 'Photograph the nutrition label'}
+            {reading ? 'Reading the label…' : 'Scan the nutrition label'}
           </Button>
           {!labelNote && fromBarcode && (
             <p className="mt-2 px-1 text-[13px] text-muted">

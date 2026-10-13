@@ -2,7 +2,7 @@
 //
 // The one screen in the app that leads with a range instead of a number, because that is the
 // truth about a restaurant plate and hiding it would make the number less useful, not more.
-import { Camera, ChevronLeft, Utensils, X } from 'lucide-react';
+import { ChevronLeft, ImagePlus, Utensils, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useBack } from '@/hooks/useBack';
@@ -21,7 +21,7 @@ import { MicButton } from '@/components/MicButton';
 import { mealSlotForTime, todayKey } from '@/core/dates';
 import type { GroundedItem } from '@/core/estimate';
 import { MEAL_SLOTS, type MealSlot } from '@/core/types';
-import { captureImage } from '@/platform/camera';
+import { pickImage } from '@/platform/camera';
 import { logEstimate } from '@/services/estimate';
 import { dishRange, MENU_UNCERTAINTY, readMenu, type MenuOutcome } from '@/services/menu';
 
@@ -56,7 +56,7 @@ export default function Menu() {
   );
 
   const addPhoto = async () => {
-    const file = await captureImage();
+    const file = await pickImage();
     if (!file) return;
     setPhoto({ file, url: URL.createObjectURL(file) });
     setPhase({ state: 'input' });
@@ -114,7 +114,7 @@ export default function Menu() {
         <IconButton icon={ChevronLeft} label="Back" onClick={back} />
         <div className="flex-1">
           <h1 className="text-[22px] leading-tight font-bold tracking-[-0.01em]">Eating out</h1>
-          <p className="text-[13px] text-muted">Photograph the menu, log what you order.</p>
+          <p className="text-[13px] text-muted">A photo of the menu, then log what you order.</p>
         </div>
       </div>
 
@@ -137,10 +137,10 @@ export default function Menu() {
               <button
                 type="button"
                 onClick={addPhoto}
-                aria-label="Photograph the menu"
+                aria-label="Add a photo of the menu, from your camera or your library"
                 className="flex h-[120px] w-[120px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-[18px] bg-surface text-[13px] font-semibold text-ink-2 transition-transform duration-200 active:scale-95"
               >
-                <Camera size={26} strokeWidth={2} aria-hidden />
+                <ImagePlus size={26} strokeWidth={2} aria-hidden />
                 Menu
               </button>
             )}

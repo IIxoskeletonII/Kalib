@@ -4,7 +4,18 @@
 
 /** Downscale to ~1024 px on the long edge: faster decode, far less memory on the phone. */
 export async function downscale(file: File, maxEdge = 1024): Promise<HTMLCanvasElement> {
-  const bitmap = await createImageBitmap(file);
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    // The library can hand over anything it holds, where the camera only ever gave us a JPEG —
+    // most often an iPhone HEIC that this browser will not decode. The raw DOMException reads
+    // "The source image could not be decoded", which tells nobody what to do next.
+    throw new Error(
+      `That image could not be read${file.type ? ` (${file.type})` : ''}. ` +
+        'Try a JPEG or PNG — a screenshot of the photo always works.',
+    );
+  }
   const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(bitmap.width * scale);

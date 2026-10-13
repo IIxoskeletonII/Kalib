@@ -1,17 +1,17 @@
 // SPEC §9.4 — describe a meal (photo optional), get grounded items back, adjust, log.
-import { Camera, ChevronLeft, Sparkles, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ImagePlus, Sparkles, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { MicButton } from '@/components/MicButton';
 import { useBack } from '@/hooks/useBack';
 import { useNavigate, useSearchParams } from 'react-router';
-import { SLOT_LABEL } from '@/components/AmountSheet';
+import { SLOT_LABEL, SOURCE_BADGE } from '@/components/AmountSheet';
 import { DateBanner } from '@/components/DateBanner';
 import { NumberPad } from '@/components/NumberPad';
 import { Badge, Button, Card, IconButton, Segmented, Sheet, fmt } from '@/components/ui';
 import { mealSlotForTime, todayKey } from '@/core/dates';
 import { regroundItem, totalGrounded, type GroundedItem } from '@/core/estimate';
 import { MEAL_SLOTS, type MealSlot } from '@/core/types';
-import { captureImage } from '@/platform/camera';
+import { pickImage } from '@/platform/camera';
 import { estimateMeal, logEstimate, type EstimateOutcome } from '@/services/estimate';
 
 const SLOT_OPTIONS = MEAL_SLOTS.map((s) => ({ value: s, label: SLOT_LABEL[s] }));
@@ -49,8 +49,10 @@ export default function Estimate() {
     [photo],
   );
 
+  // The OS sheet offers the library as well as the camera, so a meal eaten an hour ago is as
+  // easy to log as one on the table.
   const addPhoto = async () => {
-    const file = await captureImage();
+    const file = await pickImage();
     if (!file) return;
     setPhoto({ file, url: URL.createObjectURL(file) });
     textRef.current?.focus();
@@ -144,10 +146,10 @@ export default function Estimate() {
           <button
             type="button"
             onClick={addPhoto}
-            aria-label="Add a photo"
+            aria-label="Add a photo, from your camera or your library"
             className="flex h-[84px] w-[84px] shrink-0 flex-col items-center justify-center gap-1 rounded-[18px] bg-surface text-[12px] font-semibold text-ink-2 transition-transform duration-200 active:scale-95"
           >
-            <Camera size={22} strokeWidth={2} aria-hidden />
+            <ImagePlus size={22} strokeWidth={2} aria-hidden />
             Photo
           </button>
         )}
@@ -203,11 +205,7 @@ export default function Estimate() {
                     <span className="truncate text-[16px] font-medium">{g.item.name}</span>
                     {g.kind === 'matched' ? (
                       <Badge tone="accent">
-                        {g.food?.source === 'custom'
-                          ? 'Mine'
-                          : g.food?.source === 'off'
-                            ? 'OFF'
-                            : 'USDA'}
+                        {g.food ? SOURCE_BADGE[g.food.source] : 'Matched'}
                       </Badge>
                     ) : (
                       <Badge tone="kcal">estimate</Badge>

@@ -695,11 +695,33 @@ WebKit has long-standing bugs with camera access in standalone PWA mode, and cam
 permission **is not persisted for PWAs**, so live-stream approaches produce repeated
 permission prompts. This would destroy the friction budget.
 
-**Mandate:** all camera use goes through the native file/camera picker
-(`capture="environment"`). Barcode scanning takes a still image and decodes it
-client-side (ZXing-js or equivalent) rather than running a live video scanner. Slightly
-less slick; dramatically more reliable. Note also that Safari does not support the
-`BarcodeDetector` API — a JS decoder is required regardless.
+**Mandate:** all camera use goes through the native file/camera picker; never a live video
+scanner. Barcode scanning takes a still image and decodes it client-side (ZXing-js or
+equivalent). Slightly less slick; dramatically more reliable. Note also that Safari does not
+support the `BarcodeDetector` API — a JS decoder is required regardless.
+
+**Two pickers, not one (amended 13 Oct 2026).** `capture="environment"` was originally applied
+to every picker. It is the right default for a barcode, which has to be in front of the lens,
+but on everything else it is a bug: iOS reads that attribute as *camera only* and never offers
+the photo library, so a meal eaten an hour ago could not be logged from the photo already taken
+of it. `src/platform/camera.ts` therefore exposes two:
+
+| | `capture` | Used by |
+|---|---|---|
+| `captureImage()` | `environment` | barcode scanning (§10.2) |
+| `pickImage()` | none | meal photo (§9.4), menu photo (§9.5), nutrition label (§9.6) |
+
+Dropping the attribute is all that is needed: the OS then shows its own sheet offering the
+library *and* the camera, which is fewer taps than a chooser of our own and the one iOS users
+already know. The mandate above is unaffected — both are still the native picker, and neither
+opens a stream.
+
+**Consequence: images we cannot decode.** The library holds whatever the phone has put in it,
+where the camera only ever handed us a JPEG. An iPhone photo is HEIC, and while Safari converts
+it on the way out of the picker, other engines do not. `downscale()` therefore catches the
+decode failure and reports which type failed and what to do about it, rather than surfacing the
+browser's own "The source image could not be decoded", which names no cause and offers no way
+out.
 
 ### 10.3 Stack
 

@@ -8,8 +8,8 @@ import { toast } from '@/components/Toast';
 import { deleteWeighIn, upsertWeighIn } from '@/db/repo/weighIns';
 import { relativeFatMass, waistToHeight, WHTR_HEALTHY_MAX } from '@/core/body';
 import { retentionWindows } from '@/core/cycle';
-import { addDays, fromDateKey, todayKey } from '@/core/dates';
-import { computeTrend, trendDelta } from '@/core/trend';
+import { fromDateKey, todayKey } from '@/core/dates';
+import { computeTrend, trendDelta, windowSeries } from '@/core/trend';
 import { fmt } from '@/components/ui';
 import { setSetting } from '@/db/repo/settings';
 import { useCycle, useProfile, useSetting, useTdee, useWeighIns } from '@/hooks/useData';
@@ -50,11 +50,10 @@ export default function Trend() {
   }, [weighIns, today]);
 
   const source = series === 'weight' ? all : waistAll;
-  const points = useMemo(() => {
-    if (range === 'all') return source;
-    const from = addDays(today, -Number(range));
-    return source.filter((p) => p.date >= from);
-  }, [source, range, today]);
+  const points = useMemo(
+    () => windowSeries(source, range === 'all' ? undefined : Number(range), today),
+    [source, range, today],
+  );
 
   // The stretches where water retention is expected, shaded behind the line.
   const bands = useMemo(() => {
@@ -79,6 +78,22 @@ export default function Trend() {
       : undefined;
   const whtr = profile && lastWaist ? waistToHeight(profile.height_cm, lastWaist.raw!) : undefined;
 
+  // Any weigh-in at all is enough to show the card, and the card is where the series toggle
+  // lives. Gating the card on `latest` instead stranded anyone who picked Waist before
+  // measuring one: the toggle went away with the card and there was no way back to Weight.
+  const hasWeighIns = all.length > 0;
+  // alpha = 1 carries a lone waist reading forward, which would draw a flat line out of a
+  // single measurement; two is the least that says anything.
+  const hasChart = points.length >= 2 && (series === 'weight' || waistDays >= 2);
+  // Until there is more than four weeks of data every range shows the same thing, so the
+  // buttons look broken. Saying what is on screen costs one line and explains it.
+  const span =
+    source.length === 0
+      ? undefined
+      : points.length >= source.length
+        ? `Showing all ${source.length} ${source.length === 1 ? 'day' : 'days'}`
+        : `Showing the last ${points.length} of ${source.length} days`;
+
   return (
     <div className="pb-32">
       <header className="pt-2">
@@ -88,62 +103,86 @@ export default function Trend() {
         <h1 className="mt-0.5 text-[34px] leading-none font-extrabold tracking-[-0.03em]">Trend</h1>
       </header>
 
-      {latest ? (
+      {hasWeighIns ? (
         <Card className="mt-6 p-5">
-          <div className="flex items-end justify-between">
-            <div>
-              <div className="text-[13px] font-semibold text-muted">
-                {series === 'weight' ? 'Trend weight' : 'Waist'}
+          {latest ? (
+            <div className="flex items-end justify-between">
+              <div>
+                <div className="text-[13px] font-semibold text-muted">
+                  {series === 'weight' ? 'Trend weight' : 'Waist'}
+                </div>
+                <div className="display mt-1">
+                  {latest.trend.toFixed(heroDp)}
+                  <span className="ml-1.5 text-[20px] font-medium text-muted">{unit}</span>
+                </div>
               </div>
-              <div className="display mt-1">
-                {latest.trend.toFixed(heroDp)}
-                <span className="ml-1.5 text-[20px] font-medium text-muted">{unit}</span>
-              </div>
+              {d7 != null && (
+                <div
+                  className={`flex items-center gap-1 pb-1 text-[14px] tabular ${d7 <= 0 ? 'text-fiber' : 'text-fat'}`}
+                >
+                  {d7 <= 0 ? (
+                    <TrendingDown size={16} aria-hidden />
+                  ) : (
+                    <TrendingUp size={16} aria-hidden />
+                  )}
+                  {d7 > 0 ? '+' : ''}
+                  {d7.toFixed(series === 'weight' ? 2 : 0)} {unit} in 7 days
+                </div>
+              )}
             </div>
-            {d7 != null && (
-              <div
-                className={`flex items-center gap-1 pb-1 text-[14px] tabular ${d7 <= 0 ? 'text-fiber' : 'text-fat'}`}
-              >
-                {d7 <= 0 ? (
-                  <TrendingDown size={16} aria-hidden />
-                ) : (
-                  <TrendingUp size={16} aria-hidden />
-                )}
-                {d7 > 0 ? '+' : ''}
-                {d7.toFixed(series === 'weight' ? 2 : 0)} {unit} in 7 days
-              </div>
-            )}
-          </div>
-          <div className="mt-4">
-            {points.length >= 2 ? (
-              <TrendChart
-                points={points}
-                showRaw={showRaw}
-                bands={bands}
-                decimals={series === 'weight' ? 1 : 0}
-              />
-            ) : (
-              <p className="py-10 text-center text-[14px] text-muted">
-                {series === 'weight'
-                  ? 'Two or more weigh-ins needed for a chart.'
-                  : 'Two or more waist measurements needed. Add one with your weigh-in — it keeps moving when the scale stalls.'}
+          ) : (
+            <div>
+              <div className="text-[13px] font-semibold text-muted">Waist</div>
+              <p className="mt-1.5 text-[15px] leading-snug text-muted">
+                No tape measurements yet. Add one with your weigh-in — it keeps moving when the
+                scale stalls.
               </p>
-            )}
-          </div>
-          {bands.length > 0 && (
+            </div>
+          )}
+          {latest && (
+            <div className="mt-4">
+              {hasChart ? (
+                <TrendChart
+                  points={points}
+                  showRaw={showRaw}
+                  bands={bands}
+                  decimals={series === 'weight' ? 1 : 0}
+                />
+              ) : (
+                <p className="py-10 text-center text-[14px] text-muted">
+                  {series === 'weight'
+                    ? 'Two or more weigh-ins needed for a chart.'
+                    : 'Two or more waist measurements needed for a chart.'}
+                </p>
+              )}
+            </div>
+          )}
+          {bands.length > 0 && hasChart && (
             <p className="mt-2 text-[12px] text-muted">
               Shaded days are when water retention is likely — the trend allows for them rather than
               reading them as a gain.
             </p>
           )}
           <div className="mt-3 space-y-2">
+            {/* The series toggle is unconditional: it is the only way back from a series with
+                nothing in it. Range and Raw only act on a chart, so they wait for one. */}
             <Segmented value={series} options={SERIES} onChange={setSeries} />
-            <div className="flex items-center justify-between gap-3">
-              <Segmented value={range} options={RANGES} onChange={setRange} className="flex-1" />
-              <Chip active={showRaw} onClick={() => setSetting('show_raw_weight', !showRaw)}>
-                Raw
-              </Chip>
-            </div>
+            {hasChart && (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <Segmented
+                    value={range}
+                    options={RANGES}
+                    onChange={setRange}
+                    className="flex-1"
+                  />
+                  <Chip active={showRaw} onClick={() => setSetting('show_raw_weight', !showRaw)}>
+                    Raw
+                  </Chip>
+                </div>
+                {span != null && <p className="px-1 text-[12px] text-muted tabular">{span}</p>}
+              </>
+            )}
           </div>
         </Card>
       ) : (

@@ -69,6 +69,22 @@ export const SOURCE_LABEL: Record<Food['source'], string> = {
   photo: 'Photo estimate',
 };
 
+/**
+ * The same provenance, short enough for a badge beside a truncated name. Kept in step with
+ * SOURCE_LABEL by the Record type: adding a source to §7 makes both of these fail to compile,
+ * which is the point — a new table must not quietly inherit another one's name.
+ */
+export const SOURCE_BADGE: Record<Food['source'], string> = {
+  usda_foundation: 'USDA',
+  usda_sr: 'USDA',
+  usda_fndds: 'USDA',
+  ciqual: 'Ciqual',
+  mena: 'Middle East',
+  off: 'OFF',
+  custom: 'Mine',
+  photo: 'Estimate',
+};
+
 const SLOT_OPTIONS = MEAL_SLOTS.map((s) => ({ value: s, label: SLOT_LABEL[s] }));
 
 export function AmountSheet(p: AmountSheetProps) {

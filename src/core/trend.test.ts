@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { computeTrend, trendDelta } from './trend';
+import { addDays } from './dates';
+import { computeTrend, trendDelta, windowSeries } from './trend';
 
 describe('computeTrend (§4.1)', () => {
   it('returns an empty series for no weigh-ins', () => {
@@ -94,5 +95,53 @@ describe('trendDelta', () => {
   it('is undefined when the series is too short', () => {
     expect(trendDelta(s, 3)).toBeUndefined();
     expect(trendDelta([], 1)).toBeUndefined();
+  });
+});
+
+describe('windowSeries', () => {
+  // 60 consecutive days ending today, so the window arithmetic is easy to read.
+  const today = '2026-10-13';
+  const series = computeTrend(
+    Array.from({ length: 60 }, (_, i) => ({
+      date: addDays(today, -(59 - i)),
+      weight_kg: 100 - i * 0.05,
+    })),
+    undefined,
+    today,
+  );
+
+  it('counts both ends, so four weeks is 28 days and not 29', () => {
+    const w = windowSeries(series, 28, today);
+    expect(w).toHaveLength(28);
+    expect(w.at(-1)!.date).toBe(today);
+    expect(w[0]!.date).toBe(addDays(today, -27));
+  });
+
+  it('returns everything when the window is longer than the record', () => {
+    expect(windowSeries(series, 84, today)).toHaveLength(60);
+  });
+
+  it('returns everything for an undefined window', () => {
+    expect(windowSeries(series, undefined, today)).toHaveLength(60);
+  });
+
+  it('a single day is a window of one', () => {
+    const w = windowSeries(series, 1, today);
+    expect(w).toHaveLength(1);
+    expect(w[0]!.date).toBe(today);
+  });
+
+  it('is empty when the record ended before the window opened', () => {
+    expect(windowSeries(series, 28, addDays(today, 90))).toHaveLength(0);
+  });
+
+  it('refuses a window of zero days rather than returning a silent empty chart', () => {
+    expect(() => windowSeries(series, 0, today)).toThrow(RangeError);
+  });
+
+  it('copies rather than aliasing the input', () => {
+    const w = windowSeries(series, undefined, today);
+    expect(w).not.toBe(series);
+    expect(w).toEqual(series);
   });
 });

@@ -50,6 +50,22 @@ export function computeTrend(
   return out;
 }
 
+/**
+ * The last `days` days of a series, or all of it when `days` is undefined. Both ends are
+ * inclusive, so 28 days is 28 points and not 29 — the chart's "4 weeks" label and the count of
+ * days underneath it then agree.
+ */
+export function windowSeries(
+  points: readonly TrendPoint[],
+  days: number | undefined,
+  today: string,
+): TrendPoint[] {
+  if (days == null) return [...points];
+  if (days < 1) throw new RangeError(`days must be at least 1, got ${days}`);
+  const from = addDays(today, -(days - 1));
+  return points.filter((p) => p.date >= from);
+}
+
 /** Change in trend over the last `days` days; undefined when the series is too short. */
 export function trendDelta(points: readonly TrendPoint[], days: number): number | undefined {
   if (points.length <= days) return undefined;
