@@ -4,11 +4,13 @@ import Dexie, { type EntityTable } from 'dexie';
 import type {
   Batch,
   DailyTarget,
+  Exercise,
   Food,
   FoodPrice,
   LogEntry,
   Profile,
   Recipe,
+  Routine,
   Setting,
   Supplement,
   SupplementLog,
@@ -16,6 +18,7 @@ import type {
   WaterLog,
   WeekPlan,
   WeighIn,
+  WorkoutSession,
 } from '@/core/types';
 
 export const DB_NAME = 'kalib';
@@ -38,6 +41,9 @@ export class KalibDB extends Dexie {
   batches!: EntityTable<Batch, 'id'>;
   week_plans!: EntityTable<WeekPlan, 'id'>;
   prices!: EntityTable<FoodPrice, 'id'>;
+  exercises!: EntityTable<Exercise, 'id'>;
+  routines!: EntityTable<Routine, 'id'>;
+  workout_sessions!: EntityTable<WorkoutSession, 'id'>;
 
   constructor(name: string = DB_NAME) {
     super(name);
@@ -65,6 +71,16 @@ export class KalibDB extends Dexie {
     this.version(4).stores({
       week_plans: 'id, [user_id+week_start]',
       prices: 'id, &[user_id+food_id]',
+    });
+    // v5 (SPEC §20): training. Sets are embedded in their session rather than given a table of
+    // their own — see the note on WorkoutSession in core/types.ts.
+    this.version(5).stores({
+      // `source` so the seeded library can be replaced wholesale without touching custom ones.
+      exercises: 'id, source, external_id, primary_muscle',
+      routines: 'id, [user_id+sort_order]',
+      // `ended_at` finds the session still running; `[user_id+started_at]` drives history and
+      // every derived figure (PRs, weekly volume, streaks) that walks sessions in order.
+      workout_sessions: 'id, [user_id+started_at], started_at, ended_at, routine_id',
     });
   }
 }

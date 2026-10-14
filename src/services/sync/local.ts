@@ -39,11 +39,21 @@ function table(name: SyncTable) {
       return db.week_plans;
     case 'prices':
       return db.prices;
+    case 'exercises':
+      return db.exercises;
+    case 'routines':
+      return db.routines;
+    case 'workout_sessions':
+      return db.workout_sessions;
   }
 }
 
 function syncable(name: SyncTable, row: Row): boolean {
   if (name === 'foods') return USER_FOOD_SOURCES.has(String(row.source));
+  // The exercise library is 1,394 rows regenerated from a CC0 source on every device. Pushing
+  // it would mean uploading the same catalogue per account for no gain; only the user's own
+  // exercises are theirs to carry.
+  if (name === 'exercises') return row.source === 'custom';
   if (name === 'settings') return !DEVICE_ONLY.test(String(row.key));
   return true;
 }

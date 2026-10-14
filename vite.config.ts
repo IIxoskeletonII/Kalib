@@ -53,6 +53,20 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: { cacheName: 'kalib-data', expiration: { maxEntries: 8 } },
           },
+          {
+            // §20.2 — form animations, fetched the first time an exercise is opened and kept
+            // afterwards, so a routine is fully offline after one session with it. Not
+            // precached: 1,394 clips is ~55 MB nobody should pay for on install, and most
+            // people use a few dozen. maxEntries is generous because each is ~40 KB and the
+            // ones worth keeping are exactly the ones already fetched.
+            urlPattern: ({ url }) => url.pathname.startsWith('/exercises/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'kalib-exercise-media',
+              expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
     }),

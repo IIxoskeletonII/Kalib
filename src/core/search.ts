@@ -1,6 +1,9 @@
 // In-memory food search. ~5k USDA rows + custom foods is small enough to score on every
 // keystroke; ranking prefers Foundation over SR Legacy and foods the user actually logs.
+import { bestTokenScore, matchToken, tokenize } from './text';
 import type { FoodSource } from './types';
+
+export { tokenize } from './text';
 
 export interface SearchDoc {
   id: string;
@@ -31,15 +34,6 @@ const SOURCE_BOOST: Record<FoodSource, number> = {
   usda_sr: 0,
 };
 
-export function tokenize(s: string): string[] {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .split(/[^a-z0-9]+/)
-    .filter((t) => t.length > 0);
-}
-
 export function buildSearchDoc(f: {
   id: string;
   name: string;
@@ -63,38 +57,6 @@ export function buildSearchDoc(f: {
   return doc;
 }
 
-/** "eggs" → "egg", "berries" → "berry"; USDA names are singular, people type either. */
-function singular(q: string): string | undefined {
-  if (q.length < 4) return undefined;
-  if (q.endsWith('ies')) return q.slice(0, -3) + 'y';
-  if (q.endsWith('es') && /[sxz]es$|[cs]hes$/.test(q)) return q.slice(0, -2);
-  if (q.endsWith('s') && !q.endsWith('ss')) return q.slice(0, -1);
-  return undefined;
-}
-
-function matchOne(q: string, t: string): number {
-  if (t === q) return 3;
-  // Plural either way is as good as exact: "banana" ↔ "bananas", "eggs" ↔ "egg".
-  if (t === q + 's' || t === q + 'es') return 2.9;
-  const sg = singular(q);
-  if (sg && t === sg) return 2.9;
-  if (t.startsWith(q)) return 2;
-  if (sg && t.startsWith(sg)) return 2.5;
-  return 0;
-}
-
-/** Best match of a query token against a document's tokens: 3 exact, 2 prefix, 0 none. */
-function tokenScore(q: string, tokens: readonly string[]): number {
-  let best = 0;
-  for (let i = 0; i < tokens.length; i++) {
-    const s = matchOne(q, tokens[i]!);
-    // "Oil, olive" over "Oil, corn, peanut, and olive": the nearer the front, the more it is
-    // what the name is about.
-    if (s > 0 && s - Math.min(0.4, 0.05 * i) > best) best = s - Math.min(0.4, 0.05 * i);
-  }
-  return best;
-}
-
 /**
  * USDA names lead with the food itself ("Oil, olive, ..."; "Chicken, breast, ..."). A query
  * that names the head noun is asking for that food; one that only matches later tokens is
@@ -103,8 +65,8 @@ function tokenScore(q: string, tokens: readonly string[]): number {
 function headBonus(q: readonly string[], tokens: readonly string[]): number {
   const head = tokens[0];
   const second = tokens[1];
-  if (head && q.some((qt) => matchOne(qt, head) > 0)) return 2;
-  if (second && q.some((qt) => matchOne(qt, second) > 0)) return 0.75;
+  if (head && q.some((qt) => matchToken(qt, head) > 0)) return 2;
+  if (second && q.some((qt) => matchToken(qt, second) > 0)) return 0.75;
   return 0;
 }
 
@@ -139,7 +101,7 @@ export function matchQuality(doc: SearchDoc, query: string): number {
   if (q.length === 0) return 0;
   let sum = 0;
   for (const qt of q) {
-    const s = tokenScore(qt, doc.tokens);
+    const s = bestTokenScore(qt, doc.tokens);
     if (s === 0) return 0;
     sum += s;
   }
@@ -163,7 +125,7 @@ export function searchFoods(
     let score = 0;
     let ok = true;
     for (const qt of q) {
-      const s = tokenScore(qt, d.tokens);
+      const s = bestTokenScore(qt, d.tokens);
       if (s === 0) {
         ok = false;
         break;

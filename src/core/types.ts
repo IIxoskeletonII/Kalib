@@ -274,3 +274,162 @@ export interface FoodPrice extends SyncMeta {
   /** §18.6 — a model's typical price, shown as ≈ until the user enters a real one. */
   estimated?: boolean;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Training (§20). Sets live inside their session row rather than in a table of their own: the sync
+// engine rescans every table on each run, and a set-per-row design would reach tens of thousands
+// of rows within a year. A twenty-set session is about two kilobytes of JSON.
+
+/**
+ * The muscles weekly volume is counted against. The source library names 75 overlapping things
+ * (`quads` and `quadriceps`, `delts` and `deltoids` and `shoulders`), which would make "sets per
+ * muscle this week" meaningless; everything is normalised onto these.
+ */
+export type Muscle =
+  | 'chest'
+  | 'lats'
+  | 'upper back'
+  | 'traps'
+  | 'lower back'
+  | 'shoulders'
+  | 'biceps'
+  | 'triceps'
+  | 'forearms'
+  | 'quads'
+  | 'hamstrings'
+  | 'glutes'
+  | 'calves'
+  | 'adductors'
+  | 'abductors'
+  | 'abs'
+  | 'obliques'
+  | 'neck'
+  | 'cardio';
+
+export const MUSCLES: readonly Muscle[] = [
+  'chest',
+  'lats',
+  'upper back',
+  'traps',
+  'lower back',
+  'shoulders',
+  'biceps',
+  'triceps',
+  'forearms',
+  'quads',
+  'hamstrings',
+  'glutes',
+  'calves',
+  'adductors',
+  'abductors',
+  'abs',
+  'obliques',
+  'neck',
+  'cardio',
+];
+
+export type ExerciseCategory =
+  'strength' | 'stretching' | 'cardio' | 'mobility' | 'plyometrics' | 'rehabilitation' | 'balance';
+
+export type ExerciseDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
+/** Library exercises are seeded and never sync; only the user's own travel between devices. */
+export type ExerciseSource = 'library' | 'custom';
+
+/**
+ * What a set of this exercise is made of, which decides what the pad asks for and how volume is
+ * counted. A plank has no reps and a pull-up has no weight until you hang a belt off it.
+ */
+export type LoadType =
+  'weight_reps' | 'bodyweight_reps' | 'weighted_bodyweight' | 'time' | 'distance_time';
+
+export interface Exercise extends SyncMeta {
+  source: ExerciseSource;
+  /** Id in the open library, so a re-seed updates rather than duplicates. */
+  external_id?: string;
+  name: string;
+  /** What people actually type: `bb row`, `RDL`, `skullcrusher`. Searched, never displayed. */
+  aliases?: string[];
+  /**
+   * Hand-written shorthand, a subset of `aliases`. Typing one of these is taken as naming this
+   * exercise outright, so only a human may add one: the derived aliases strip the equipment word
+   * and would have four different exercises all claiming to be "squat".
+   */
+  shorthand?: string[];
+  category: ExerciseCategory;
+  difficulty?: ExerciseDifficulty;
+  primary_muscle: Muscle;
+  secondary_muscles: Muscle[];
+  equipment: string;
+  load_type: LoadType;
+  instructions?: string[];
+  /** Basename of the looping demo under /exercises; absent for the user's own exercises. */
+  media?: string;
+}
+
+/** Warm-ups and drop sets are logged but excluded from working volume and from PRs. */
+export type SetKind = 'normal' | 'warmup' | 'drop' | 'failure';
+
+export interface WorkoutSet {
+  kind: SetKind;
+  weight_kg?: number;
+  reps?: number;
+  /** Reps left in the tank, 0 to 5. Drives progression (§20.4). */
+  rir?: number;
+  seconds?: number;
+  distance_m?: number;
+  done: boolean;
+  /** Stamped when ticked, so real rest between sets is known rather than assumed. */
+  done_at?: string;
+}
+
+export interface WorkoutEntry {
+  exercise_id: string;
+  /** Copied in, so the row still reads correctly after the exercise is renamed or deleted. */
+  name: string;
+  load_type: LoadType;
+  /** Shared letter groups a superset; absent means a straight set. */
+  superset?: string;
+  rest_sec?: number;
+  note?: string;
+  sets: WorkoutSet[];
+}
+
+export interface WorkoutSession extends SyncMeta {
+  started_at: string;
+  /** Absent while the session is still running; there is at most one of those. */
+  ended_at?: string;
+  routine_id?: string;
+  name: string;
+  note?: string;
+  entries: WorkoutEntry[];
+  /** Denormalised on finish so history lists never recompute a year of sessions. */
+  volume_kg?: number;
+  duration_sec?: number;
+  /** MET-based and openly approximate (§20.6); never spent against the day's food budget. */
+  energy_kcal?: number;
+}
+
+export interface RoutineItem {
+  exercise_id: string;
+  name: string;
+  load_type: LoadType;
+  sets: number;
+  rep_low?: number;
+  rep_high?: number;
+  rest_sec?: number;
+  superset?: string;
+  note?: string;
+}
+
+export interface Routine extends SyncMeta {
+  name: string;
+  note?: string;
+  items: RoutineItem[];
+  sort_order: number;
+  source: 'own' | 'library' | 'shared';
+  last_performed?: string; // YYYY-MM-DD
+}
+
+/** Storage is always kilograms; this only changes what the pad asks for and what is shown. */
+export type WeightUnit = 'kg' | 'lb';

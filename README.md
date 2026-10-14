@@ -213,6 +213,8 @@ reload:
 ```sh
 npm run seed:usda     # Foundation Foods, a filtered slice of SR Legacy, and FNDDS
 npm run seed:ciqual   # Anses Ciqual, the French national table
+npm run seed:exercises       # the exercise catalogue (metadata, committed)
+npm run seed:exercise-media  # the form animations, rendered in this app's palette
 ```
 
 **Why two sources.** USDA answers plain English well and European food badly. On an 88-term

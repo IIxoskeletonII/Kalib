@@ -85,7 +85,18 @@ export async function deleteAccount(): Promise<void> {
 }
 
 /** Postgres returns `+00:00` timestamps; the local store compares ISO strings, so normalise. */
-const TIMESTAMPS = ['created_at', 'updated_at', 'deleted_at', 'logged_at'];
+// Every timestamptz column, whatever table it is on: Postgres returns `+00:00` and the local
+// rows hold `Z`, so one missing name here leaves a row that differs from the one pushed.
+// `taken_at` has been missing since v1; it is a supplement_logs column.
+const TIMESTAMPS = [
+  'created_at',
+  'updated_at',
+  'deleted_at',
+  'logged_at',
+  'taken_at',
+  'started_at',
+  'ended_at',
+];
 function normalize(row: Record<string, unknown>): Row {
   const out: Record<string, unknown> = { ...row };
   for (const k of TIMESTAMPS) {

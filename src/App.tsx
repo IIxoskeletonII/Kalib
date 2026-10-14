@@ -1,15 +1,11 @@
-import {
-  CalendarDays,
-  LineChart,
-  Plus,
-  Settings as SettingsIcon,
-  Sparkles,
-  type LucideIcon,
-} from 'lucide-react';
+import { CalendarDays, Dumbbell, LineChart, Plus, Sparkles, type LucideIcon } from 'lucide-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { ActiveWorkoutBar } from '@/components/ActiveWorkoutBar';
 import { ensureSeeded, type SeedProgress } from '@/db/seed';
+import { ensureExercisesSeeded } from '@/db/seedExercises';
 import { useProfile } from '@/hooks/useData';
+import { useActiveSession } from '@/hooks/useWorkouts';
 import { ToastHost } from '@/components/Toast';
 import { useBarcodeReplay, useReminderPing } from '@/hooks/useData';
 import { useSync } from '@/hooks/useSync';
@@ -19,6 +15,10 @@ import Today from '@/screens/Today';
 
 // Today is the cold-start path; everything else loads on first visit (uPlot lives in Trend).
 const Trend = lazy(() => import('@/screens/Trend'));
+const Train = lazy(() => import('@/screens/Train'));
+const Session = lazy(() => import('@/screens/Session'));
+const ExerciseDetail = lazy(() => import('@/screens/ExerciseDetail'));
+const RoutineEditor = lazy(() => import('@/screens/RoutineEditor'));
 const Coach = lazy(() => import('@/screens/Coach'));
 const Settings = lazy(() => import('@/screens/Settings'));
 const LogFood = lazy(() => import('@/screens/LogFood'));
@@ -42,8 +42,9 @@ export default function App() {
   const profile = useProfile();
   const location = useLocation();
   const navigate = useNavigate();
-  const [seed, setSeed] = useState<SeedProgress | 'error' | null>(null);
+  const [seed, setSeed] = useState<SeedProgress | 'error' | 'exercises' | null>(null);
   const { recovery, session } = useSync();
+  const workout = useActiveSession();
   useReminderPing();
   useBarcodeReplay((date, name) =>
     navigate(`/log?d=${date}&q=${encodeURIComponent(name)}`, { viewTransition: true }),
@@ -60,7 +61,10 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    // Food first, then the exercise library: someone opening the app for the first time is far
+    // more likely to log a meal in the first minute than to start a workout.
     ensureSeeded((p) => !cancelled && setSeed(p.done ? null : p))
+      .then(() => ensureExercisesSeeded((done) => !cancelled && setSeed(done ? null : 'exercises')))
       .then(() => !cancelled && setSeed(null))
       .catch((err) => {
         console.error('seed failed', err);
@@ -91,15 +95,18 @@ export default function App() {
   // Logging follows the day on screen: from a past day the + button adds to that day.
   const viewing = new URLSearchParams(location.search).get('d');
   const logTo = location.pathname === '/' && viewing ? `/log?d=${viewing}` : '/log';
-  const hideNav = /^\/(log|quick|onboarding|foods|supplements|recipes|estimate|review|plan)/.test(
-    location.pathname,
-  );
+  // `/train` is a tab and keeps the bar; everything under it is a full-screen flow.
+  const hideNav =
+    /^\/(log|quick|onboarding|foods|supplements|recipes|estimate|review|plan)/.test(
+      location.pathname,
+    ) || /^\/train\//.test(location.pathname);
   const screenKey = location.pathname.split('/')[1] ?? '';
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col">
       <main className="flex-1 overflow-y-auto px-4 pt-3 safe-top">
-        <div key={screenKey} className="screen-in h-full">
+        {/* The workout bar floats over the page, so content needs room to clear it. */}
+        <div key={screenKey} className={`screen-in h-full ${workout ? 'pb-[72px]' : ''}`}>
           <Suspense fallback={null}>
             <Routes>
               <Route path="/" element={<Today />} />
@@ -107,6 +114,10 @@ export default function App() {
               <Route path="/quick" element={<QuickAdd />} />
               <Route path="/quick/:id" element={<QuickAdd />} />
               <Route path="/trend" element={<Trend />} />
+              <Route path="/train" element={<Train />} />
+              <Route path="/train/session" element={<Session />} />
+              <Route path="/train/exercise/:id" element={<ExerciseDetail />} />
+              <Route path="/train/routine/:id" element={<RoutineEditor />} />
               <Route path="/coach" element={<Coach />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/foods" element={<MyFoods />} />
@@ -136,7 +147,12 @@ export default function App() {
         >
           <div className="fade-in flex items-center justify-center gap-2 rounded-full bg-surface-2 px-4 py-2 text-center text-[13px] text-ink-2 shadow-fab">
             {seed === 'error' ? (
-              'Food database not loaded — reconnect and reopen.'
+              'Database not loaded — reconnect and reopen.'
+            ) : seed === 'exercises' ? (
+              <>
+                <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
+                Loading exercise library…
+              </>
             ) : (
               <>
                 <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
@@ -147,6 +163,7 @@ export default function App() {
         </div>
       )}
 
+      <ActiveWorkoutBar liftedBy={hideNav ? 0 : 68} />
       <ToastHost />
       {!hideNav && (
         <nav
@@ -155,7 +172,7 @@ export default function App() {
         >
           <div className="grid h-[68px] grid-cols-5 items-center">
             <Tab to="/" label="Today" icon={CalendarDays} />
-            <Tab to="/trend" label="Trend" icon={LineChart} />
+            <Tab to="/train" label="Train" icon={Dumbbell} />
             <div className="flex justify-center">
               <Link
                 to={logTo}
@@ -165,8 +182,8 @@ export default function App() {
                 <Plus size={28} strokeWidth={2.5} aria-hidden />
               </Link>
             </div>
+            <Tab to="/trend" label="Trend" icon={LineChart} />
             <Tab to="/coach" label="Coach" icon={Sparkles} />
-            <Tab to="/settings" label="Settings" icon={SettingsIcon} />
           </div>
         </nav>
       )}

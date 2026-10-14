@@ -1,6 +1,6 @@
 // UI primitives. Tokens and rules: design-system/kalib/MASTER.md.
 import { useEffect } from 'react';
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
 type Variant = 'primary' | 'accent' | 'secondary' | 'ghost' | 'danger';
@@ -129,10 +129,13 @@ export function Card({
   children,
   className = '',
   onClick,
+  style,
 }: {
   children: ReactNode;
   className?: string;
   onClick?: () => void;
+  /** For the staggered `.rise-in` delay a new list is meant to carry (MASTER.md). */
+  style?: CSSProperties;
 }) {
   if (onClick) {
     return (
@@ -140,12 +143,17 @@ export function Card({
         type="button"
         onClick={onClick}
         className={`card block w-full text-left transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-[0.985] ${className}`}
+        style={style}
       >
         {children}
       </button>
     );
   }
-  return <div className={`card ${className}`}>{children}</div>;
+  return (
+    <div className={`card ${className}`} style={style}>
+      {children}
+    </div>
+  );
 }
 
 /** Section heading: sentence case, sits on the page, optional trailing figure. */
@@ -222,6 +230,8 @@ export function ListRow({
   badge,
   wrapTitle = false,
   chevron = false,
+  className = '',
+  style,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
@@ -234,6 +244,9 @@ export function ListRow({
   /** Two-line titles for long database names, where the tail carries meaning (raw vs cooked). */
   wrapTitle?: boolean;
   chevron?: boolean;
+  /** For the staggered `.rise-in` a list is meant to arrive with (MASTER.md). */
+  className?: string;
+  style?: CSSProperties;
 }) {
   const tone: Record<NonNullable<typeof iconTone>, string> = {
     muted: 'bg-surface-2 text-ink-2',
@@ -280,12 +293,15 @@ export function ListRow({
     <button
       type="button"
       onClick={onClick}
-      className={`${cls} transition-colors duration-150 first:rounded-t-[24px] last:rounded-b-[24px] active:bg-surface-2`}
+      style={style}
+      className={`${cls} transition-colors duration-150 first:rounded-t-[24px] last:rounded-b-[24px] active:bg-surface-2 ${className}`}
     >
       {inner}
     </button>
   ) : (
-    <div className={cls}>{inner}</div>
+    <div className={`${cls} ${className}`} style={style}>
+      {inner}
+    </div>
   );
 }
 

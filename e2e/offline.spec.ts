@@ -1,13 +1,17 @@
 // SPEC §2.3 / §12: logging works with no network at all. After one online visit (service worker
 // installed, food database seeded) the app is cut off, reloaded, and used.
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * How many seed files the build ships. Counted rather than hard-coded: this assertion silently
- * went stale when Ciqual was added as a fourth source (SPEC §7.1a).
+ * How many `seed_version:*` keys a fully seeded device ends up with: one per food table, plus
+ * one for the exercise library. Derived from the build output rather than hard-coded, because
+ * this assertion has now gone stale twice — once when Ciqual became a fourth food source
+ * (§7.1a) and once when training arrived (§20.2).
  */
-const SEED_SOURCES = readdirSync('public/data').filter((f) => /^foods-.+\.json$/.test(f)).length;
+const SEED_SOURCES =
+  readdirSync('public/data').filter((f) => /^foods-.+\.json$/.test(f)).length +
+  (existsSync('public/data/exercises.json') ? 1 : 0);
 
 async function pad(page: Page, digits: string) {
   const keys = page.getByRole('group', { name: 'Number pad' });

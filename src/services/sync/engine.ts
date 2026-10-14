@@ -14,7 +14,10 @@ export type SyncTable =
   | 'recipes'
   | 'batches'
   | 'week_plans'
-  | 'prices';
+  | 'prices'
+  | 'exercises'
+  | 'routines'
+  | 'workout_sessions';
 
 export const SYNC_TABLES: SyncTable[] = [
   'profiles',
@@ -31,6 +34,12 @@ export const SYNC_TABLES: SyncTable[] = [
   'batches',
   'week_plans',
   'prices',
+  // Training (§20). Exercises before routines before sessions, so a pulled session's exercise
+  // already exists locally when its row lands — there are no foreign keys, but the UI reads
+  // better during the first sync of a new device.
+  'exercises',
+  'routines',
+  'workout_sessions',
 ];
 
 export type Row = Record<string, unknown> & { updated_at: string; user_id: string };

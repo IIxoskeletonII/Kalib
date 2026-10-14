@@ -153,6 +153,54 @@ a data line (the Refuse entry is about eyebrow meta, not compact figures), and a
 a button is the busy state for a network call, distinct from the skeletons that stand in for
 loading content.
 
+## Training surfaces (14 Oct 2026)
+
+The training module was built, then audited against this file. Eight drifts; they are fixed and
+the rules are here.
+
+**A ghost is the suggestion; the mark confirms it.** Set cells carry last session's figures in
+`muted`, and the tick accepts them. A ghost is never `ink` — the difference between a suggestion
+and a logged figure has to be legible at a glance, mid-set, from arm's length.
+
+**Say it once applies to columns too.** Hevy prefills the input and prints the same number in a
+Previous column beside it. Showing it once freed the column that was truncating exercise names:
+the fix for the ergonomics and the fix for the layout were the same fix.
+
+**A meta line carries what the cells cannot.** When the ghosts already show last time, the line
+under an exercise shows the rest interval, which is otherwise invisible until a set is ticked —
+not a repeat of the figures sitting directly below it.
+
+**Reuse the mark, including its open state.** The set tick is `DailyChecks`'s mark: 28 pt,
+`border-2`, `border-surface-3` and **empty** when open, `accent` fill with a 3 px check when
+done. A greyed check in an un-ticked row reads as half-finished. Completion carries `.pop`.
+
+**One control per row, not four.** The routine editor had a superset toggle and two reorder
+arrows per row, which truncated every name. Everything that can be changed about an item lives
+in its sheet; the row is the name, a meta line and a chevron.
+
+**`border-l-<tone>`, never `border-<tone>`, inside a `divide-y` card.** Tailwind's `divide-y`
+draws separators as a top border on each child, so setting a border *colour* on a child recolours
+the divider. The superset rule was tinting the row separators accent blue.
+
+**Training has its own tone.** `accent-2` for superset rules and the rest countdown; `accent`
+stays the app's confirmation colour and the worked muscle in the exercise art. Macro colours
+remain macro identity and appear nowhere in this module.
+
+**Exercise art is rendered, not borrowed.** The clips come out of
+`scripts/render-exercise-media.py` in this file's palette — figure `ink-2`, ground `surface`,
+worked muscle `accent`. A white panel behind a figure is decoration carrying no information,
+which the Refuse list already forbids; the fact that it arrived inside an image did not exempt
+it. The figure is rendered *below* `ink-2` brightness on purpose: at full text brightness it
+becomes the loudest thing on the screen, which is the same fault wearing different clothes.
+
+**Numbers sit on the page here as everywhere.** Train opens with the week — sessions, sets,
+volume and seven day marks — on the background, then cards. It previously opened with a white
+button over a stack of three equal cards, which is the page skeleton the Refuse list names.
+
+**Weight hierarchy follows frequency, not drama.** Starting a routine is the act; "Empty
+workout" is the exception and is a secondary button beside "New routine". A badge repeated on
+every row of a list ("Start") distinguishes nothing and is not a badge.
+
 ## Refuse
 
 Eyebrow labels · tracked caps · `A · B · C` meta · identical cards as page structure · nested

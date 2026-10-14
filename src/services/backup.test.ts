@@ -89,9 +89,39 @@ describe('backup', () => {
       log_entries: [],
       daily_targets: [],
     });
-    expect(b.format).toBe(5);
+    expect(b.format).toBe(6);
     expect(b.water_logs).toEqual([]);
     expect(b.profiles).toEqual([]);
+    expect(b.workout_sessions).toEqual([]);
+  });
+
+  it('upgrades a format-5 backup, which predates training, without losing anything', () => {
+    const b = parseBackup({
+      app: 'kalib',
+      format: 5,
+      exported_at: '2026-10-01T00:00:00.000Z',
+      profiles: [],
+      foods: [],
+      weigh_ins: [{ id: 'w1' }],
+      log_entries: [{ id: 'e1' }],
+      daily_targets: [],
+      settings: [],
+      water_logs: [],
+      supplements: [],
+      supplement_logs: [],
+      recipes: [],
+      batches: [],
+      week_plans: [],
+      prices: [],
+    });
+    expect(b.format).toBe(6);
+    expect(b.weigh_ins).toHaveLength(1);
+    expect(b.log_entries).toHaveLength(1);
+    // The three training tables simply arrive empty rather than undefined, so restore can
+    // bulkPut them without a guard.
+    expect(b.exercises).toEqual([]);
+    expect(b.routines).toEqual([]);
+    expect(b.workout_sessions).toEqual([]);
   });
 
   it('rejects files that are not backups', () => {

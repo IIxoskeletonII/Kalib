@@ -17,3 +17,8 @@ dev-dist
 # Playwright
 test-results
 playwright-report
+
+# Exercise demo animations: ~78 MB, reproducible from a CC0 source.
+#   npm run seed:exercise-media
+public/exercises/
+public/data/exercise-media.json

@@ -7,6 +7,7 @@ import {
   Plus,
   RotateCcw,
   Scale,
+  Settings as SettingsIcon,
   Sparkles,
   Sun,
   Sunrise,
@@ -25,10 +26,11 @@ import {
   Button,
   Card,
   EmptyState,
+  fmt,
+  IconButton,
   ListRow,
   SectionHeading,
   Skeleton,
-  fmt,
 } from '@/components/ui';
 import { WeekStrip } from '@/components/WeekStrip';
 import { WeighInSheet } from '@/components/WeighInSheet';
@@ -154,7 +156,18 @@ export default function Today() {
               {formatDayLabel(date, today)}
             </h1>
           </div>
-          <AccountChip />
+          <div className="flex items-center gap-1.5">
+            <AccountChip />
+            {/* Settings left the tab bar when Train took its place: Apple caps iPhone tab bars
+                at five, and this is the destination you visit least. */}
+            <IconButton
+              icon={SettingsIcon}
+              label="Settings"
+              size={20}
+              className="h-10 w-10 bg-surface-2 text-ink-2"
+              onClick={() => navigate('/settings')}
+            />
+          </div>
         </div>
         <div className="mt-5">
           <WeekStrip selected={date} today={today} onSelect={setDate} loggedDates={loggedDates} />

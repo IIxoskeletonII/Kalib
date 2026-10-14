@@ -3,17 +3,20 @@
 import type {
   Batch,
   DailyTarget,
+  Exercise,
   Food,
   FoodPrice,
   LogEntry,
   Profile,
   Recipe,
+  Routine,
   Setting,
   Supplement,
   SupplementLog,
   WaterLog,
   WeekPlan,
   WeighIn,
+  WorkoutSession,
 } from '@/core/types';
 import { bulkPutDailyTargets, listDailyTargets } from '@/db/repo/dailyTargets';
 import { bulkPutFoods, listUserFoods } from '@/db/repo/foods';
@@ -29,12 +32,19 @@ import {
   listAllSupplements,
 } from '@/db/repo/supplements';
 import { bulkPutWater, listAllWater } from '@/db/repo/water';
+import { bulkPutExercises, listCustomExercisesForSync } from '@/db/repo/exercises';
+import {
+  bulkPutRoutines,
+  bulkPutSessions,
+  listAllRoutines,
+  listAllSessions,
+} from '@/db/repo/workouts';
 import { bulkPutWeighIns, listWeighIns } from '@/db/repo/weighIns';
 import { exportFiles } from '@/platform/exportFile';
 
 export interface Backup {
   app: 'kalib';
-  format: 5;
+  format: 6;
   exported_at: string;
   profiles: Profile[];
   foods: Food[];
@@ -49,11 +59,15 @@ export interface Backup {
   batches: Batch[];
   week_plans: WeekPlan[];
   prices: FoodPrice[];
+  exercises: Exercise[];
+  routines: Routine[];
+  workout_sessions: WorkoutSession[];
 }
 
 // Format 1 (first v0 builds) carried a single `profile` and no foods or settings; format 2
 // added those; format 3 (SPEC §17) adds water and supplements; format 4 (SPEC §8.2) recipes
-// and batches; format 5 (SPEC §18) plans and prices. parseBackup upgrades in place.
+// and batches; format 5 (SPEC §18) plans and prices; format 6 (SPEC §20) training — custom
+// exercises, routines and sessions. parseBackup upgrades in place.
 
 /** Device-specific keys that must not travel between installs. */
 const LOCAL_ONLY_SETTING = /^seed_version:/;
@@ -73,6 +87,9 @@ export async function buildBackup(): Promise<Backup> {
     batches,
     week_plans,
     prices,
+    exercises,
+    routines,
+    workout_sessions,
   ] = await Promise.all([
     listProfiles(),
     listUserFoods(),
@@ -87,10 +104,15 @@ export async function buildBackup(): Promise<Backup> {
     listAllBatches(),
     listAllPlans(),
     listAllPrices(),
+    // Only the user's own exercises: the library is 1,394 rows regenerated from a CC0 source,
+    // and a backup is for what cannot be recreated.
+    listCustomExercisesForSync(),
+    listAllRoutines(),
+    listAllSessions(),
   ]);
   return {
     app: 'kalib',
-    format: 5,
+    format: 6,
     exported_at: new Date().toISOString(),
     profiles,
     foods,
@@ -105,6 +127,9 @@ export async function buildBackup(): Promise<Backup> {
     batches,
     week_plans,
     prices,
+    exercises,
+    routines,
+    workout_sessions,
   };
 }
 
@@ -127,6 +152,7 @@ export interface BackupSummary {
   weigh_ins: number;
   log_entries: number;
   daily_targets: number;
+  workout_sessions: number;
 }
 
 function isArray<T>(v: unknown): v is T[] {
@@ -155,6 +181,9 @@ export function parseBackup(raw: unknown): Backup {
     batches?: unknown;
     week_plans?: unknown;
     prices?: unknown;
+    exercises?: unknown;
+    routines?: unknown;
+    workout_sessions?: unknown;
   };
   if (b.app !== 'kalib') throw new Error('Not a Kalib backup file.');
   if (!isArray<WeighIn>(b.weigh_ins) || !isArray<LogEntry>(b.log_entries)) {
@@ -164,7 +193,7 @@ export function parseBackup(raw: unknown): Backup {
   if (b.format === 1) {
     return {
       app: 'kalib',
-      format: 5,
+      format: 6,
       exported_at: typeof b.exported_at === 'string' ? b.exported_at : '',
       profiles: b.profile ? [b.profile] : [],
       foods: [],
@@ -179,13 +208,16 @@ export function parseBackup(raw: unknown): Backup {
       batches: [],
       week_plans: [],
       prices: [],
+      exercises: [],
+      routines: [],
+      workout_sessions: [],
     };
   }
-  if (typeof b.format !== 'number' || b.format < 2 || b.format > 5)
+  if (typeof b.format !== 'number' || b.format < 2 || b.format > 6)
     throw new Error(`Backup format ${String(b.format)} is newer than this app.`);
   return {
     app: 'kalib',
-    format: 5,
+    format: 6,
     exported_at: typeof b.exported_at === 'string' ? b.exported_at : '',
     profiles: isArray<Profile>(b.profiles) ? b.profiles : [],
     foods: isArray<Food>(b.foods) ? b.foods : [],
@@ -202,6 +234,9 @@ export function parseBackup(raw: unknown): Backup {
     batches: isArray<Batch>(b.batches) ? b.batches : [],
     week_plans: isArray<WeekPlan>(b.week_plans) ? b.week_plans : [],
     prices: isArray<FoodPrice>(b.prices) ? b.prices : [],
+    exercises: isArray<Exercise>(b.exercises) ? b.exercises : [],
+    routines: isArray<Routine>(b.routines) ? b.routines : [],
+    workout_sessions: isArray<WorkoutSession>(b.workout_sessions) ? b.workout_sessions : [],
   };
 }
 
@@ -213,6 +248,7 @@ export function summarize(b: Backup): BackupSummary {
     weigh_ins: b.weigh_ins.length,
     log_entries: b.log_entries.length,
     daily_targets: b.daily_targets.length,
+    workout_sessions: b.workout_sessions.length,
   };
 }
 
@@ -231,4 +267,7 @@ export async function restoreBackup(b: Backup): Promise<void> {
   await bulkPutBatches(b.batches);
   await bulkPutPlans(b.week_plans);
   await bulkPutPrices(b.prices);
+  await bulkPutExercises(b.exercises);
+  await bulkPutRoutines(b.routines);
+  await bulkPutSessions(b.workout_sessions);
 }

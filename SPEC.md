@@ -1191,6 +1191,120 @@ Everything here is judged against the daily loop first.
 - **On-device OCR to cut AI cost.** A label read costs about €0.0007. Not a problem worth solving
   with worse accuracy.
 
+## 20. Training (added 14 Oct 2026)
+
+Kalib absorbs what Hevy was being used for. Everything Hevy charges for is free here, and the
+reason it belongs in this app rather than beside it is §20.6: this is the only tracker that
+*measures* expenditure, so it is the only one that can be honest about what training costs.
+
+### 20.1 Shape
+
+Five tabs, which is Apple's maximum: **Today — Train — + — Trend — Coach**. Doing on the left
+of the action button, reviewing on the right. Settings moved to a gear in the Today header; it
+is the destination you visit least and the tab bar had no room.
+
+A **running workout is visible from every screen** as a slim bar above the tab bar, carrying the
+routine, elapsed time, sets done and the live rest countdown. This is what lets one app hold
+both halves of the day: mid-session you can log a shake and come straight back. MacroFactor
+shipped training as a *separate app* rather than solve this.
+
+### 20.2 The exercise library
+
+1,394 exercises from [Open Exercise Figures](https://github.com/AbanoubAmir/open-exercise-figures),
+**CC0 1.0** — "use, copy, change, share and sell any of this, for any purpose, without asking
+and without giving credit". We credit it anyway, in the README and the About card.
+
+Three things the source does not do, done in `core/`:
+
+- **Muscles are normalised.** It names a primary target 19 ways and secondary muscles 75 ways,
+  and the two vocabularies disagree: `delts`, `deltoids` and `shoulders` are three different
+  things in it. Left alone, "shoulders this week" would count a third of the sets that trained
+  them. Anything unrecognised is dropped rather than guessed; `core/muscles.test.ts` is the
+  tripwire for a 20th target appearing.
+- **Load type is inferred.** The source never says whether a set is weight and reps, reps alone,
+  or seconds. A plank is held, a pull-up takes a belt, an assisted machine counts reps because
+  the stack takes weight *off* you.
+- **Names get the shorthand a gym types.** It calls the back squat "Barbell Full Squat". Derived
+  aliases strip equipment words; a separate hand-written `shorthand` field in
+  `data/exercise-aliases.json` is what makes a query *decisive*, because the derived ones would
+  have four exercises each claiming to be "squat". Measured on a 60-term probe: **98% find a
+  result, 100% put the right one first.**
+
+**The clips are re-rendered in Kalib's palette.** The source draws them on near-white with the
+worked muscle in red, which on a dark screen is the loudest thing on it and carries no
+information. The repo ships its figures and its renderer, whose palette is module constants, so
+`scripts/render-exercise-media.py` renders the figure in `ink-2` on `surface` with the muscle in
+`accent`. No other tracker has exercise art in its own colours, because no other tracker has the
+source art. The media is gitignored and regenerated; only the metadata is committed.
+
+Nothing downloads until an exercise is opened, and the service worker then keeps it, so a
+routine is fully offline after one session with it.
+
+### 20.3 Logging a session
+
+Numbers go on the docked `NumberPad`, never the OS keyboard (§8). The selected cell takes a ring;
+Enter moves weight — reps.
+
+**Cells carry last session's figures as ghosts.** Faint enough to read as a suggestion, real
+enough for the tick to accept. Repeating a weight is therefore one tap rather than two numbers.
+Hevy prefills the input *and* prints the same value in a Previous column beside it; showing it
+once frees the column that was squeezing the exercise names.
+
+- **Rest is arithmetic, not a clock.** No JS timer survives an iOS screen lock, and a
+  tick-counting timer would be wrong by exactly the interval it is meant to measure. One
+  absolute end instant is stored and every reading subtracts from it, so the number is right on
+  return however long the phone slept.
+- **Supersets are adjacency.** The letter is a label; `core/routines.ts` re-derives it after
+  every reorder or delete, because moving an exercise between a pair silently left both ends
+  claiming to be grouped.
+- **Plate maths and a warm-up ramp**, both free: "Bar + 25 + 5 + 2.5 a side" under the pad, and
+  a ramp to the working weight whose sets are excluded from volume and records. Hevy charges for
+  the warm-up calculator.
+- **A set can be spoken.** "eighty for eight", reusing the recogniser §9.4 already needed. The
+  parser refuses rather than guesses — a misheard number written silently becomes next week's
+  target — and reads back what it understood for the tick to confirm.
+- Sets never ticked are dropped when the session ends. They were not performed.
+
+### 20.4 What a set is worth
+
+Volume is weight × reps, with bodyweight work priced at bodyweight (plus the belt). Where
+bodyweight is unknown the answer is **undefined, not zero** — twelve pull-ups is not zero work —
+and the count of unpriced sets is reported rather than hidden.
+
+Estimated 1RM is the mean of Epley and Brzycki, which err in opposite directions, and is
+**refused above 12 reps**, where they stop agreeing and Brzycki's denominator heads for zero. A
+single needs no formula.
+
+Storage is always kilograms; `lb` changes only what the pad asks for and what is printed.
+
+### 20.5 Records
+
+Derived from history, never stored — a stored record is a second source of truth that drifts
+when a session is edited, and would need conflict resolution of its own. Heaviest, best
+estimated 1RM, best single set, most reps at a weight, longest hold.
+
+**An exercise's first outing sets no records.** Otherwise everything is a PR on day one, exactly
+when someone first looks. More reps at a weight never used before is *new*, not an improvement.
+
+### 20.6 What a session costs, and why it is never spent
+
+**The energy figure is not added to the day's food budget.** Kalib's TDEE is measured from intake
+against weight trend (§4.5), so the gym is already inside it; adding an estimate on top would
+double-count and make the filter chase its own tail. Every other app gets this wrong because
+none of them measure expenditure.
+
+It is MET-based (3.5 light to 6.0 vigorous, chosen from how densely the session was worked) and
+shown as a range, because a 2018 validation of seven devices found **none met a 10% accuracy
+threshold for resistance training**. It is context, and it sizes the redistribution in §20.7.
+
+### 20.7 The energy bridge (v2 of this section)
+
+Training changes *when* the week's calories are eaten, never how many. The week's total comes
+straight from measured TDEE and is redistributed toward training days, reusing §5's banking.
+Carbs take the swing; protein stays flat.
+
+---
+
 ---
 
 *Not medical advice. Targets are general-population formulas. If any medical condition

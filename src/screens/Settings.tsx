@@ -1,19 +1,20 @@
 import {
-  Database,
-  FileJson,
-  FileSpreadsheet,
-  FolderOpen,
-  Monitor,
-  Pill,
-  SearchX,
-  Moon,
-  RefreshCw,
   CalendarClock,
   CalendarRange,
   ChefHat,
   Cloud,
   CloudOff,
+  Database,
+  Dumbbell,
+  FileJson,
+  FileSpreadsheet,
+  FolderOpen,
   LogOut,
+  Monitor,
+  Moon,
+  Pill,
+  RefreshCw,
+  SearchX,
   Sun,
   UserRound,
   Utensils,
@@ -728,7 +729,8 @@ export default function Settings() {
                 ? pending.summary.exported_at.slice(0, 10)
                 : 'an unknown date'}
               : {pending.summary.log_entries} log entries, {pending.summary.weigh_ins} weigh-ins,{' '}
-              {pending.summary.foods} foods, {pending.summary.profiles} profile snapshots.
+              {pending.summary.foods} foods, {pending.summary.workout_sessions} workouts,{' '}
+              {pending.summary.profiles} profile snapshots.
             </p>
             <p className="text-[14px] text-muted">
               Rows with the same id are replaced; everything else on this phone is kept.
@@ -764,6 +766,13 @@ export default function Settings() {
               Lebanon Food Composition Data (2021); Saudi Food and Drug Authority, Saudi Food
               Composition Tables (2026). Packaged foods: Open Food Facts, Open Database License
               (ODbL).
+            </span>
+          </p>
+          <p className="flex items-start gap-2">
+            <Dumbbell size={14} className="mt-0.5 shrink-0" aria-hidden />
+            <span>
+              Exercises and form animations: Open Exercise Figures, CC0 1.0. The figures are
+              re-rendered here in this app&rsquo;s own colours.
             </span>
           </p>
           <p>Kalib {__APP_VERSION__}. Not medical advice.</p>
