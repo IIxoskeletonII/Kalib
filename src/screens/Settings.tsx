@@ -26,6 +26,7 @@ import { ProfileForm } from '@/components/ProfileForm';
 import { RemindersCard } from '@/components/RemindersCard';
 import { TrainingCard } from '@/components/TrainingCard';
 import { CycleCard } from '@/components/CycleCard';
+import { AuthForm } from '@/components/AuthForm';
 import { Button, Card, ListRow, Row, SectionHeading, Segmented, Sheet, fmt } from '@/components/ui';
 import { fromDateKey, todayKey } from '@/core/dates';
 import { nextSwitch, resolveMode, type ModeSwitch } from '@/core/targets';
@@ -94,11 +95,6 @@ export default function Settings() {
     await setModeSchedule(schedule.filter((s) => s.date !== date));
     await refreshTargetForDate(today);
   };
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [authNote, setAuthNote] = useState<string | null>(null);
-  const [authBusy, setAuthBusy] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [eraseOpen, setEraseOpen] = useState(false);
   const [missesOpen, setMissesOpen] = useState(false);
@@ -107,39 +103,6 @@ export default function Settings() {
   const [eraseBusy, setEraseBusy] = useState(false);
   const name = useSetting<string>('name', '');
 
-  const submitAuth = async () => {
-    const e = email.trim();
-    if (!e || password.length < 8 || authBusy) return;
-    setAuthBusy(true);
-    setAuthNote(null);
-    try {
-      const m = await import('@/services/sync/supabase');
-      if (authMode === 'signup') await m.signUpWithPassword(e, password);
-      else await m.signInWithPassword(e, password);
-      setPassword('');
-    } catch (err) {
-      setAuthNote((err as Error).message);
-    } finally {
-      setAuthBusy(false);
-    }
-  };
-
-  const forgot = async () => {
-    const e = email.trim();
-    if (!e) {
-      setAuthNote('Enter your email first, then tap Forgot password.');
-      return;
-    }
-    try {
-      const m = await import('@/services/sync/supabase');
-      await m.sendPasswordReset(e);
-      setAuthNote(
-        `Reset link sent to ${e}. It opens in Safari; set a new password there, then sign in here.`,
-      );
-    } catch (err) {
-      setAuthNote((err as Error).message);
-    }
-  };
   const latestWeight = weighIns?.at(-1)?.weight_kg;
 
   const pickBackup = async (file: File | undefined) => {
@@ -309,62 +272,7 @@ export default function Settings() {
               </div>
             </div>
           ) : (
-            <div className="space-y-3">
-              <p className="text-[14px] text-muted">
-                {authMode === 'signup'
-                  ? 'Create an account to keep a copy of your log in the cloud and use it on another phone.'
-                  : 'Sign in to keep a copy of your log in the cloud and use it on another phone.'}
-              </p>
-              <input
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-12 w-full rounded-full bg-surface-2 px-5 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
-              />
-              <input
-                type="password"
-                autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
-                placeholder={
-                  authMode === 'signup' ? 'Choose a password (8+ characters)' : 'Password'
-                }
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void submitAuth();
-                }}
-                className="h-12 w-full rounded-full bg-surface-2 px-5 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
-              />
-              <Button
-                variant="primary"
-                size="lg"
-                className="w-full"
-                onClick={submitAuth}
-                disabled={!email.trim() || password.length < 8 || authBusy}
-              >
-                {authBusy ? 'One moment…' : authMode === 'signup' ? 'Create account' : 'Sign in'}
-              </Button>
-              <div className="flex justify-between text-[13px]">
-                <button
-                  type="button"
-                  className="hit font-semibold text-accent"
-                  onClick={() => {
-                    setAuthMode(authMode === 'signup' ? 'signin' : 'signup');
-                    setAuthNote(null);
-                  }}
-                >
-                  {authMode === 'signup' ? 'I already have an account' : 'Create an account'}
-                </button>
-                {authMode === 'signin' && (
-                  <button type="button" className="hit text-muted" onClick={() => void forgot()}>
-                    Forgot password?
-                  </button>
-                )}
-              </div>
-              {authNote && <p className="text-[13px] text-muted">{authNote}</p>}
-            </div>
+            <AuthForm signInNote="Sign in to keep a copy of your log in the cloud and use it on another phone." />
           )}
         </Card>
       </section>

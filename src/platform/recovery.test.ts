@@ -19,6 +19,15 @@ describe('isStaleBuildError', () => {
     expect(isStaleBuildError(undefined)).toBe(false);
     expect(isStaleBuildError({ message: 'x' })).toBe(false);
   });
+
+  it('still leaves the message a missing chunk used to surface as', () => {
+    // A chunk that resolved to undefined reached React as this, which matches nothing here and
+    // so stranded the screen. lazyScreen now reports that case in the words above instead;
+    // this message must stay unrecognised, because almost any bug can produce it.
+    expect(isStaleBuildError("Cannot read properties of undefined (reading 'default')")).toBe(
+      false,
+    );
+  });
 });
 
 describe('shouldRecover', () => {

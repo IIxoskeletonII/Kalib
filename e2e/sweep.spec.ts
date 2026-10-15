@@ -410,6 +410,8 @@ async function pressEverything(page: Page, url: string, errors: string[]): Promi
     }
 
     const now = new URL(page.url()).pathname;
+    // A press that navigated has landed somewhere lazily loaded; judge it once it is there.
+    if (now !== was) await settled(page);
     if (now !== was && (await scrollTop(page)) !== 0) {
       found.push(`"${name}" - ${now} opened part-way down the page`);
     }
@@ -465,18 +467,28 @@ function byName(page: Page, name: string): Locator {
 const scrollTop = (page: Page): Promise<number> =>
   page.evaluate(() => document.querySelector('main')?.scrollTop ?? 0);
 
-async function open(page: Page, url: string): Promise<void> {
-  await page.goto(url, { waitUntil: 'domcontentloaded' });
-  // Wait for the screen rather than for a stopwatch. Every route is lazily loaded and most
-  // read from IndexedDB, so a fixed delay inspects whatever happened to have rendered: under
-  // load this called Plan a dead end while Plan's own back button was still on its way.
-  // waitForSelector rather than waitForFunction: this runs once per control on the screen,
-  // and polling by evaluating JavaScript on a page that is still seeding its food database
-  // costs enough to push the busiest screens past their own timeout.
+/**
+ * Wait for a screen to actually be on the page.
+ *
+ * Every route is lazily loaded and most read from IndexedDB, so judging one on a stopwatch
+ * judges whatever happened to have rendered. That mistake was made twice: on arrival, where it
+ * called Plan a dead end while Plan's own back button was still on its way, and after a press,
+ * where three more screens were called dead ends for the same reason.
+ *
+ * waitForSelector rather than waitForFunction: this runs once per control, and polling by
+ * evaluating JavaScript against a page that is still seeding its food database costs enough to
+ * push the busiest screens past their own timeout.
+ */
+async function settled(page: Page): Promise<void> {
   await page
     .waitForSelector('main button, main a[href], main h1', { timeout: 10_000 })
     .catch(() => {}); // a screen that renders no control at all is a finding, not a crash
   await page.waitForTimeout(500);
+}
+
+async function open(page: Page, url: string): Promise<void> {
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await settled(page);
 }
 
 /** A device a few weeks into using the app: a profile, a trend, food logged, a workout done. */

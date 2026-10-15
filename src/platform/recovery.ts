@@ -1,3 +1,5 @@
+import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
+
 // An installed app must never be stranded on a build whose files are gone. When a script or a
 // lazily-loaded screen fails to arrive, the caches and the service worker are dropped and the
 // page is reloaded once, so the next load comes fresh from the network.
@@ -22,6 +24,29 @@ function markRecovery(now: number): void {
   } catch {
     /* nothing to do: the reload still happens, the loop guard is simply weaker */
   }
+}
+
+/**
+ * `lazy()` for a screen, with the one failure mode the browser does not report as a failure.
+ *
+ * A chunk that cannot be fetched usually rejects, and `isStaleBuildError` below recognises the
+ * message and the app recovers itself. Sometimes the import resolves to `undefined` instead,
+ * React reads `.default` off it, and the screen dies with "Cannot read properties of undefined"
+ * — a message that matches nothing here, so the recovery never runs and the person is left
+ * on "Something went wrong" with a button to press. Found by the sweep under load.
+ *
+ * Rather than teach the matcher to recognise a generic TypeError, which would fire on bugs that
+ * have nothing to do with a stale build, the loader states the problem in the words that are
+ * already understood.
+ */
+export function lazyScreen<P extends object>(
+  load: () => Promise<{ default: ComponentType<P> }>,
+): LazyExoticComponent<ComponentType<P>> {
+  return lazy(async () => {
+    const mod = await load();
+    if (!mod?.default) throw new Error('Failed to fetch dynamically imported module');
+    return mod;
+  });
 }
 
 /** True when the message is a module that could not be fetched or parsed (a stale build). */

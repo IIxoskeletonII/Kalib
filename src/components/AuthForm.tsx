@@ -6,9 +6,16 @@ import { Button } from './ui';
 export function AuthForm({
   initialMode = 'signin',
   onSignedIn,
+  signInNote = 'Sign in and everything — profile, weigh-ins, recipes, plans — comes back from your account.',
 }: {
   initialMode?: 'signin' | 'signup';
   onSignedIn?: () => void;
+  /**
+   * The line above the fields when signing in. It differs by where you are: on the welcome
+   * screen you are getting a phone back, in Settings you are putting a copy somewhere safe.
+   * Signing up reads the same either way, so only this one is a prop.
+   */
+  signInNote?: string;
 }) {
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   const [email, setEmail] = useState('');
@@ -56,7 +63,7 @@ export function AuthForm({
       <p className="text-[14px] text-muted">
         {mode === 'signup'
           ? 'Create an account to keep a copy of your log in the cloud and use it on another phone.'
-          : 'Sign in and everything — profile, weigh-ins, recipes, plans — comes back from your account.'}
+          : signInNote}
       </p>
       <input
         type="email"
