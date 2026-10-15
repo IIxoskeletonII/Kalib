@@ -38,7 +38,7 @@ describe('workoutEnergy', () => {
   it('always offers a range, because no device is accurate for lifting', () => {
     const e = workoutEnergy({ ...base, entries: [entry(15)] });
     expect(e.high).toBeGreaterThan(e.low);
-    expect(describeEnergy(e)).toMatch(/kcal, likely \d+–\d+/);
+    expect(describeEnergy(e)).toMatch(/^\d+–\d+ kcal$/);
   });
 
   it('reads a dense session as more vigorous than a leisurely one', () => {
@@ -92,5 +92,18 @@ describe('workoutEnergy', () => {
       expect(e.low % 5).toBe(0);
       expect(e.high % 5).toBe(0);
     }
+  });
+});
+
+describe('describeEnergy', () => {
+  it('prints the range, never a midpoint that implies precision nobody has', () => {
+    const e = workoutEnergy({ ...base, entries: [entry(20)] });
+    expect(describeEnergy(e)).toBe(`${e.low}–${e.high} kcal`);
+    expect(describeEnergy(e)).not.toContain(String(e.kcal) + ' kcal,');
+  });
+
+  it('collapses to one figure when there is no range to show', () => {
+    const none = workoutEnergy({ ...base, duration_sec: 0, entries: [] });
+    expect(describeEnergy(none)).toBe('0 kcal');
   });
 });

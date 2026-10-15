@@ -8,7 +8,7 @@
 import { newRecords, type PRHit } from '@/core/pr';
 import { sessionDuration, sessionVolume } from '@/core/sets';
 import { startRest, type RestTimer } from '@/core/restTimer';
-import { workoutEnergy } from '@/core/workoutEnergy';
+import { workoutEnergy, type WorkoutEnergyEstimate } from '@/core/workoutEnergy';
 import type { Exercise, Routine, WorkoutEntry, WorkoutSession, WorkoutSet } from '@/core/types';
 import { getExercises } from '@/db/repo/exercises';
 import { latestWeighIn } from '@/db/repo/weighIns';
@@ -257,6 +257,36 @@ export async function finishSession(session_id: string): Promise<FinishResult | 
     duration_sec,
   };
   if (energy_kcal != null) out.energy_kcal = energy_kcal;
+  return out;
+}
+
+export interface SessionSummary {
+  session: WorkoutSession;
+  records: PRHit[];
+  volume: ReturnType<typeof sessionVolume>;
+  energy?: WorkoutEnergyEstimate;
+}
+
+/**
+ * Everything a finished session has to say about itself. Recomputed rather than read off the
+ * row, so the figures cannot drift from what core/ would say, and so the energy *range* is
+ * available — the row stores only the midpoint.
+ */
+export async function summaryFor(session_id: string): Promise<SessionSummary | undefined> {
+  const session = await getSession(session_id);
+  if (!session) return undefined;
+  const bodyweight = (await latestWeighIn())?.weight_kg;
+  const volume = sessionVolume(session, bodyweight);
+  // History must exclude this session, or it would beat itself.
+  const history = (await listSessions()).filter((h) => h.id !== session_id);
+  const out: SessionSummary = { session, records: newRecords(session, history), volume };
+  if (bodyweight && session.ended_at) {
+    out.energy = workoutEnergy({
+      duration_sec: sessionDuration(session),
+      bodyweight_kg: bodyweight,
+      entries: session.entries,
+    });
+  }
   return out;
 }
 

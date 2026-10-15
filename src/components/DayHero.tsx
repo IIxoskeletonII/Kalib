@@ -1,7 +1,7 @@
 // The numbers on Today, set directly on the page: what is left, a budget bar, the four
 // macros, and one line each for where the target comes from and how much is weighed (§7.4).
 import { Beef, Droplets, Leaf, Wheat, type LucideIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { ScaledFood } from '@/core/nutrition';
 import type { DailyTarget, LogEntry } from '@/core/types';
 import { ProvenanceLine, ProvenanceSheet } from './Provenance';
@@ -34,6 +34,8 @@ export function DayHero({
   dayTarget,
   bankShift,
   note,
+  aside,
+  asideExplainer,
   entries,
 }: {
   totals: ScaledFood;
@@ -43,6 +45,10 @@ export function DayHero({
   bankShift: number;
   /** Where the target comes from (formula / measured / calibration state). */
   note: string;
+  /** A second line under the note, for something the note has no room for (§20.7). */
+  aside?: string | undefined;
+  /** An Explainer for that second line, shown in full the first time (§2.5). */
+  asideExplainer?: ReactNode;
   entries: readonly LogEntry[];
 }) {
   const remaining = dayTarget - totals.kcal;
@@ -105,6 +111,8 @@ export function DayHero({
           <ProvenanceLine entries={entries} onOpen={() => setProvOpen(true)} />
         )}
       </div>
+      {aside && <p className="mt-1 text-[12px] text-muted">{aside}</p>}
+      {asideExplainer && <div className="mt-2">{asideExplainer}</div>}
       <ProvenanceSheet open={provOpen} onClose={() => setProvOpen(false)} entries={entries} />
     </section>
   );

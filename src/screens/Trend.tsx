@@ -1,5 +1,6 @@
 import { Flame, Scale, TrendingDown, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { Explainer } from '@/components/Explainer';
 import { TrendChart } from '@/components/TrendChart';
 import { Card, Chip, EmptyState, ListRow, Row, SectionHeading, Segmented } from '@/components/ui';
 import { WeighInSheet } from '@/components/WeighInSheet';
@@ -289,12 +290,22 @@ export default function Trend() {
                     }}
                   />
                 </div>
-                <p className="mt-3 text-[13px] leading-snug text-muted">
-                  The first ten days are water and glycogen, not fat, so they never count. From day{' '}
-                  {tdee.result.first_estimate_day} your real daily burn is measured from what you
-                  logged and how the trend moved — then it replaces the formula, 150 kcal a week at
-                  most.
-                </p>
+                <Explainer
+                  id="tdee-calibrating"
+                  className="mt-3"
+                  summary="The first ten days are water, not fat, so they never count."
+                >
+                  <p>
+                    The first ten days of any change are water and glycogen rather than fat, so they
+                    would make your burn look far wrong. They never count.
+                  </p>
+                  <p>
+                    From day {tdee.result.first_estimate_day} your real daily burn is measured from
+                    what you logged against how the trend moved — your own numbers, not a formula.
+                    It then replaces the formula gradually, by at most 150 kcal a week, so a target
+                    never lurches.
+                  </p>
+                </Explainer>
               </>
             ) : (
               <>

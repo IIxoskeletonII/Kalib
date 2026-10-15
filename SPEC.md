@@ -1191,6 +1191,23 @@ Everything here is judged against the daily loop first.
 - **On-device OCR to cut AI cost.** A label read costs about €0.0007. Not a problem worth solving
   with worse accuracy.
 
+## 19.5 Explaining the app to the person using it (added 15 Oct 2026)
+
+Everything counterintuitive here follows from one idea — §4.5's measured expenditure — and is
+explained in two places, neither of which is a tutorial.
+
+**In place, once.** `components/Explainer.tsx`: the full paragraph the first time you meet a
+behaviour, a line thereafter, recorded as `seen:<id>` in settings and therefore synced. The
+short form reopens on tap, because an explanation with no way back is worse than none. Applied
+to the calibrating window (§4.3), the energy bridge (§20.7) and workout energy (§20.6).
+
+**On demand, in full.** Settings — How Kalib works: the premise, why the target is provisional,
+why the first ten days never count, why the gym earns nothing, and where confidence comes from.
+For the second person picking up a phone that is already set up.
+
+Deliberately not built: a coach-mark tour. It arrives before the question, and the things worth
+explaining here are only interesting at the moment they first bite.
+
 ## 20. Training (added 14 Oct 2026)
 
 Kalib absorbs what Hevy was being used for. Everything Hevy charges for is free here, and the
@@ -1286,6 +1303,19 @@ estimated 1RM, best single set, most reps at a weight, longest hold.
 **An exercise's first outing sets no records.** Otherwise everything is a PR on day one, exactly
 when someone first looks. More reps at a weight never used before is *new*, not an improvement.
 
+### 20.5a The session summary (added 15 Oct 2026)
+
+Finishing a workout lands on a summary rather than a toast: volume, sets and duration as figures
+on the page, the muscles trained, any records, and the energy estimate.
+
+Celebration lives here and only here. A record is a quiet mark during the set — the tick and a
+short vibration — and the fuss happens once, afterwards. A history screen opened three weeks later
+stays neutral, because applause for something you already know is noise.
+
+It is also the only place the energy figure appears, and it never appears without the sentence
+that makes it safe (§20.6). A toast could not carry that sentence, which is the real reason the
+flow ends on a screen.
+
 ### 20.6 What a session costs, and why it is never spent
 
 **The energy figure is not added to the day's food budget.** Kalib's TDEE is measured from intake
@@ -1294,14 +1324,47 @@ double-count and make the filter chase its own tail. Every other app gets this w
 none of them measure expenditure.
 
 It is MET-based (3.5 light to 6.0 vigorous, chosen from how densely the session was worked) and
-shown as a range, because a 2018 validation of seven devices found **none met a 10% accuracy
-threshold for resistance training**. It is context, and it sizes the redistribution in §20.7.
+**shown as a range with no midpoint** — "305–525 kcal" — because a 2018 validation of seven
+devices found **none met a 10% accuracy threshold for resistance training**, and leading with a
+single figure would claim a precision nobody has. The midpoint exists only as the stored
+value on the row and is deliberately not printed: on a sparse session it lands exactly on
+the light-effort bound, so "305 kcal, likely 305–525" reads like a bug even though both numbers
+are right.
 
-### 20.7 The energy bridge (v2 of this section)
+### 20.7 The energy bridge (added 14 Oct 2026)
 
-Training changes *when* the week's calories are eaten, never how many. The week's total comes
-straight from measured TDEE and is redistributed toward training days, reusing §5's banking.
-Carbs take the swing; protein stays flat.
+Training changes *when* the week's calories are eaten, never how many.
+
+**Nothing is ever added.** §4.5's TDEE is measured from intake against weight trend, so the gym
+is already inside it; adding an estimate of what a session burned would double-count and send
+the filter chasing its own tail. Every other tracker adds it, and gets away with that only
+because none of them measure expenditure in the first place.
+
+So the same weekly budget is distributed unevenly: more on the days you lift, less on the days
+you do not, summing to the identical total. `core/trainingDays.ts` enforces conservation by
+construction — `t × gain = r × loss` — rather than by arithmetic afterwards, and the clamp
+against the §3.5 floor is applied once to the whole week rather than per day, because clamping a
+day in isolation is exactly how conservation would break.
+
+**What it is, honestly.** The evidence says calorie cycling and flat intake produce the same
+weight change at an equal weekly deficit; that carbohydrate intake has no independent effect on
+hypertrophy; and that nutrient timing barely moves fat loss or lean-mass retention. This is
+therefore an *adherence* feature and the interface says so in those words. You are hungrier on
+training days, so it lets you eat more then without spending anything unbudgeted. Implying a
+metabolic benefit would be the easy copy and the dishonest one.
+
+- **Protein and fat hold every day; carbohydrate takes the whole swing.** The evidence for
+  constant daily protein is far stronger than the evidence for anything above it.
+- **Default 300 kcal** between a training day and a rest day, the top of the 200–300 range the
+  literature describes. Off, 150, 300 and 500 are offered.
+- **Training days are inferred, not configured**, from which weekdays were actually trained over
+  the last four weeks — a weekday counts when it appears in at least half the weeks observed. A
+  plan typed in once goes stale; behaviour cannot. A day with a session always counts on the day,
+  whatever the pattern said.
+- **Nothing moves until there is a pattern.** Under two weeks of history, or no rest days, or no
+  training days, the budget stays flat. A sample of one is not a routine.
+- Today names the shift on its own line — "Training day — 172 kcal borrowed from your rest
+  days" — because *borrowed* is the accurate word and *earned* would not be.
 
 ---
 

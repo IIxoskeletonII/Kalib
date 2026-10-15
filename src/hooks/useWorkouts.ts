@@ -7,6 +7,7 @@ import { lastPerformance, personalRecords, type ExercisePR, type LastPerformance
 import type { RestTimer } from '@/core/restTimer';
 import type { Exercise, Routine, WeightUnit, WorkoutSession } from '@/core/types';
 import { getExercise, getExercises, listExerciseDocs } from '@/db/repo/exercises';
+import { getDailyTarget } from '@/db/repo/dailyTargets';
 import { getSetting } from '@/db/repo/settings';
 import {
   activeSession,
@@ -15,6 +16,7 @@ import {
   listRoutines,
   listSessions,
 } from '@/db/repo/workouts';
+import { flatTargetFor } from '@/services/trainingDays';
 import { recentSessions, REST_TIMER_KEY, WEIGHT_UNIT_KEY } from '@/services/workouts';
 
 /** The session being performed right now, or null when there is none. */
@@ -125,6 +127,35 @@ export function useLastPerformances(
 export function useExercisesByIds(ids: readonly string[]): Map<string, Exercise> | undefined {
   const key = [...new Set(ids)].sort().join('|');
   return useLiveQuery(async () => (key ? getExercises(key.split('|')) : new Map()), [key]);
+}
+
+/**
+ * Whether §20.7 shifted this day's budget, and by how much. `undefined` while loading; a
+ * `delta_kcal` of 0 means the bridge is off or had nothing to move.
+ */
+export function useEnergyBridgeDay(
+  date: string,
+): { delta_kcal: number; training: boolean } | undefined {
+  // Only the stored kcal matters here, so depend on that rather than the whole row — otherwise
+  // every unrelated write to the target re-runs the comparison.
+  const storedKcal = useLiveQuery(async () => (await getDailyTarget(date))?.kcal, [date]);
+  const [state, setState] = useState<{ delta_kcal: number; training: boolean } | undefined>();
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const flat = await flatTargetFor(date);
+      if (cancelled) return;
+      if (!flat || storedKcal == null) {
+        setState(undefined);
+        return;
+      }
+      setState({ delta_kcal: storedKcal - flat.kcal, training: storedKcal > flat.kcal });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [date, storedKcal]);
+  return state;
 }
 
 export function useExercisePR(exercise_id: string | undefined): ExercisePR | undefined {

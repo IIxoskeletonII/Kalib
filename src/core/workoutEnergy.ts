@@ -6,8 +6,8 @@
 // chase its own tail. Training changes *when* the week's calories are eaten (§20.7), never how
 // many there are.
 //
-// The number is shown because people want it, and because it sizes that redistribution. It is
-// deliberately presented as a range: a 2018 validation of seven devices found none met a 10%
+// The number is shown because people want to know it, and for no other reason: nothing in the app
+// reads it. It is deliberately presented as a range: a 2018 validation of seven devices found none met a 10%
 // accuracy threshold for resistance training, and wrist trackers correlate with indirect
 // calorimetry at r = 0.10–0.34 for lifting. Anyone printing a single confident figure for this
 // is inventing precision.
@@ -79,7 +79,15 @@ export function workoutEnergy(o: {
   };
 }
 
-/** "≈ 310 kcal, likely 250–430" — the honest way to show it. */
+/**
+ * "250–430 kcal" — the range alone.
+ *
+ * The midpoint exists only as the figure stored on the session row and is
+ * deliberately not printed. Leading with one number implies a precision that a 2018
+ * validation of seven devices says nobody has for lifting, and on a sparse session the midpoint
+ * sits exactly on the light-effort bound, so "305 kcal, likely 305–525" reads like a mistake
+ * even though both figures are right.
+ */
 export function describeEnergy(e: WorkoutEnergyEstimate): string {
-  return `${e.kcal} kcal, likely ${e.low}–${e.high}`;
+  return e.low === e.high ? `${e.low} kcal` : `${e.low}–${e.high} kcal`;
 }

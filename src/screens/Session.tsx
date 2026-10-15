@@ -17,7 +17,6 @@ import { toast } from '@/components/Toast';
 import { Button, Card, IconButton, Sheet } from '@/components/ui';
 import { usesReps, usesWeight } from '@/core/exercises';
 import { describePlates, plateLoad, warmupRamp } from '@/core/plates';
-import { describePR } from '@/core/pr';
 import { formatClock } from '@/core/restTimer';
 import { isWorkingSet } from '@/core/sets';
 import type { LoadType, WorkoutEntry, WorkoutSession, WorkoutSet } from '@/core/types';
@@ -156,18 +155,10 @@ function SessionView({ session, onLeave }: { session: WorkoutSession; onLeave: (
   const finish = async () => {
     if (editing) await commit(editing, draft);
     const result = await finishSession(session.id);
-    navigate('/train', { replace: true });
-    if (!result) return;
-    if (result.records.length > 0) {
-      const first = result.records[0]!;
-      toast(
-        result.records.length === 1
-          ? `${describePR(first)}: ${first.name}`
-          : `${result.records.length} records — ${describePR(first)} on ${first.name}`,
-      );
-    } else {
-      toast(`Workout saved · ${formatClock(result.duration_sec)}`);
-    }
+    // The summary is where the totals, the records and the energy figure live; a toast cannot
+    // carry the sentence that makes the energy figure safe to show.
+    if (result) navigate(`/train/summary/${encodeURIComponent(session.id)}`, { replace: true });
+    else navigate('/train', { replace: true });
   };
 
   /**

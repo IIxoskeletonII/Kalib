@@ -59,6 +59,8 @@ import {
   useTdee,
   useWeighIns,
 } from '@/hooks/useData';
+import { Explainer } from '@/components/Explainer';
+import { useEnergyBridgeDay } from '@/hooks/useWorkouts';
 import { recordChoice } from '@/services/banking';
 import { repeatEntry } from '@/services/logging';
 import { removeEntry, undoRemoveEntry } from '@/services/recipes';
@@ -144,6 +146,7 @@ export default function Today() {
     day: 'numeric',
     month: 'long',
   });
+  const bridge = useEnergyBridgeDay(date);
   const note = targetNote(target?.provisional, tdee, date === today);
 
   return (
@@ -188,6 +191,26 @@ export default function Today() {
             dayTarget={dayTarget}
             bankShift={bankShift}
             note={note}
+            aside={bridgeNote(bridge)}
+            asideExplainer={
+              bridgeNote(bridge) ? (
+                <Explainer
+                  id="energy-bridge"
+                  summary="Same weekly total, leaning toward the days you lift."
+                >
+                  <p>
+                    Your week&rsquo;s calories have been shaped around your training rather than
+                    split evenly. The weekly total is exactly the same — nothing has been added and
+                    nothing taken away.
+                  </p>
+                  <p>
+                    Training days borrow from rest days because that is when you are hungry. Protein
+                    stays the same every day; the carbohydrates move. You can change the size of the
+                    shift, or turn it off, in Settings.
+                  </p>
+                </Explainer>
+              ) : null
+            }
             entries={entries ?? []}
           />
         </div>
@@ -496,6 +519,17 @@ function targetNote(
   if (!provisional) return 'Measured target';
   if (!tdee || !isToday) return 'Provisional target';
   return `Provisional · ${engineLine(tdee.result, tdee.pending != null)}`;
+}
+
+/**
+ * §20.7 on its own line. The wording says where the calories came from rather than implying any
+ * were added, because none were: the measured burn already includes the gym.
+ */
+function bridgeNote(bridge: { delta_kcal: number; training: boolean } | undefined): string {
+  if (!bridge || bridge.delta_kcal === 0) return '';
+  return bridge.training
+    ? `Training day — ${fmt(bridge.delta_kcal)} kcal borrowed from your rest days`
+    : `Rest day — ${fmt(Math.abs(bridge.delta_kcal))} kcal lent to the days you lift`;
 }
 
 function engineLine(r: EngineResult, pending: boolean): string {

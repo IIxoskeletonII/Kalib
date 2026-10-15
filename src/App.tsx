@@ -19,6 +19,8 @@ const Train = lazy(() => import('@/screens/Train'));
 const Session = lazy(() => import('@/screens/Session'));
 const ExerciseDetail = lazy(() => import('@/screens/ExerciseDetail'));
 const RoutineEditor = lazy(() => import('@/screens/RoutineEditor'));
+const SessionSummary = lazy(() => import('@/screens/SessionSummary'));
+const HowItWorks = lazy(() => import('@/screens/HowItWorks'));
 const Coach = lazy(() => import('@/screens/Coach'));
 const Settings = lazy(() => import('@/screens/Settings'));
 const LogFood = lazy(() => import('@/screens/LogFood'));
@@ -99,7 +101,9 @@ export default function App() {
   const hideNav =
     /^\/(log|quick|onboarding|foods|supplements|recipes|estimate|review|plan)/.test(
       location.pathname,
-    ) || /^\/train\//.test(location.pathname);
+    ) ||
+    /^\/train\//.test(location.pathname) ||
+    location.pathname.startsWith('/settings/');
   const screenKey = location.pathname.split('/')[1] ?? '';
 
   return (
@@ -118,8 +122,10 @@ export default function App() {
               <Route path="/train/session" element={<Session />} />
               <Route path="/train/exercise/:id" element={<ExerciseDetail />} />
               <Route path="/train/routine/:id" element={<RoutineEditor />} />
+              <Route path="/train/summary/:id" element={<SessionSummary />} />
               <Route path="/coach" element={<Coach />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/settings/how" element={<HowItWorks />} />
               <Route path="/foods" element={<MyFoods />} />
               <Route path="/foods/new" element={<FoodEditor />} />
               <Route path="/foods/:id" element={<FoodEditor />} />

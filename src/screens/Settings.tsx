@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   CalendarClock,
   CalendarRange,
   ChefHat,
@@ -23,6 +24,7 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ProfileForm } from '@/components/ProfileForm';
 import { RemindersCard } from '@/components/RemindersCard';
+import { TrainingCard } from '@/components/TrainingCard';
 import { CycleCard } from '@/components/CycleCard';
 import { Button, Card, ListRow, Row, SectionHeading, Segmented, Sheet, fmt } from '@/components/ui';
 import { fromDateKey, todayKey } from '@/core/dates';
@@ -472,6 +474,8 @@ export default function Settings() {
         <RemindersCard />
       </section>
 
+      <TrainingCard />
+
       <section>
         <SectionHeading>Appearance</SectionHeading>
         <Segmented value={theme} options={THEMES} onChange={setTheme} />
@@ -755,6 +759,16 @@ export default function Settings() {
 
       <section>
         <SectionHeading>About</SectionHeading>
+        <Card className="mb-3">
+          <ListRow
+            onClick={() => navigate('/settings/how')}
+            chevron
+            icon={BookOpen}
+            iconTone="accent"
+            title="How Kalib works"
+            subtitle="Why it measures your burn instead of guessing it"
+          />
+        </Card>
         <Card className="space-y-2 p-5 text-[13px] leading-relaxed text-muted">
           <p className="flex items-start gap-2">
             <Database size={14} className="mt-0.5 shrink-0" aria-hidden />

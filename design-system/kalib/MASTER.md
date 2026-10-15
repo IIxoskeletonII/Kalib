@@ -201,6 +201,52 @@ button over a stack of three equal cards, which is the page skeleton the Refuse 
 workout" is the exception and is a secondary button beside "New routine". A badge repeated on
 every row of a list ("Start") distinguishes nothing and is not a badge.
 
+## Energy and summary surfaces (15 Oct 2026)
+
+**Celebration happens once, where the thing happened.** A record is a quiet mark during the set
+and a summary afterwards; a history row read weeks later is neutral. Applause for something
+already known is noise.
+
+**A number that needs a caveat gets a screen, not a toast.** The session energy figure is only
+safe beside the sentence explaining that the food budget has not moved. A toast cannot carry
+that sentence, so the finish flow ends on a surface that can.
+
+**Print the range, not the midpoint, when the midpoint is fiction.** Energy for lifting has no
+accurate measurement, so it reads "305–525 kcal". A midpoint also collapses onto a bound on
+sparse sessions and then looks like a bug.
+
+**Seven bars, two labels.** The week-shape preview prints the training and rest figures once
+each rather than labelling all seven columns, because five of the seven would repeat a number
+already on screen. Bars scale against the span, not against zero: a few hundred kilocalories on
+a couple of thousand is invisible from a zero baseline.
+
+**A full radius needs a narrow element.** `rounded-full` on a bar as wide as its column is a
+circle, not a capsule. Bars are narrow and centred in their column.
+
+## Explaining things (15 Oct 2026)
+
+**Progressive disclosure, never a tour.** Several behaviours here are principled and invisible
+until they surprise you: a provisional target, a Monday budget larger than a Tuesday one, grey
+numbers already in the set cells. Each gets its paragraph the first time, in the place it
+happens, and a single line forever after (`components/Explainer.tsx`).
+
+A coach-mark tour is refused outright. It fires before the question exists, covers the screen to
+point at things, goes stale as the app moves, and its dimmed overlays and "3 of 7" dots are the
+template register this file exists to keep out.
+
+**The short form stays tappable.** An explanation shown once with no way back is how "I read
+that and now I cannot find it" happens. Reopening offers *Close*; the first reading offers
+*Got it*.
+
+**The session screen is exempt.** It is used mid-set, standing at a rack, and prose does not
+belong on it. Anything that needs explaining there is explained on the summary afterwards or in
+Settings — never between someone and their next set.
+
+**One page holds the premise.** Settings — How Kalib works: prose, no cards, nothing to tap,
+reachable on demand and never interrupting. Everything surprising follows from the single idea
+that the app measures expenditure rather than guessing it, so that idea is written down once in
+full.
+
 ## Refuse
 
 Eyebrow labels · tracked caps · `A · B · C` meta · identical cards as page structure · nested

@@ -145,16 +145,29 @@ export async function formulaTargets(date: string): Promise<Targets | undefined>
   return computeTargets(targetInputsFor(profile, weight, date, schedule, undefined, bodyfat));
 }
 
+/**
+ * The §3 target with §20.7's energy bridge applied: the same weekly total, shaped toward the
+ * days you train. A no-op when the bridge is off, which is the default.
+ */
+async function bridged(date: string, t: Targets): Promise<DailyTargetInput> {
+  const flat = toDailyTargetInput(t);
+  const { bridgedDay } = await import('./trainingDays');
+  const result = await bridgedDay(date, flat);
+  if (!result?.applied) return flat;
+  const { kcal, protein_g, carb_g, fat_g, fiber_g } = result.budget;
+  return { ...flat, kcal, protein_g, carb_g, fat_g, fiber_g };
+}
+
 /** Stored target for `date`, computing it on first sight of the day. */
 export async function ensureTargetForDate(date: string): Promise<DailyTarget | undefined> {
   const t = await currentTargets(date);
   if (!t) return undefined;
-  return ensureDailyTarget(date, () => toDailyTargetInput(t));
+  return ensureDailyTarget(date, () => bridged(date, t));
 }
 
 /** Recompute and overwrite — used after the profile is edited. */
 export async function refreshTargetForDate(date: string): Promise<DailyTarget | undefined> {
   const t = await currentTargets(date);
   if (!t) return undefined;
-  return upsertDailyTarget(date, toDailyTargetInput(t));
+  return upsertDailyTarget(date, await bridged(date, t));
 }
