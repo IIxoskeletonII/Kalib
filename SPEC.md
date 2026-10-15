@@ -815,6 +815,16 @@ list grouped by aisle, step-by-step recipe instructions.
 - **Testing:** unit tests on every formula in §3, §4 and §5. These are the product. Seed
   a synthetic 90-day dataset with known ground-truth TDEE and assert the engine recovers
   it within the stated confidence interval.
+- **A walkthrough after every change** (added 15 Oct 2026): `npm run check` — prettier,
+  eslint, the unit tests, typecheck and build, then Playwright. The last of those includes
+  `e2e/sweep.spec.ts`, which opens every screen the app declares and presses every control
+  that is safe to press, checking what a person notices before they notice a feature: that
+  the screen renders, that it starts at its top (§19.6), that nothing throws, that there is a
+  way out, that nothing is wider than the phone, and that every control has a name. Its list
+  of screens is derived from `App.tsx`, so a route added without being swept fails the suite;
+  a screen may be excluded only with a written reason. This exists because §19.6 shipped
+  wrong behind green unit tests, and the one-off harness that would have caught it lived in
+  `.cache/` where nothing ever ran it again.
 
 ---
 
@@ -1207,6 +1217,24 @@ For the second person picking up a phone that is already set up.
 
 Deliberately not built: a coach-mark tour. It arrives before the question, and the things worth
 explaining here are only interesting at the moment they first bite.
+
+## 19.6 Arriving on a screen (added 15 Oct 2026)
+
+Forward goes to the top; back goes where you were. Every platform converged on this, and the
+app had neither: it scrolls inside one `<main>` element rather than the window, so nothing —
+not the browser, not the router — was managing the offset, and each screen simply inherited the
+last one's. Opening *How Kalib works* from the foot of Settings landed 1,718 px down a page the
+reader had never seen.
+
+- **A new screen starts at its top.** Pushing, and swapping tabs, which is a replace.
+- **Going back restores the offset you left**, keyed by history entry rather than by path —
+  two visits to the same list are two different places you were. Restoring waits for the
+  content, since most screens are lazily loaded, and gives up the instant you scroll yourself.
+- **A query change on the same screen keeps its place.** Today rewrites `?d=` to change the
+  day; that is the same screen, not a new one.
+
+Policy in `core/scroll.ts`, timing in `hooks/useScrollRestore.ts`, guarded by `e2e/sweep.spec.ts`
+on every screen rather than on the one that happened to show the fault.
 
 ## 20. Training (added 14 Oct 2026)
 

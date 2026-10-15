@@ -20,7 +20,7 @@ export function toast(text: string, action?: ToastMessage['action'], ms = 5000):
   timer = window.setTimeout(() => listener?.(null), ms);
 }
 
-export function ToastHost() {
+export function ToastHost({ liftedBy = 0 }: { liftedBy?: number }) {
   const [t, setT] = useState<ToastMessage | null>(null);
   useEffect(() => {
     listener = setT;
@@ -30,7 +30,12 @@ export function ToastHost() {
   }, []);
   if (!t) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-30 flex justify-center px-4 safe-bottom">
+    <div
+      className="pointer-events-none fixed inset-x-0 z-40 flex justify-center px-4 pb-3 safe-bottom"
+      // Stacks on whatever already owns the bottom edge — the tab bar, and the running-workout
+      // bar above it. It used to assume a tab bar that half the screens in the app hide.
+      style={{ bottom: liftedBy }}
+    >
       <div
         key={t.id}
         role="status"

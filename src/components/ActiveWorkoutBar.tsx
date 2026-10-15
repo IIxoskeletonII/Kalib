@@ -13,6 +13,17 @@ import { formatClock, isRestDone, restRemaining } from '@/core/restTimer';
 import { isWorkingSet } from '@/core/sets';
 import { elapsedSince, useActiveSession, useNow, useRestTimer } from '@/hooks/useWorkouts';
 
+/** What the bar occupies, in px, for the surfaces that stack above it. Measured, not guessed. */
+export const WORKOUT_BAR_H = 58;
+
+/**
+ * Whether the bar is on screen. Exported because the layout above it needs the same answer the
+ * bar gives itself — when these two disagreed, the first-run seed banner was drawn exactly on
+ * top of the bar, and on a screen with no tab bar it floated 88 px above the bottom edge.
+ */
+export const workoutBarShown = (hasSession: boolean, pathname: string): boolean =>
+  hasSession && !pathname.startsWith('/train/session');
+
 export function ActiveWorkoutBar({ liftedBy = 0 }: { liftedBy?: number }) {
   const session = useActiveSession();
   const rest = useRestTimer();
@@ -22,7 +33,7 @@ export function ActiveWorkoutBar({ liftedBy = 0 }: { liftedBy?: number }) {
   const now = useNow(session != null);
 
   // Not on the session screen itself, where all of this is already on the page.
-  if (!session || pathname.startsWith('/train/session')) return null;
+  if (!session || !workoutBarShown(true, pathname)) return null;
 
   const elapsed = elapsedSince(session.started_at, now);
   let done = 0;

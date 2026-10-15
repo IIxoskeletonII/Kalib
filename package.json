@@ -1,7 +1,7 @@
 {
   "name": "kalib",
   "private": true,
-  "version": "0.25.1",
+  "version": "0.26.0",
   "description": "Kalib — adaptive macro tracker (local-first PWA)",
   "type": "module",
   "scripts": {
@@ -18,6 +18,7 @@
     "icons": "node --import tsx scripts/make-icons.ts",
     "shot": "node --import tsx scripts/shot.ts",
     "e2e": "playwright test",
+    "check": "prettier --check . && npm run lint && npm test && npm run build && playwright test",
     "demo:gif": "node --import tsx scripts/demo-gif.ts",
     "seed:ciqual": "node --max-old-space-size=4096 --import tsx scripts/seed-ciqual.ts",
     "seed:mena": "node --import tsx scripts/seed-mena.ts",

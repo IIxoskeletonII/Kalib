@@ -1,7 +1,7 @@
 import { CalendarDays, Dumbbell, LineChart, Plus, Sparkles, type LucideIcon } from 'lucide-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router';
-import { ActiveWorkoutBar } from '@/components/ActiveWorkoutBar';
+import { ActiveWorkoutBar, WORKOUT_BAR_H, workoutBarShown } from '@/components/ActiveWorkoutBar';
 import { ensureSeeded, type SeedProgress } from '@/db/seed';
 import { ensureExercisesSeeded } from '@/db/seedExercises';
 import { useProfile } from '@/hooks/useData';
@@ -9,6 +9,7 @@ import { useActiveSession } from '@/hooks/useWorkouts';
 import { ToastHost } from '@/components/Toast';
 import { useBarcodeReplay, useReminderPing } from '@/hooks/useData';
 import { useSync } from '@/hooks/useSync';
+import { useScrollRestore } from '@/hooks/useScrollRestore';
 import { useTheme } from '@/hooks/useTheme';
 import { startSync } from '@/services/sync/manager';
 import Today from '@/screens/Today';
@@ -40,6 +41,9 @@ const Plan = lazy(() => import('@/screens/Plan'));
 const Shopping = lazy(() => import('@/screens/Shopping'));
 const Cook = lazy(() => import('@/screens/Cook'));
 
+/** The tab bar's height, including its top rule. The one number the floating surfaces share. */
+const NAV_H = 69;
+
 export default function App() {
   const profile = useProfile();
   const location = useLocation();
@@ -52,6 +56,7 @@ export default function App() {
     navigate(`/log?d=${date}&q=${encodeURIComponent(name)}`, { viewTransition: true }),
   );
   useTheme();
+  const scroller = useScrollRestore();
 
   useEffect(() => {
     // The Supabase client is 200 KB of script the first paint does not need — unless this is
@@ -105,12 +110,17 @@ export default function App() {
     /^\/train\//.test(location.pathname) ||
     location.pathname.startsWith('/settings/');
   const screenKey = location.pathname.split('/')[1] ?? '';
+  // Everything that floats over the page stacks on the same floor: the tab bar where there is
+  // one, then the running-workout bar above it. Each of the three surfaces used to work this
+  // out for itself, and two of them were wrong.
+  const barShown = workoutBarShown(workout != null, location.pathname);
+  const floatFloor = (hideNav ? 0 : NAV_H) + (barShown ? WORKOUT_BAR_H : 0);
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col">
-      <main className="flex-1 overflow-y-auto px-4 pt-3 safe-top">
+      <main ref={scroller} className="flex-1 overflow-y-auto px-4 pt-3 safe-top">
         {/* The workout bar floats over the page, so content needs room to clear it. */}
-        <div key={screenKey} className={`screen-in h-full ${workout ? 'pb-[72px]' : ''}`}>
+        <div key={screenKey} className={`screen-in h-full ${barShown ? 'pb-[72px]' : ''}`}>
           <Suspense fallback={null}>
             <Routes>
               <Route path="/" element={<Today />} />
@@ -148,7 +158,8 @@ export default function App() {
 
       {seed && (
         <div
-          className="pointer-events-none fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 mx-auto max-w-md px-4"
+          className="pointer-events-none fixed inset-x-0 z-40 mx-auto max-w-md px-4 pb-3 safe-bottom"
+          style={{ bottom: floatFloor }}
           role="status"
         >
           <div className="fade-in flex items-center justify-center gap-2 rounded-full bg-surface-2 px-4 py-2 text-center text-[13px] text-ink-2 shadow-fab">
@@ -169,8 +180,8 @@ export default function App() {
         </div>
       )}
 
-      <ActiveWorkoutBar liftedBy={hideNav ? 0 : 68} />
-      <ToastHost />
+      <ActiveWorkoutBar liftedBy={hideNav ? 0 : NAV_H} />
+      <ToastHost liftedBy={floatFloor} />
       {!hideNav && (
         <nav
           className="relative border-t border-line bg-bg/90 backdrop-blur-md safe-bottom"

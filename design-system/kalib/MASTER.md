@@ -247,8 +247,26 @@ reachable on demand and never interrupting. Everything surprising follows from t
 that the app measures expenditure rather than guessing it, so that idea is written down once in
 full.
 
+## Arriving, and what floats (15 Oct 2026)
+
+**A screen you have not seen starts at its top.** The app scrolls inside one `<main>`, so
+nothing does this for free: `hooks/useScrollRestore.ts` does it, and going back restores the
+offset you left. *How Kalib works* opened 1,718 px down its own page for a release because the
+only thing ever resetting the scroll was the keyed wrapper happening to remount.
+
+**Everything that floats stacks on one floor.** The tab bar where there is one, then the
+running-workout bar above it, then toasts and the seed banner above that — all from a single
+`floatFloor` in `App.tsx`. Three surfaces each worked it out for themselves and two were wrong:
+the seed banner was drawn exactly over the workout bar, and on the half of the app that hides
+the tab bar it hung 88 px above the bottom edge, over the text.
+
+**A surface that is only sometimes there still owes its space.** Page padding follows whether
+the workout bar is *shown*, not whether a workout is running — the bar hides itself on the
+session screen, and the padding did not.
+
 ## Refuse
 
 Eyebrow labels · tracked caps · `A · B · C` meta · identical cards as page structure · nested
 cards · sparklines or rings as decoration · gradient text · glass · display fonts in UI · glyph
-or emoji icons · load-in animations · gray-on-colour text · shadows without offset.
+or emoji icons · load-in animations · gray-on-colour text · shadows without offset · a floating
+surface with its own hard-coded distance from the bottom.
