@@ -31,7 +31,7 @@ export function Button({
     <button
       type="button"
       {...rest}
-      className={`inline-flex items-center justify-center gap-2 rounded-full px-5 font-medium transition-[transform,background-color,opacity] duration-200 ease-[var(--ease-out-soft)] active:scale-[0.97] disabled:opacity-40 disabled:active:scale-100 ${h} ${VARIANT[variant]} ${className}`}
+      className={`hit inline-flex items-center justify-center gap-2 rounded-full px-5 font-medium transition-[transform,background-color,opacity] duration-200 ease-[var(--ease-out-soft)] active:scale-[0.97] disabled:opacity-40 disabled:active:scale-100 ${h} ${VARIANT[variant]} ${className}`}
     >
       {Icon && <Icon size={size === 'sm' ? 16 : 19} strokeWidth={2.2} aria-hidden />}
       {children}
@@ -76,8 +76,10 @@ export function Chip({
       type="button"
       aria-pressed={active}
       {...rest}
-      className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full px-4 text-[15px] transition-[transform,background-color,color] duration-200 active:scale-95 disabled:opacity-40 ${
-        wrap ? 'h-auto min-h-11 flex-col py-2 text-center' : 'h-10 whitespace-nowrap'
+      // Full 44 pt rather than 40 plus a `.hit` box: chips live in horizontal rails, and a
+      // scroll container clips the pseudo-element the invisible target is made of.
+      className={`hit inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full px-4 text-[15px] transition-[transform,background-color,color] duration-200 active:scale-95 disabled:opacity-40 ${
+        wrap ? 'h-auto min-h-11 flex-col py-2 text-center' : 'h-11 whitespace-nowrap'
       } ${active ? 'bg-primary font-semibold text-on-primary' : 'bg-surface-2 text-ink active:bg-surface-3'} ${className}`}
     >
       {Icon && <Icon size={16} strokeWidth={2.2} aria-hidden />}
@@ -109,7 +111,7 @@ export function Segmented<T extends string>({
             role="radio"
             aria-checked={active}
             onClick={() => onChange(o.value)}
-            className={`flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full text-[14px] transition-[background-color,color,transform] duration-200 ${
+            className={`hit flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full text-[14px] transition-[background-color,color,transform] duration-200 ${
               active
                 ? 'bg-surface font-semibold text-ink shadow-[0_2px_8px_rgba(0,0,0,0.18)]'
                 : 'text-muted active:bg-surface-3'

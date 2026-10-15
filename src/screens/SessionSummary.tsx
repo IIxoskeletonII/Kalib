@@ -7,11 +7,11 @@
 // It is also the only place the energy figure appears, and it appears with the sentence that
 // makes it safe: the measured burn already contains it, so the food budget has not moved. A
 // number like that shown without its caveat is the one thing that would undo §20.7.
-import { Check, Flame, Trophy } from 'lucide-react';
+import { Check, ChevronLeft, Flame, Trophy } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { Explainer } from '@/components/Explainer';
-import { Button, Card, SectionHeading } from '@/components/ui';
+import { Button, Card, IconButton, SectionHeading } from '@/components/ui';
 import { MUSCLE_LABEL } from '@/core/muscles';
 import { describePR } from '@/core/pr';
 import { formatDuration } from '@/core/restTimer';
@@ -20,12 +20,18 @@ import type { Muscle } from '@/core/types';
 import { formatWeight, toDisplay, UNIT_LABEL } from '@/core/weightUnit';
 import { fmt } from '@/components/ui';
 import { getExercises } from '@/db/repo/exercises';
+import { useBack } from '@/hooks/useBack';
 import { useWeightUnit } from '@/hooks/useWorkouts';
 import { summaryFor, type SessionSummary as Summary } from '@/services/workouts';
 
 export default function SessionSummary() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const back = useBack('/train');
+  // Set by Session on finishing. Absent when the row was opened from Recent workouts, and
+  // absent after a reload — which lands on the quieter of the two, the right way round.
+  const justFinished =
+    (useLocation().state as { justFinished?: boolean } | null)?.justFinished === true;
   const unit = useWeightUnit();
   const [summary, setSummary] = useState<Summary | null | undefined>();
   const [muscles, setMuscles] = useState<Muscle[]>([]);
@@ -61,13 +67,20 @@ export default function SessionSummary() {
 
   return (
     <div className="flex h-full flex-col pb-6">
-      <header className="pt-6">
-        <p className="text-[14px] font-medium text-muted">
-          {done.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
-        </p>
-        <h1 className="mt-0.5 text-[34px] leading-none font-extrabold tracking-[-0.03em]">
-          {session.name}
-        </h1>
+      <header className={justFinished ? 'pt-6' : 'flex items-start gap-1 pt-1'}>
+        {!justFinished && <IconButton icon={ChevronLeft} label="Back" onClick={back} />}
+        <div className={justFinished ? '' : 'min-w-0 flex-1 pt-1'}>
+          <p className="text-[14px] font-medium text-muted">
+            {done.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+          <h1
+            className={`mt-0.5 leading-none font-extrabold tracking-[-0.03em] ${
+              justFinished ? 'text-[34px]' : 'text-[24px]'
+            }`}
+          >
+            {session.name}
+          </h1>
+        </div>
       </header>
 
       {/* The figures sit on the page; the cards below are things you read. */}
@@ -185,17 +198,21 @@ export default function SessionSummary() {
         </section>
       )}
 
-      <div className="mt-auto pt-7">
-        <Button
-          variant="primary"
-          size="lg"
-          icon={Check}
-          className="w-full"
-          onClick={() => navigate('/train', { replace: true })}
-        >
-          Done
-        </Button>
-      </div>
+      {/* Only the end of a workout gets a button to close it off. Reading an old session back
+          is a detail screen like any other, and the back arrow is how you leave one. */}
+      {justFinished && (
+        <div className="mt-auto pt-7">
+          <Button
+            variant="primary"
+            size="lg"
+            icon={Check}
+            className="w-full"
+            onClick={() => navigate('/train', { replace: true })}
+          >
+            Done
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

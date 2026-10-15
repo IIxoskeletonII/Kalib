@@ -58,7 +58,7 @@ export function Explainer({
           if (seen) setReopened(false);
           else void setSetting(seenKey(id), true);
         }}
-        className="h-9 rounded-full bg-surface-2 px-4 text-[13px] font-semibold text-ink-2 active:scale-[0.97]"
+        className="hit h-9 rounded-full bg-surface-2 px-4 text-[13px] font-semibold text-ink-2 active:scale-[0.97]"
       >
         {seen ? 'Close' : 'Got it'}
       </button>

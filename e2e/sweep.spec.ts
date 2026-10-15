@@ -103,7 +103,10 @@ test.describe('every screen', () => {
   // One test per screen, run in parallel: a screen that breaks names itself in the report
   // instead of being one line in a wall of findings, and the whole walk takes a couple of
   // minutes rather than nine.
-  test.describe.configure({ mode: 'parallel', timeout: 4 * 60_000 });
+  // Six minutes because the screens with the most controls press two dozen of them, each from
+  // a fresh load, while eight workers share one machine. It is a ceiling for a hang, not a
+  // budget: the slowest screen runs in about two.
+  test.describe.configure({ mode: 'parallel', timeout: 6 * 60_000 });
 
   for (const [route, visit] of Object.entries(VISITS)) {
     const title = `${route} renders, behaves, and lets you out`;
@@ -232,6 +235,10 @@ async function inspect(page: Page): Promise<string[]> {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0;
     };
+    // A control the app has taken out of the tab order is saying it is not reachable yet, and
+    // it is right: SwipeRow's Delete sits behind the row with `tabIndex={-1}` until you swipe.
+    // Checking those for reach or for a stolen centre tests the app's own intent and fails it.
+    const offered = (el: Element) => seen(el) && (el as HTMLElement).tabIndex >= 0;
     // Three shapes are a way out, and only three. The tab bar; a back button; or, on a screen
     // that deliberately has neither because it ends a flow, one unambiguous dismissal. The
     // session summary is the third kind: it is reached only by finishing a workout, nothing
@@ -280,6 +287,55 @@ async function inspect(page: Page): Promise<string[]> {
         unnamed.push(`${el.tagName.toLowerCase()}[${el.className.toString().slice(0, 40)}]`);
       }
     }
+    // MASTER.md promises targets of at least 44 pt. That is about the tap, not the pill, so
+    // it is checked by hit-testing rather than by measuring: a 36 pt chip with a `.hit` box is
+    // fine, and the same chip inside a scroll container is not, because the container clips
+    // the pseudo-element the box is made of. Both of those happened.
+    const outOfReach: string[] = [];
+    for (const el of document.querySelectorAll(
+      'button, a[href], input, select, [role="button"], [role="tab"]',
+    )) {
+      if (!offered(el) || (el as HTMLButtonElement).disabled) continue;
+      const r = el.getBoundingClientRect();
+      if (Math.min(r.width, r.height) >= 44) continue;
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const reaches = (
+        [
+          [cx, cy - 21],
+          [cx, cy + 21],
+          [cx - 21, cy],
+          [cx + 21, cy],
+        ] as const
+      )
+        .filter(([x, y]) => x > 0 && y > 0 && x < innerWidth && y < innerHeight)
+        .every(([x, y]) => {
+          const at = document.elementFromPoint(x, y);
+          return at != null && (at === el || el.contains(at) || at.contains(el));
+        });
+      if (!reaches) {
+        outOfReach.push(
+          `${nameOf(el) || el.tagName.toLowerCase()} ${Math.round(r.width)}x${Math.round(r.height)}`,
+        );
+      }
+    }
+
+    // ...and a target that reaches further must not reach into its neighbour. A control owns
+    // its own centre: if something else answers there, that something is taking the tap.
+    const stolen: string[] = [];
+    for (const el of document.querySelectorAll(
+      'button, a[href], input, select, [role="button"], [role="tab"]',
+    )) {
+      if (!offered(el) || (el as HTMLButtonElement).disabled) continue;
+      const r = el.getBoundingClientRect();
+      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      if (at && at !== el && !el.contains(at) && !at.contains(el)) {
+        stolen.push(
+          `${nameOf(el) || el.tagName.toLowerCase()} -> ${nameOf(at) || at.tagName.toLowerCase()}`,
+        );
+      }
+    }
+
     // Anything that floats at the bottom must stack on the tab bar, not sit on it. The
     // first-run seed banner was drawn exactly over the running-workout bar, and 88 px above
     // the bottom edge on the half of the app that hides the tab bar; all three surfaces now
@@ -304,6 +360,8 @@ async function inspect(page: Page): Promise<string[]> {
       out: wayOut(),
       unnamed,
       onTheNav,
+      outOfReach,
+      stolen,
     };
   });
 
@@ -311,6 +369,8 @@ async function inspect(page: Page): Promise<string[]> {
   if (!m.out) found.push('dead end: no tab bar, no back, no way to dismiss');
   for (const u of new Set(m.unnamed)) found.push(`control with no name: ${u}`);
   for (const f of new Set(m.onTheNav)) found.push(`floats on top of the tab bar: ${f}`);
+  for (const t of new Set(m.outOfReach)) found.push(`a 44 pt tap does not reach it: ${t}`);
+  for (const t of new Set(m.stolen)) found.push(`something else answers at its centre: ${t}`);
   return found;
 }
 
@@ -407,7 +467,16 @@ const scrollTop = (page: Page): Promise<number> =>
 
 async function open(page: Page, url: string): Promise<void> {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(900);
+  // Wait for the screen rather than for a stopwatch. Every route is lazily loaded and most
+  // read from IndexedDB, so a fixed delay inspects whatever happened to have rendered: under
+  // load this called Plan a dead end while Plan's own back button was still on its way.
+  // waitForSelector rather than waitForFunction: this runs once per control on the screen,
+  // and polling by evaluating JavaScript on a page that is still seeding its food database
+  // costs enough to push the busiest screens past their own timeout.
+  await page
+    .waitForSelector('main button, main a[href], main h1', { timeout: 10_000 })
+    .catch(() => {}); // a screen that renders no control at all is a finding, not a crash
+  await page.waitForTimeout(500);
 }
 
 /** A device a few weeks into using the app: a profile, a trend, food logged, a workout done. */

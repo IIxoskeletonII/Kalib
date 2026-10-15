@@ -157,6 +157,8 @@ export default function Train() {
                 key={s.id}
                 className="rise-in"
                 style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+                onClick={() => navigate(`/train/summary/${encodeURIComponent(s.id)}`)}
+                chevron
                 title={s.name}
                 subtitle={`${new Date(s.started_at).toLocaleDateString(undefined, {
                   weekday: 'short',

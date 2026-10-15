@@ -196,6 +196,25 @@ a {
   display: none;
 }
 
+/* A control may look smaller than 44 pt; it may never be smaller than 44 pt to hit.
+   MASTER.md's rule is about the target, not the pill, so the pill keeps its size and an
+   invisible box centred on it takes the tap. A 36 pt chip and a 19 pt text link both become
+   reachable without redrawing a single visible pixel. Measured: no two of these overlap
+   anywhere in the app, so nothing steals a neighbour's tap. Not for <input>, which is a
+   replaced element and renders no pseudo-element — size those directly. */
+.hit {
+  position: relative;
+}
+.hit::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
+
 /* Elevated surface: one shadow declaration, radius 24 (cards) — see MASTER.md. */
 .card {
   background: var(--surface);

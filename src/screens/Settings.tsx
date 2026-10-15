@@ -349,7 +349,7 @@ export default function Settings() {
               <div className="flex justify-between text-[13px]">
                 <button
                   type="button"
-                  className="font-semibold text-accent"
+                  className="hit font-semibold text-accent"
                   onClick={() => {
                     setAuthMode(authMode === 'signup' ? 'signin' : 'signup');
                     setAuthNote(null);
@@ -358,7 +358,7 @@ export default function Settings() {
                   {authMode === 'signup' ? 'I already have an account' : 'Create an account'}
                 </button>
                 {authMode === 'signin' && (
-                  <button type="button" className="text-muted" onClick={() => void forgot()}>
+                  <button type="button" className="hit text-muted" onClick={() => void forgot()}>
                     Forgot password?
                   </button>
                 )}

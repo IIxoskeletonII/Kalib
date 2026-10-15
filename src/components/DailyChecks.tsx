@@ -180,7 +180,9 @@ function Tile({
             type="button"
             onClick={action.onClick}
             aria-label={action.label}
-            className="pointer-events-auto relative -mr-1 -mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-2 text-on-accent transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-90"
+            // 36 drawn, 44 to hit. The tile clips its children, but this sits inside the
+            // tile's own padding, so the box has room without reaching the clipped edge.
+            className="hit pointer-events-auto relative -mr-1 -mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-2 text-on-accent transition-transform duration-200 ease-[var(--ease-out-soft)] active:scale-90"
           >
             <Plus size={18} strokeWidth={2.6} aria-hidden />
           </button>

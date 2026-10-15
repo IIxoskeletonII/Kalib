@@ -260,6 +260,21 @@ running-workout bar above it, then toasts and the seed banner above that — all
 the seed banner was drawn exactly over the workout bar, and on the half of the app that hides
 the tab bar it hung 88 px above the bottom edge, over the text.
 
+**44 pt is the tap, not the pill.** Line 70's rule was being read as a size and was therefore
+being broken forty times over: chips at 40, segmented controls at 36, two text links at 19. The
+pill keeps its drawn size and an invisible box centred on it takes the tap (`.hit` in
+`index.css`), so nothing was redrawn. Two exceptions, both because the box is a pseudo-element:
+an `<input>` is a replaced element and renders none, and a scroll container clips one, so the
+reminder time field and the chips in the log screen's rail are sized to 44 outright. A clipping
+ancestor is not by itself a reason to resize — the water tile clips its children and the box
+still fits inside the tile's own padding. Enforced by hit-testing in the sweep, never by
+measuring, and paired with a check that nothing answers at a neighbour's centre, because a
+target that reaches further must not reach into the control beside it.
+
+**A session read back is not a session finished.** The summary does two jobs. Finishing gives
+the full-height name and a button to close it off; opening the same row from Recent workouts
+gives a back arrow and no button, because you did not just do anything.
+
 **A surface that is only sometimes there still owes its space.** Page padding follows whether
 the workout bar is *shown*, not whether a workout is running — the bar hides itself on the
 session screen, and the padding did not.

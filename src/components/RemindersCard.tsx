@@ -313,7 +313,9 @@ function TimeRow({
         disabled={disabled || !on}
         onChange={(e) => onChange(e.target.value || null)}
         aria-label={`${label} time`}
-        className="h-9 w-[104px] min-w-0 max-w-[104px] shrink-0 rounded-full bg-surface-2 px-1 text-center text-[14px] tabular outline-none focus:ring-2 focus:ring-accent disabled:opacity-60"
+        // Sized to 44 pt rather than given a `.hit` box: an <input> is a replaced element and
+        // renders no pseudo-element, so the invisible target trick does not reach it.
+        className="h-11 w-[104px] min-w-0 max-w-[104px] shrink-0 rounded-full bg-surface-2 px-1 text-center text-[14px] tabular outline-none focus:ring-2 focus:ring-accent disabled:opacity-60"
       />
       <button
         type="button"
@@ -321,7 +323,7 @@ function TimeRow({
         aria-checked={on}
         aria-label={`${label} on or off`}
         disabled={disabled}
-        className="shrink-0"
+        className="hit shrink-0"
         onClick={() => onChange(on ? null : label === 'Weigh-in nudge' ? '07:30' : '20:00')}
       >
         <Toggle on={on} />

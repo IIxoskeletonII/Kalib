@@ -157,8 +157,14 @@ function SessionView({ session, onLeave }: { session: WorkoutSession; onLeave: (
     const result = await finishSession(session.id);
     // The summary is where the totals, the records and the energy figure live; a toast cannot
     // carry the sentence that makes the energy figure safe to show.
-    if (result) navigate(`/train/summary/${encodeURIComponent(session.id)}`, { replace: true });
-    else navigate('/train', { replace: true });
+    if (result) {
+      // `justFinished` is how the summary knows which of its two jobs it is doing: the end of
+      // a workout, or a session read back from history weeks later.
+      navigate(`/train/summary/${encodeURIComponent(session.id)}`, {
+        replace: true,
+        state: { justFinished: true },
+      });
+    } else navigate('/train', { replace: true });
   };
 
   /**

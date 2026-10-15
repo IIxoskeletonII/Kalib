@@ -1344,6 +1344,13 @@ It is also the only place the energy figure appears, and it never appears withou
 that makes it safe (§20.6). A toast could not carry that sentence, which is the real reason the
 flow ends on a screen.
 
+**The same screen reads a session back.** Recent workouts on Train opens the summary for any
+session, which is where last Tuesday's records live — they were previously unreachable once the
+screen had been dismissed. The two arrivals differ: finishing gives the full-height name and a
+button to close the workout off, while opening a row gives a back arrow and no button, since
+nothing was just done. Session passes `justFinished` in the navigation state to tell them apart,
+and a reload lands on the quieter of the two.
+
 ### 20.6 What a session costs, and why it is never spent
 
 **The energy figure is not added to the day's food budget.** Kalib's TDEE is measured from intake

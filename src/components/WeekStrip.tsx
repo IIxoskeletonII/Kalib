@@ -29,7 +29,7 @@ export function WeekStrip({
             aria-selected={active}
             disabled={future}
             onClick={() => onSelect(d)}
-            className={`flex h-[64px] w-[42px] flex-col items-center justify-center gap-1 rounded-full transition-[background-color,color,transform] duration-200 ease-[var(--ease-out-soft)] active:scale-95 disabled:opacity-30 ${
+            className={`hit flex h-[64px] w-[42px] flex-col items-center justify-center gap-1 rounded-full transition-[background-color,color,transform] duration-200 ease-[var(--ease-out-soft)] active:scale-95 disabled:opacity-30 ${
               active ? 'bg-primary text-on-primary' : 'text-muted active:bg-surface-2'
             }`}
           >

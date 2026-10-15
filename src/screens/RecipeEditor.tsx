@@ -309,7 +309,7 @@ function Editor({ recipe }: { recipe: Recipe }) {
       </div>
       <button
         type="button"
-        className="mt-2 flex w-full items-center justify-center gap-1.5 text-[13px] font-semibold text-muted"
+        className="hit mt-2 flex w-full items-center justify-center gap-1.5 text-[13px] font-semibold text-muted"
         disabled={recipe.items.length === 0}
         onClick={() => setCookOpen(true)}
       >
