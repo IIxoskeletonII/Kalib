@@ -3,7 +3,6 @@
 // The maths is in core/trainingDays.ts, including the invariant that matters: the week's total
 // is untouched. This assembles the week it needs — which days were trained, which are expected
 // to be — and leaves the decision to core.
-import { todayKey } from '@/core/dates';
 import { sexFloor } from '@/core/targets';
 import {
   DEFAULT_DIFFERENCE_KCAL,
@@ -13,6 +12,7 @@ import {
   redistribute,
   type DayBudget,
 } from '@/core/trainingDays';
+import { todayKey } from '@/core/dates';
 import { weekStart } from '@/core/trainingWeek';
 import { toDateKey } from '@/core/dates';
 import type { MacroTotals } from '@/core/types';
@@ -104,26 +104,6 @@ export async function bridgedDay(date: string, base: MacroTotals): Promise<Bridg
   const budget = out.find((d) => d.date === date);
   if (!budget) return { budget: flat, applied: false, pattern: shape.pattern };
   return { budget, applied: budget.delta_kcal !== 0, pattern: shape.pattern };
-}
-
-/**
- * The §3 target for a day before any redistribution — the reference a surface needs to say how
- * far the bridge moved it. Recomputed rather than stored, because the stored row *is* the
- * shifted one.
- */
-export async function flatTargetFor(date: string): Promise<MacroTotals | undefined> {
-  const { currentTargets, toDailyTargetInput } = await import('./targets');
-  const t = await currentTargets(date);
-  return t ? toDailyTargetInput(t) : undefined;
-}
-
-/** The week's shape with the base resolved for you — what a preview needs. */
-export async function weekPreview(
-  date: string = todayKey(),
-): Promise<{ days: DayBudget[]; applied: boolean; pattern: number[] } | undefined> {
-  const base = await flatTargetFor(date);
-  if (!base) return undefined;
-  return bridgedWeek(base, date);
 }
 
 /** The whole week, for a surface that wants to show the shape rather than one day of it. */

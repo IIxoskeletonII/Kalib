@@ -9,7 +9,7 @@ import {
   type TargetInputs,
   type Targets,
 } from '@/core/targets';
-import type { DailyTarget, Profile, WeighIn } from '@/core/types';
+import type { DailyTarget, MacroTotals, Profile, WeighIn } from '@/core/types';
 import {
   ensureDailyTarget,
   upsertDailyTarget,
@@ -18,6 +18,9 @@ import {
 import { getCurrentProfile } from '@/db/repo/profiles';
 import { getSetting, setSetting } from '@/db/repo/settings';
 import { listWeighIns } from '@/db/repo/weighIns';
+import { todayKey } from '@/core/dates';
+import { bridgedDay, bridgedWeek } from './trainingDays';
+import type { DayBudget } from '@/core/trainingDays';
 
 export const MODE_SCHEDULE_KEY = 'mode_schedule';
 
@@ -146,12 +149,32 @@ export async function formulaTargets(date: string): Promise<Targets | undefined>
 }
 
 /**
+ * The §3 target for a day *before* any redistribution.
+ *
+ * Lives here rather than beside the bridge because it is a targets question, and putting it
+ * there made the two modules import each other — a cycle that only stayed harmless because
+ * both sides were dynamic imports, which the bundler then rightly pointed out were achieving
+ * nothing. The bridge now depends on targets and not the reverse.
+ */
+export async function flatTargetFor(date: string): Promise<MacroTotals | undefined> {
+  const t = await currentTargets(date);
+  return t ? toDailyTargetInput(t) : undefined;
+}
+
+/** The week's targets with the bridge applied, for a surface that shows the shape. */
+export async function weekTargets(
+  date: string = todayKey(),
+): Promise<{ days: DayBudget[]; applied: boolean; pattern: number[] } | undefined> {
+  const base = await flatTargetFor(date);
+  return base ? bridgedWeek(base, date) : undefined;
+}
+
+/**
  * The §3 target with §20.7's energy bridge applied: the same weekly total, shaped toward the
  * days you train. A no-op when the bridge is off, which is the default.
  */
 async function bridged(date: string, t: Targets): Promise<DailyTargetInput> {
   const flat = toDailyTargetInput(t);
-  const { bridgedDay } = await import('./trainingDays');
   const result = await bridgedDay(date, flat);
   if (!result?.applied) return flat;
   const { kcal, protein_g, carb_g, fat_g, fiber_g } = result.budget;

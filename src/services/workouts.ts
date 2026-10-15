@@ -14,6 +14,7 @@ import { getExercises } from '@/db/repo/exercises';
 import { latestWeighIn } from '@/db/repo/weighIns';
 import { getSetting, setSetting } from '@/db/repo/settings';
 import {
+  activeSession,
   addSession,
   deleteSession,
   getSession,
@@ -56,7 +57,7 @@ export function entryFromExercise(e: Exercise, sets = 3, rest_sec?: number): Wor
  * would throw away work.
  */
 export async function startSession(routine?: Routine): Promise<WorkoutSession> {
-  const existing = await activeSessionOrThrow();
+  const existing = await activeSession();
   if (existing) throw new Error('A workout is already running.');
 
   let entries: WorkoutEntry[] = [];
@@ -86,11 +87,6 @@ export async function startSession(routine?: Routine): Promise<WorkoutSession> {
     ...(routine ? { routine_id: routine.id } : {}),
   };
   return addSession(input);
-}
-
-async function activeSessionOrThrow(): Promise<WorkoutSession | undefined> {
-  const { activeSession } = await import('@/db/repo/workouts');
-  return activeSession();
 }
 
 /** Reads the session, applies a change to its entries, writes it back. */

@@ -16,7 +16,7 @@ import {
   listRoutines,
   listSessions,
 } from '@/db/repo/workouts';
-import { flatTargetFor } from '@/services/trainingDays';
+import { flatTargetFor } from '@/services/targets';
 import { recentSessions, REST_TIMER_KEY, WEIGHT_UNIT_KEY } from '@/services/workouts';
 
 /** The session being performed right now, or null when there is none. */

@@ -12,10 +12,10 @@ import type { DayBudget } from '@/core/trainingDays';
 import type { WeightUnit } from '@/core/types';
 import { setSetting } from '@/db/repo/settings';
 import { useWeightUnit } from '@/hooks/useWorkouts';
+import { weekTargets } from '@/services/targets';
 import {
   getEnergyBridge,
   setEnergyBridge,
-  weekPreview,
   weekShape,
   type EnergyBridge,
 } from '@/services/trainingDays';
@@ -59,7 +59,7 @@ export function TrainingCard() {
   useEffect(() => {
     if (bridge == null) return;
     let cancelled = false;
-    void weekPreview().then((w) => !cancelled && setWeek(w?.applied ? w.days : null));
+    void weekTargets().then((w) => !cancelled && setWeek(w?.applied ? w.days : null));
     return () => {
       cancelled = true;
     };
