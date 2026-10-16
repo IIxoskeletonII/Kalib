@@ -1,4 +1,5 @@
 // Shape of public/data/foods-*.json, produced by scripts/seed-usda.ts and loaded by db/seed.ts.
+import type { Market } from './market';
 import type { FoodSource, Micros, Per100g, Portion } from './types';
 
 export interface SeedFood {
@@ -14,6 +15,9 @@ export interface SeedFood {
   category?: string;
   /** Which published table a value came from, when the source is a compiled one (§7.1b). */
   source_ref?: string;
+  /** Chain menus only (§21): which country's menu, and whose. */
+  market?: Market;
+  chain?: string;
   per_100g: Per100g;
   micros: Micros;
   micro_coverage: number;

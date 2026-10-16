@@ -480,9 +480,14 @@ const scrollTop = (page: Page): Promise<number> =>
  * push the busiest screens past their own timeout.
  */
 async function settled(page: Page): Promise<void> {
+  // Wait for a *way out* specifically, not for any control at all. Plan was called a dead end
+  // a third time because its content buttons render before its header does, so "some button
+  // exists" was true while the back button was still on its way. These are the three things
+  // `wayOut` looks for, so waiting for them is waiting for the question to be answerable.
+  // A screen that truly has none still fails after the timeout, which is the point.
   await page
-    .waitForSelector('main button, main a[href], main h1', { timeout: 10_000 })
-    .catch(() => {}); // a screen that renders no control at all is a finding, not a crash
+    .waitForSelector('nav a, button[aria-label="Back"], main h1', { timeout: 10_000 })
+    .catch(() => {});
   await page.waitForTimeout(500);
 }
 

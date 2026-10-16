@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { decideMarket, deviceZone, isMarket, marketForZone, MARKETS, MARKET_NAME } from './market';
+import {
+  borrowedFrom,
+  decideMarket,
+  deviceZone,
+  isMarket,
+  marketForZone,
+  marketsFor,
+  MARKETS,
+  MARKET_NAME,
+  REGION,
+} from './market';
 
 describe('marketForZone', () => {
   it('reads the markets we carry off the phone', () => {
@@ -15,8 +25,12 @@ describe('marketForZone', () => {
     expect(marketForZone('Pacific/Honolulu')).toBe('US');
   });
 
-  it('treats the Gulf zone as Oman, which is the nearest menu we hold', () => {
-    expect(marketForZone('Asia/Dubai')).toBe('OM');
+  it('gives each Gulf country its own market', () => {
+    // Dubai used to fall through to Oman on the grounds that the Gulf menu is shared. That
+    // was a guess standing in for missing data; both now have their own.
+    expect(marketForZone('Asia/Dubai')).toBe('AE');
+    expect(marketForZone('Asia/Riyadh')).toBe('SA');
+    expect(marketForZone('Asia/Muscat')).toBe('OM');
   });
 
   it('says nothing for somewhere we have no data for', () => {
@@ -90,5 +104,41 @@ describe('deviceZone', () => {
   it('returns a zone or nothing, never a throw', () => {
     const z = deviceZone();
     expect(z === undefined || typeof z === 'string').toBe(true);
+  });
+});
+
+describe('marketsFor', () => {
+  it('answers an Omani question with Gulf menus, your own country first', () => {
+    // Evidence, not assumption: of the 72 Domino's items published in both Oman and the UAE,
+    // all 72 agree within 2%. The Emirati table is also the larger (128 rows to 74), so the
+    // grouping adds items Oman never published rather than only avoiding an empty result.
+    expect(marketsFor('OM')).toEqual(['OM', 'AE', 'SA']);
+    expect(marketsFor('AE')).toEqual(['AE', 'OM', 'SA']);
+    expect(marketsFor('SA')).toEqual(['SA', 'OM', 'AE']);
+  });
+
+  it('never reaches outside the region', () => {
+    // An Italian Big Mac is a different sandwich from an Omani one. Standing in Muscat you
+    // may be shown a Dubai figure; you are never shown a Milan one.
+    expect(marketsFor('IT')).toEqual(['IT']);
+    expect(marketsFor('US')).toEqual(['US']);
+    for (const m of MARKETS) {
+      for (const other of marketsFor(m)) expect(REGION[other]).toBe(REGION[m]);
+    }
+  });
+
+  it('always puts your own market first', () => {
+    for (const m of MARKETS) expect(marketsFor(m)[0]).toBe(m);
+  });
+});
+
+describe('borrowedFrom', () => {
+  it('says nothing when the figure is from where you are', () => {
+    expect(borrowedFrom('OM', 'OM')).toBeUndefined();
+  });
+
+  it('names the country when the figure was borrowed', () => {
+    expect(borrowedFrom('AE', 'OM')).toBe('United Arab Emirates');
+    expect(borrowedFrom('SA', 'OM')).toBe('Saudi Arabia');
   });
 });

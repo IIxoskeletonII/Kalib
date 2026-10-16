@@ -13,14 +13,55 @@
 // Only chain foods have a market. A national food table is not a menu.
 
 /** The markets with chain data. ISO 3166-1 alpha-2, lowercased in storage keys. */
-export const MARKETS = ['IT', 'OM', 'US'] as const;
+export const MARKETS = ['IT', 'OM', 'AE', 'SA', 'US'] as const;
 export type Market = (typeof MARKETS)[number];
 
 export const MARKET_NAME: Record<Market, string> = {
   IT: 'Italy',
   OM: 'Oman',
+  AE: 'United Arab Emirates',
+  SA: 'Saudi Arabia',
   US: 'United States',
 };
+
+/**
+ * Markets whose menus are the same menu.
+ *
+ * The Gulf chains run one regional menu: of the 72 Domino's items that appear in both the
+ * Omani and the Emirati published tables, **all 72 agree within 2%** — not one differs. So a
+ * Dubai figure answers an Omani question, and the Emirati table is the larger of the two (128
+ * rows against 74), which means grouping them adds items Oman never published rather than
+ * merely avoiding an empty result.
+ *
+ * Grouping is never across regions. Standing in Muscat you may be shown a figure published in
+ * Dubai; you are never shown one published in Milan, because an Italian Big Mac is a different
+ * sandwich and saying otherwise would be a lie dressed as a convenience.
+ */
+export type Region = 'gcc' | 'eu' | 'us';
+
+export const REGION: Record<Market, Region> = {
+  IT: 'eu',
+  OM: 'gcc',
+  AE: 'gcc',
+  SA: 'gcc',
+  US: 'us',
+};
+
+/**
+ * The markets that may answer for this one, the person's own first.
+ *
+ * Order matters: a row from your own country wins over an identical row from next door, so
+ * that the common case needs no explanation and only the borrowed rows carry a label.
+ */
+export function marketsFor(current: Market): Market[] {
+  const siblings = MARKETS.filter((m) => m !== current && REGION[m] === REGION[current]);
+  return [current, ...siblings];
+}
+
+/** How to say where a figure came from, or nothing when it came from where you are. */
+export function borrowedFrom(item: Market, current: Market): string | undefined {
+  return item === current ? undefined : MARKET_NAME[item];
+}
 
 /** The settings key. Synced, so both phones agree on where you are. */
 export const MARKET_KEY = 'chain_market';
@@ -40,10 +81,11 @@ export function isMarket(v: unknown): v is Market {
 const ZONE_TO_MARKET: ReadonlyArray<readonly [RegExp, Market]> = [
   [/^Europe\/(Rome|Vatican|San_Marino|Busingen)$/, 'IT'],
   [/^Asia\/Muscat$/, 'OM'],
-  // Dubai is the Gulf's shared zone; Oman keeps the same offset and much of the same menu.
-  // Not assumed: it is listed because the alternative is falling through to nothing, and a
-  // Gulf traveller is far likelier to want Omani menus than none at all.
-  [/^Asia\/Dubai$/, 'OM'],
+  // The Emirates is its own market now that it has its own data. It previously fell through
+  // to Oman on the grounds that the Gulf menu is shared — a reasonable guess, and wrong once
+  // there was a real alternative.
+  [/^Asia\/Dubai$/, 'AE'],
+  [/^Asia\/Riyadh$/, 'SA'],
   // Named, not prefixed. `^America/` would also catch São Paulo, Mexico City and Toronto, and
   // would hand a Brazilian an American menu — which is exactly the mixing this module exists
   // to stop. The `US/` forms are the deprecated aliases some devices still report.

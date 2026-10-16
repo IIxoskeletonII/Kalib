@@ -7,7 +7,7 @@ import { getSetting, setSetting } from './repo/settings';
 /** Bump when public/data/*.json is regenerated with different content. */
 export const SEED_VERSION = 5;
 
-export const SEED_FILES: { source: FoodSource; url: string }[] = [
+export const SEED_FILES: { source: FoodSource; url: string; optional?: boolean }[] = [
   { source: 'usda_foundation', url: '/data/foods-foundation.json' },
   { source: 'usda_sr', url: '/data/foods-sr.json' },
   { source: 'usda_fndds', url: '/data/foods-fndds.json' },
@@ -16,6 +16,9 @@ export const SEED_FILES: { source: FoodSource; url: string }[] = [
   { source: 'ciqual', url: '/data/foods-ciqual.json' },
   // §7.1b — Middle Eastern dishes, the smallest file and the last to land.
   { source: 'mena', url: '/data/foods-mena.json' },
+  // Optional: the chain compilation is built from a separate private source and is simply
+  // absent from a public clone (LICENSE-DATA.md). Missing is a state, not a failure.
+  { source: 'chain', url: '/data/foods-chains.json', optional: true },
 ];
 
 export interface SeedProgress {
@@ -56,7 +59,17 @@ export async function ensureSeeded(onProgress?: (p: SeedProgress) => void): Prom
     // The version is part of the URL: the service worker caches these files first-hand, so a
     // new SEED_VERSION has to be a new address or the old contents would be served forever.
     const res = await fetch(`${f.url}?v=${SEED_VERSION}`);
-    if (!res.ok) throw new Error(`Seed fetch failed: ${f.url} (${res.status})`);
+    if (!res.ok) {
+      // An optional file that is not there is not an error: the chain compilation is built
+      // from a private source, so a public clone has none and eating out is simply absent.
+      // It is marked seeded so the fetch is not retried on every launch.
+      if (f.optional && res.status === 404) {
+        await setSetting(seedKey(f.source), SEED_VERSION);
+        onProgress?.({ source: f.source, done: true });
+        continue;
+      }
+      throw new Error(`Seed fetch failed: ${f.url} (${res.status})`);
+    }
     if (!(res.headers.get('content-type') ?? '').includes('json')) {
       // The SPA fallback answering with index.html would parse as JSON garbage; say so.
       throw new Error(`Seed file ${f.url} came back as ${res.headers.get('content-type')}`);
