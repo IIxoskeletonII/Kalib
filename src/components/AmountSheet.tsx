@@ -64,6 +64,7 @@ export const SOURCE_LABEL: Record<Food['source'], string> = {
   usda_fndds: 'USDA FNDDS',
   ciqual: 'Ciqual (ANSES)',
   mena: 'Middle East tables',
+  chain: 'Restaurant menu',
   off: 'Open Food Facts',
   custom: 'My food',
   photo: 'Photo estimate',
@@ -80,6 +81,9 @@ export const SOURCE_BADGE: Record<Food['source'], string> = {
   usda_fndds: 'USDA',
   ciqual: 'Ciqual',
   mena: 'Middle East',
+  // Not the chain's name: that is already the food's name, and MASTER.md's "say it once"
+  // forbids printing it twice on one row. The market is on the screen, not on every row.
+  chain: 'Menu',
   off: 'OFF',
   custom: 'Mine',
   photo: 'Estimate',

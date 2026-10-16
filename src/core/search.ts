@@ -31,6 +31,10 @@ const SOURCE_BOOST: Record<FoodSource, number> = {
   ciqual: 1,
   // Lab-analysed dishes nothing else in the database has; when one matches, it is the answer.
   mena: 1.25,
+  // The chain's own published figure for a named menu item, and already filtered to the one
+  // market you are in (§21). When you search "big mac" while standing in one, that is the
+  // answer — above every generic table's approximation of it, below only your own foods.
+  chain: 2,
   usda_sr: 0,
 };
 

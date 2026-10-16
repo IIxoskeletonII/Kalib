@@ -365,4 +365,10 @@ Regenerate with `npm run seed:mena`.
 
 Open Food Facts — Open Database License (ODbL).
 
+Restaurant chain menus for Italy, Oman and the United States are compiled separately and are
+**not** covered by this repository's MIT licence — see [LICENSE-DATA.md](LICENSE-DATA.md). The
+source and its per-row citations live in a private repository; `npm run seed:chains` reads it
+from `../Kalib-chains`, or from `$KALIB_CHAINS_SRC`, and writes `public/data/foods-chains.json`,
+which is gitignored. The app builds and runs without it; eating out is simply absent.
+
 Not medical advice. Targets are general-population formulas.

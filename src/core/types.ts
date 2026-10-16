@@ -4,6 +4,8 @@
 export type Sex = 'male' | 'female';
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'heavy';
 export type Mode = 'CUT' | 'MAINTAIN' | 'RECOMP' | 'BULK';
+import type { Market } from './market';
+
 export type FoodSource =
   | 'usda_foundation'
   | 'usda_sr'
@@ -12,6 +14,8 @@ export type FoodSource =
   | 'ciqual'
   /** Middle Eastern dishes transcribed from published lab analyses (§7.1b). */
   | 'mena'
+  /** Restaurant chain menus, per market (§21). Licensed separately — see LICENSE-DATA.md. */
+  | 'chain'
   | 'off'
   | 'custom'
   | 'photo';
@@ -119,6 +123,15 @@ export interface Food extends SyncMeta {
   verified: boolean;
   /** Set when this food is the materialised form of a recipe (SPEC §8.2). */
   recipe_id?: string;
+  /**
+   * Which country's menu this is, for `source: 'chain'` only (§21). A Big Mac is three
+   * different sandwiches in Italy, Oman and the United States, and a search that returned all
+   * three would be worse than returning none. Absent on every other source: a national food
+   * table is not a menu.
+   */
+  market?: Market;
+  /** The chain whose menu it is, denormalised so a result reads without a second lookup. */
+  chain?: string;
 }
 
 export interface MacroTotals {

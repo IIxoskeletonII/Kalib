@@ -22,3 +22,10 @@ playwright-report
 #   npm run seed:exercise-media
 public/exercises/
 public/data/exercise-media.json
+
+# Restaurant chain data: compiled by hand, cited per row, and deliberately NOT under this
+# repository's MIT licence (see LICENSE-DATA.md). The source lives in a separate private
+# repository; this is only the build output. Ignored before it exists, because the release
+# flow is `git add -A` and one careless commit would MIT-license it permanently.
+public/data/foods-chains.json
+data/chains/
