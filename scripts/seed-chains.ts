@@ -217,6 +217,17 @@ function main(): void {
   const seed: SeedFile = {
     format: 1,
     source: 'chain',
+    // Stated in the file because this is the copy that travels. LICENSE-DATA.md says the
+    // same thing in the repository, where nobody who downloads this will be looking.
+    terms: {
+      holder: 'Eliya Allam',
+      licence: 'All rights reserved. Not covered by the MIT licence of the Kalib software.',
+      note:
+        'A nutrition figure is a fact and belongs to nobody; this compilation of them — the ' +
+        'selection, transcription, checking and per-row citation — does not. Each row carries ' +
+        'the publisher it came from and the date it was read. Chain and product names identify ' +
+        'whose menu a figure describes and are the property of their owners.',
+    },
     generated_at: new Date().toISOString(),
     count: foods.length,
     foods,

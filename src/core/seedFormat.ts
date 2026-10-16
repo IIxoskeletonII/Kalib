@@ -30,6 +30,14 @@ export interface SeedFood {
 export interface SeedFile {
   format: 1;
   source: FoodSource;
+  /**
+   * The terms the data is served under, for the sources that are not public domain.
+   *
+   * The app is offline-first, so a seed file has to reach the device to work, and anyone can
+   * fetch it. Being downloadable is not a licence; this says so in the file itself rather than
+   * only in LICENSE-DATA.md, where whoever downloads it would never look.
+   */
+  terms?: { holder: string; licence: string; note: string };
   generated_at: string;
   count: number;
   foods: SeedFood[];
