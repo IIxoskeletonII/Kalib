@@ -117,7 +117,8 @@ function main(): void {
   const problems: string[] = [];
   const covered = new Map<Market, string[]>();
   const unpublished: string[] = [];
-  let skippedNoWeight = 0;
+  let byItem = 0;
+  const idCount = new Map<string, number>();
 
   for (const market of MARKETS) {
     const dir = join(SRC, 'chains', market.toLowerCase());
@@ -151,24 +152,54 @@ function main(): void {
           problems.push(`${where}: "${item.name}" ${bad}`);
           continue;
         }
-        // A whole-item row with no published weight cannot become a per-100 g row, and a
-        // weight must never be invented (SPEC §2.4). Those wait for the each-portion work.
-        if (!item.serving_g || item.serving_g <= 0) {
-          skippedNoWeight++;
-          continue;
-        }
+        // Two shapes, and which one depends on whether the chain published a weight.
+        //
+        // With a weight the row is per 100 g like every other food, and the item becomes a
+        // portion. Without one it is per item: Domino's publishes pieces, much of the United
+        // States set publishes nothing, and a weight is never invented (SPEC §2.4). The food
+        // is then logged by the item rather than by the gram.
+        const weighed = item.serving_g && item.serving_g > 0;
+        if (!weighed) byItem++;
+
+        // Two rows can share a name: a chain's table sometimes loses a product name at a
+        // page break, leaving several real rows called "Pizza CRUNCHY (Large)". Vague, but
+        // not false, and their macros differ. Left to collide they would overwrite each other
+        // in IndexedDB and nine rows would vanish without a word, which is how this was
+        // found — 381 emitted, 372 seeded.
+        const base = `chain:${market.toLowerCase()}:${slug(data.chain)}:${slug(item.name)}`;
+        const seen = (idCount.get(base) ?? 0) + 1;
+        idCount.set(base, seen);
 
         foods.push({
-          id: `chain:${market.toLowerCase()}:${slug(data.chain)}:${slug(item.name)}`,
+          id: seen === 1 ? base : `${base}-${seen}`,
           external_id: slug(`${data.chain} ${item.name}`),
           name: `${item.name} (${data.chain})`,
           chain: data.chain,
           market,
           ...(item.category ? { category: item.category } : {}),
-          per_100g: per100(item, item.serving_g),
+          ...(weighed
+            ? {
+                per_100g: per100(item, item.serving_g as number),
+                portions: [
+                  { label: item.serving_label ?? 'item', grams: item.serving_g as number },
+                ],
+              }
+            : {
+                per_item: {
+                  kcal: item.kcal,
+                  protein: item.protein_g,
+                  carb: item.carb_g,
+                  fat: item.fat_g,
+                  fiber: item.fiber_g ?? 0,
+                  ...(item.sugar_g != null ? { sugar: item.sugar_g } : {}),
+                  ...(item.sodium_mg != null ? { sodium: item.sodium_mg } : {}),
+                  ...(item.sat_fat_g != null ? { sat_fat: item.sat_fat_g } : {}),
+                },
+                item_label: item.serving_label ?? 'item',
+                portions: [],
+              }),
           micros: {},
           micro_coverage: 0,
-          portions: [{ label: item.serving_label ?? 'item', grams: item.serving_g }],
           source_ref: `${cite.publisher}, read ${cite.retrieved} — ${cite.url}`,
         });
         covered.set(market, [...(covered.get(market) ?? []), data.chain]);
@@ -200,7 +231,9 @@ function main(): void {
     console.log(`  ${market}: ${n} items across ${chains.size} chains`);
   }
   if (unpublished.length) console.log(`  publishes nothing: ${unpublished.join(', ')}`);
-  if (skippedNoWeight) console.log(`  ${skippedNoWeight} items held back: no published weight`);
+  if (byItem) console.log(`  ${byItem} items are sold by the item: no published weight`);
+  const shared = [...idCount.values()].filter((n) => n > 1).length;
+  if (shared) console.log(`  ${shared} names appear more than once and were kept apart`);
   console.log(`wrote ${path} (${foods.length} items)`);
 }
 

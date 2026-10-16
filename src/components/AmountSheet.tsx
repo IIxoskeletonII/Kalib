@@ -3,7 +3,7 @@
 import { Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { useEffect, useMemo, useState } from 'react';
-import { isWeighable, scaleFood } from '@/core/nutrition';
+import { isWeighable, scaleFood, scaleItems } from '@/core/nutrition';
 import { qualityNote } from '@/core/quality';
 import { formatPortions } from '@/core/recipes';
 import {
@@ -27,7 +27,7 @@ import {
   type Recipe,
 } from '@/core/types';
 import { borrowedPortions } from '@/db/repo/foods';
-import { logFood, rescaleEntry } from '@/services/logging';
+import { logFood, logFoodItems, rescaleEntry } from '@/services/logging';
 import { addRecipeItem, logBatchPortion, removeEntry } from '@/services/recipes';
 import { NumberPad } from './NumberPad';
 import { Badge, Button, Chip, IconButton, Segmented, Sheet, fmt } from './ui';
@@ -160,9 +160,18 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
     }));
   }, [ownPortions, borrowed, batchPortion]);
 
+  // A food sold by the item (§21) has one measure and it is the item. Modelled as a portion
+  // of one so the pad, the chips and the arithmetic all work unchanged; what changes is that
+  // the number means a count, and the entry is written by the item rather than by weight.
+  const byItem = !p.food.per_100g && p.food.per_item ? p.food.per_item : null;
+  const itemLabel = p.food.item_label ?? 'item';
+
   const unitMeasures = useMemo<Measure[]>(
-    () => (['g', 'ml', 'oz', 'floz'] as AmountUnit[]).map((u) => ({ kind: 'unit', unit: u })),
-    [],
+    () =>
+      byItem
+        ? [{ kind: 'portion', label: itemLabel, grams: 1, full: itemLabel }]
+        : (['g', 'ml', 'oz', 'floz'] as AmountUnit[]).map((u) => ({ kind: 'unit', unit: u })),
+    [byItem, itemLabel],
   );
   const measures = useMemo(
     () => [...portionMeasures, ...unitMeasures],
@@ -172,10 +181,9 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
   // Opening straight on "egg" or "portion" saves the arithmetic; an amount carried in from
   // last time is a weight, so that opens in weight. Nothing is chosen until the user chooses,
   // so a portion that arrives late (borrowed from a neighbouring food) still opens on it.
-  const unitMeasure: Measure = {
-    kind: 'unit',
-    unit: !p.batch && !p.recipe && isLiquid(p.food) ? 'ml' : 'g',
-  };
+  const unitMeasure: Measure = byItem
+    ? { kind: 'portion', label: itemLabel, grams: 1, full: itemLabel }
+    : { kind: 'unit', unit: !p.batch && !p.recipe && isLiquid(p.food) ? 'ml' : 'g' };
   const [chosen, setChosen] = useState<Measure | null>(null);
   const startMeasure: Measure =
     p.initialGrams == null && portionMeasures[0] ? portionMeasures[0] : unitMeasure;
@@ -190,9 +198,9 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
     p.initialGrams != null ? String(fromGramsIn(p.initialGrams, unitMeasure)) : '',
   );
   /** An untouched portion measure counts one of them; an untouched weight counts nothing. */
-  // This sheet is a weighing instrument: a number pad, unit measures and portion chips. An
-  // item published without a weight (§21) has nothing for it to weigh, so it is narrowed at
-  // each point of use rather than pretended about. Logging those by the item is still to come.
+  // Weighed foods and item foods take different routes out of this sheet, so the narrowing
+  // is kept rather than asserted: one ends in logFood with grams, the other in logFoodItems
+  // with a count.
   const weighable = isWeighable(p.food) ? p.food : null;
   const note = qualityNote(p.food.per_100g ?? NO_COMPOSITION);
   const shown = amount === '' && measure.kind === 'portion' ? '1' : amount;
@@ -220,10 +228,10 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
   const [busy, setBusy] = useState(false);
 
   const g = Math.round(toGramsIn(Number(shown) || 0, measure) * 10) / 10;
-  const preview = useMemo(
-    () => (weighable ? scaleFood(weighable, g) : NOTHING_SCALED),
-    [weighable, g],
-  );
+  const preview = useMemo(() => {
+    if (byItem) return scaleItems({ per_item: byItem, micros: p.food.micros }, g);
+    return weighable ? scaleFood(weighable, g) : NOTHING_SCALED;
+  }, [byItem, weighable, p.food.micros, g]);
   const done = p.onSaved ?? p.onClose;
   const portion = batchPortion;
 
@@ -231,7 +239,15 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
     if (g <= 0 || busy) return;
     setBusy(true);
     try {
-      if (p.recipe) await addRecipeItem(p.recipe.id, p.food, g);
+      if (byItem)
+        await logFoodItems({
+          food: { ...p.food, per_item: byItem },
+          items: g,
+          meal_slot: slot,
+          date: p.date,
+          entry_method: p.entryMethod === 'batch' ? 'search' : p.entryMethod,
+        });
+      else if (p.recipe) await addRecipeItem(p.recipe.id, p.food, g);
       else if (p.entryId && weighable) await rescaleEntry(p.entryId, weighable, g, slot);
       else if (p.batch)
         await logBatchPortion({ ...p.batch, grams: g, meal_slot: slot, date: p.date });

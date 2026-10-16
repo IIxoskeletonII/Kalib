@@ -1,6 +1,6 @@
 // Building log entries from foods or manual macros (SPEC §6, §7.4 confidence).
 import { mealSlotForTime, toDateKey } from '@/core/dates';
-import { scaleFood } from '@/core/nutrition';
+import { scaleFood, scaleItems } from '@/core/nutrition';
 import type { EntryMethod, Food, LogEntry, MacroTotals, MealSlot } from '@/core/types';
 import type { Weighable } from '@/core/nutrition';
 import { addEntry, updateEntry, type LogEntryInput } from '@/db/repo/logEntries';
@@ -35,6 +35,45 @@ export function foodEntryInput(o: FoodEntryOpts): LogEntryInput {
     entry_method: o.entry_method,
     confidence: o.food.source === 'photo' ? 'low' : 'high',
   };
+}
+
+export interface ItemEntryOpts {
+  /** A food sold as an item, published without a weight (§21). */
+  food: Food & { per_item: NonNullable<Food['per_item']> };
+  items: number;
+  meal_slot: MealSlot;
+  date: string;
+  entry_method: Extract<EntryMethod, 'search' | 'favourite' | 'barcode' | 'photo'>;
+  now?: Date;
+}
+
+/**
+ * A count of whole items — a chain's own published figures, so high confidence like any
+ * other database food.
+ *
+ * `grams` is 0 rather than a guess. The entry says two pizzas, because two pizzas is what is
+ * known; inventing a weight to fill the field would be a worse lie than leaving it empty,
+ * and nothing downstream reads grams for its macros — the totals are stored on the entry.
+ */
+export function foodItemEntryInput(o: ItemEntryOpts): LogEntryInput {
+  const now = o.now ?? new Date();
+  const scaled = scaleItems({ per_item: o.food.per_item, micros: o.food.micros }, o.items);
+  return {
+    logged_at: now.toISOString(),
+    date: o.date,
+    meal_slot: o.meal_slot,
+    name: o.food.name,
+    food_id: o.food.id,
+    grams: 0,
+    servings: o.items,
+    ...scaled,
+    entry_method: o.entry_method,
+    confidence: 'high',
+  };
+}
+
+export async function logFoodItems(o: ItemEntryOpts) {
+  return addEntry(foodItemEntryInput(o));
 }
 
 export interface ManualEntryOpts extends MacroTotals {

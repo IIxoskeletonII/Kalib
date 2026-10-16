@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { microCoverageOf } from './nutrients';
-import { calorieConfidence, dayTotals, hasAnyMicros, microCoverage, scaleFood } from './nutrition';
+import {
+  calorieConfidence,
+  dayTotals,
+  hasAnyMicros,
+  isWeighable,
+  microCoverage,
+  scaleFood,
+  scaleItems,
+} from './nutrition';
 
 const chicken = {
   per_100g: { kcal: 165, protein: 31, carb: 0, fat: 3.6, fiber: 0 },
@@ -87,5 +95,42 @@ describe('§7.4 provenance', () => {
   it('microCoverageOf is the fraction of tracked micros present', () => {
     expect(microCoverageOf({})).toBe(0);
     expect(microCoverageOf({ iron: 1, zinc: 2 })).toBeCloseTo(2 / 22, 9);
+  });
+});
+
+describe('scaleItems', () => {
+  // A chain that publishes pieces and no weight: Domino's gives a whole pizza's macros and
+  // how many slices it cuts into, never what it weighs.
+  const pizza = {
+    per_item: { kcal: 588, protein: 14, carb: 98, fat: 17, fiber: 5 },
+    micros: {},
+  };
+
+  it('counts whole items rather than hundredths of a gram', () => {
+    const one = scaleItems(pizza, 1);
+    expect(one.kcal).toBe(588);
+    expect(one.protein_g).toBe(14);
+    expect(one.carb_g).toBe(98);
+    expect(one.fat_g).toBe(17);
+  });
+
+  it('scales linearly, including a half', () => {
+    expect(scaleItems(pizza, 2).kcal).toBe(1176);
+    expect(scaleItems(pizza, 0.5).protein_g).toBe(7);
+  });
+
+  it('is nothing at zero', () => {
+    expect(scaleItems(pizza, 0)).toMatchObject({ kcal: 0, protein_g: 0, fiber_g: 0 });
+  });
+});
+
+describe('isWeighable', () => {
+  it('separates a food with a weight from one sold by the item', () => {
+    expect(isWeighable({ per_100g: { kcal: 1, protein: 0, carb: 0, fat: 0, fiber: 0 } })).toBe(
+      true,
+    );
+    // An absent per_100g, not an explicit undefined: exactOptionalPropertyTypes makes the
+    // latter unconstructible, which is the point of having it on.
+    expect(isWeighable({})).toBe(false);
   });
 });

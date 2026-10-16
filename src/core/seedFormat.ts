@@ -18,7 +18,10 @@ export interface SeedFood {
   /** Chain menus only (§21): which country's menu, and whose. */
   market?: Market;
   chain?: string;
-  per_100g: Per100g;
+  per_100g?: Per100g;
+  /** For a food sold as an item and published without a weight (§21). */
+  per_item?: Per100g;
+  item_label?: string;
   micros: Micros;
   micro_coverage: number;
   portions: Portion[];
