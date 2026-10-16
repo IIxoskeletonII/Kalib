@@ -94,7 +94,7 @@ export default function LogFood() {
       if (cancelled) return;
       setKcalById((prev) => {
         const next = new Map(prev);
-        for (const [id, f] of foods) next.set(id, f.per_100g.kcal);
+        for (const [id, f] of foods) next.set(id, f.per_100g?.kcal ?? f.per_item?.kcal ?? 0);
         return next;
       });
     });

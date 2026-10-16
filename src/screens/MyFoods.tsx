@@ -78,7 +78,7 @@ export default function MyFoods() {
                 ]
                   .filter(Boolean)
                   .join(' · ')}
-                value={fmt(f.per_100g.kcal)}
+                value={fmt(f.per_100g?.kcal ?? f.per_item?.kcal ?? 0)}
                 valueSub="kcal / 100 g"
               />
             </SwipeRow>

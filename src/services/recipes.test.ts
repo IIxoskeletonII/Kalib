@@ -52,17 +52,17 @@ describe('recipe ↔ food', () => {
     expect(food.recipe_id).toBe(recipe.id);
     expect(food.name).toBe('Chicken & rice');
     // raw weight 1,400 g stands in: 2,640 kcal / 14
-    expect(food.per_100g.kcal).toBeCloseTo(188.57, 1);
+    expect(food.per_100g?.kcal).toBeCloseTo(188.57, 1);
     expect(food.portions).toEqual([{ label: '1 portion', grams: 350 }]);
 
     await setRecipeYield(recipe.id, 2200);
     food = (await getFood(recipe.food_id))!;
-    expect(food.per_100g.kcal).toBeCloseTo(120, 0);
+    expect(food.per_100g?.kcal).toBeCloseTo(120, 0);
     expect(food.portions[0]!.grams).toBe(550);
 
     await removeRecipeItem(recipe.id, 1);
     food = (await getFood(recipe.food_id))!;
-    expect(food.per_100g.kcal).toBeCloseTo(1200 / 22, 1);
+    expect(food.per_100g?.kcal).toBeCloseTo(1200 / 22, 1);
   });
 
   it('deleting the recipe soft-deletes its food too', async () => {

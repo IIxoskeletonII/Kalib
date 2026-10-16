@@ -44,7 +44,10 @@ export async function listSearchDocs(): Promise<SearchDoc[]> {
 export async function listCandidateFoods(): Promise<Food[]> {
   const out: Food[] = [];
   await db.foods.each((f) => {
-    if (isLive(f) && f.per_100g.kcal >= 20 && f.per_100g.kcal <= 600) out.push(f);
+    // Banded by density, so an item with no weight is simply not a candidate here.
+    if (isLive(f) && f.per_100g && f.per_100g.kcal >= 20 && f.per_100g.kcal <= 600) {
+      out.push(f);
+    }
   });
   return out;
 }

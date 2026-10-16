@@ -23,7 +23,7 @@ export default function Recipes() {
 
   const kcalPerPortion = (r: Recipe): number | undefined => {
     const f = foods?.find((x) => x.id === r.food_id);
-    return f ? (f.per_100g.kcal * portionGrams(r)) / 100 : undefined;
+    return f?.per_100g ? (f.per_100g.kcal * portionGrams(r)) / 100 : undefined;
   };
   const batchFor = (r: Recipe): Batch | undefined =>
     active?.find((a) => a.recipe.id === r.id)?.batch;

@@ -33,7 +33,10 @@ export function packRecipe(
     const base: SharedIngredient = { n: it.name, g: it.grams };
     if (!food) return base;
     if (SEED.has(food.source)) return { ...base, id: food.id };
-    const f: NonNullable<SharedIngredient['f']> = { name: food.name, per_100g: food.per_100g };
+    const f: NonNullable<SharedIngredient['f']> = {
+      name: food.name,
+      per_100g: food.per_100g ?? { kcal: 0, protein: 0, carb: 0, fat: 0, fiber: 0 },
+    };
     if (food.brand) f.brand = food.brand;
     if (food.barcode) f.barcode = food.barcode;
     if (Object.keys(food.micros).length > 0) f.micros = food.micros;

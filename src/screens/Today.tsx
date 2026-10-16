@@ -327,7 +327,7 @@ export default function Today() {
                     </span>
                   </span>
                   <span className="mt-3 text-[13px] text-muted tabular">
-                    1 portion · {fmt((food.per_100g.kcal * portion) / 100)} kcal
+                    1 portion · {fmt(((food.per_100g?.kcal ?? 0) * portion) / 100)} kcal
                     <span className="block text-accent">
                       {formatPortions(batch.portions_remaining)} left
                     </span>

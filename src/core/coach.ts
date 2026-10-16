@@ -112,6 +112,7 @@ export function findGaps(days: readonly DaySummary[], sex: Sex): Gap[] {
 }
 
 function amountPer100g(food: Food, nutrient: GapNutrient): number | undefined {
+  if (!food.per_100g) return 0; // sold by the item, so there is no per-gram density to rank
   if (nutrient === 'protein_g') return food.per_100g.protein;
   if (nutrient === 'fiber_g') return food.per_100g.fiber;
   return food.micros[nutrient];
@@ -155,7 +156,7 @@ export function isPlausibleDish(food: Food, familiar = false): boolean {
 export function realisticPortion(food: Food): number {
   const listed = food.portions.find((p) => p.grams >= 20 && p.grams <= 300);
   if (listed) return listed.grams;
-  const kcal100 = food.per_100g.kcal;
+  const kcal100 = food.per_100g?.kcal ?? 0;
   if (kcal100 >= 350) return 30; // nuts, seeds
   if (kcal100 < 60) return 150; // vegetables, berries
   return 100;
@@ -186,7 +187,7 @@ export function recommendFoods(
   const scored: (Recommendation & { score: number })[] = [];
   for (const food of foods) {
     if (opts.exclude?.has(food.id)) continue;
-    const kcal100 = food.per_100g.kcal;
+    const kcal100 = food.per_100g?.kcal ?? 0;
     if (kcal100 < 20 || kcal100 > 600) continue; // water, spices, oils, pure sweeteners
     const familiar = opts.familiarIds?.has(food.id) ?? false;
     if (!isPlausibleDish(food, familiar)) continue;

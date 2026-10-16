@@ -2,10 +2,11 @@
 import { mealSlotForTime, toDateKey } from '@/core/dates';
 import { scaleFood } from '@/core/nutrition';
 import type { EntryMethod, Food, LogEntry, MacroTotals, MealSlot } from '@/core/types';
+import type { Weighable } from '@/core/nutrition';
 import { addEntry, updateEntry, type LogEntryInput } from '@/db/repo/logEntries';
 
 export interface FoodEntryOpts {
-  food: Food;
+  food: Weighable<Food>;
   grams: number;
   meal_slot: MealSlot;
   date: string;
@@ -13,7 +14,12 @@ export interface FoodEntryOpts {
   now?: Date;
 }
 
-/** A weighed amount of a database food — high confidence (§7.4). */
+/**
+ * A weighed amount of a database food — high confidence (§7.4).
+ *
+ * Weighed, so the food must be weighable. An item published without a weight (§21) is
+ * logged by the item instead; the narrowed type keeps the two from being confused.
+ */
 export function foodEntryInput(o: FoodEntryOpts): LogEntryInput {
   const now = o.now ?? new Date();
   const scaled = scaleFood(o.food, o.grams);
@@ -68,7 +74,12 @@ export async function logManual(o: ManualEntryOpts) {
 }
 
 /** Re-scale an existing food entry to new grams / slot. */
-export async function rescaleEntry(id: string, food: Food, grams: number, meal_slot: MealSlot) {
+export async function rescaleEntry(
+  id: string,
+  food: Weighable<Food>,
+  grams: number,
+  meal_slot: MealSlot,
+) {
   await updateEntry(id, { grams, meal_slot, ...scaleFood(food, grams) });
 }
 

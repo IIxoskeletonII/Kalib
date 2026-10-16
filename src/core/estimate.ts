@@ -2,7 +2,7 @@
 // against the offline database, apply the +10 % bias to what stays an estimate, total it.
 import { matchQuality, searchFoods, type SearchDoc } from './search';
 import type { Confidence, Food, Micros } from './types';
-import { scaleFood } from './nutrition';
+import { isWeighable, scaleFood, type Weighable } from './nutrition';
 
 export interface EstimateItem {
   name: string;
@@ -105,7 +105,8 @@ export interface GroundedItem {
   item: EstimateItem;
   grams: number;
   /** Present when the item is grounded in a database food. */
-  food?: Food | undefined;
+  /** Weighable by construction: a photo estimate is a weight, so only such foods match. */
+  food?: Weighable<Food> | undefined;
   kind: 'matched' | 'estimate';
   confidence: Confidence;
   kcal: number;
@@ -131,7 +132,9 @@ export function groundItems(
   return items.map((item, i) => {
     const food = matches[i] ? foods.get(matches[i]!) : undefined;
     if (food && densityAgrees(item, food)) {
-      return groundedFromFood(item, food, item.grams_estimate);
+      return isWeighable(food)
+        ? groundedFromFood(item, food, item.grams_estimate)
+        : groundedEstimate(item, item.grams_estimate);
     }
     return groundedEstimate(item, item.grams_estimate);
   });
@@ -139,7 +142,7 @@ export function groundItems(
 
 function densityAgrees(item: EstimateItem, food: Food): boolean {
   const model = item.grams_estimate > 0 ? (item.kcal / item.grams_estimate) * 100 : 0;
-  const db = food.per_100g.kcal;
+  const db = food.per_100g?.kcal ?? 0;
   if (model <= 0 || db <= 0) return model <= 5 && db <= 5; // water-like both sides
   const ratio = db / model;
   return ratio <= DENSITY_TOLERANCE && ratio >= 1 / DENSITY_TOLERANCE;
@@ -151,7 +154,16 @@ function rangeAt(item: EstimateItem, grams: number): [number, number] {
   return [item.grams_range[0] * k, item.grams_range[1] * k];
 }
 
-export function groundedFromFood(item: EstimateItem, food: Food, grams: number): GroundedItem {
+/**
+ * A photo estimate is a weight, so the food behind it has to be weighable. Items published
+ * without one (§21) are excluded upstream by `isWeighable`, which is why this takes the
+ * narrowed type rather than testing for it: a caller that has not filtered will not compile.
+ */
+export function groundedFromFood(
+  item: EstimateItem,
+  food: Weighable<Food>,
+  grams: number,
+): GroundedItem {
   const s = scaleFood(food, grams);
   const f = (g: number) => (food.per_100g.kcal * g) / 100;
   const [lo, hi] = rangeAt(item, grams);
@@ -189,7 +201,9 @@ export function groundedEstimate(item: EstimateItem, grams: number): GroundedIte
 
 /** Re-ground one item at different grams, keeping its match. */
 export function regroundItem(g: GroundedItem, grams: number): GroundedItem {
-  return g.food ? groundedFromFood(g.item, g.food, grams) : groundedEstimate(g.item, grams);
+  return g.food && isWeighable(g.food)
+    ? groundedFromFood(g.item, g.food, grams)
+    : groundedEstimate(g.item, grams);
 }
 
 export function totalGrounded(items: readonly GroundedItem[]) {

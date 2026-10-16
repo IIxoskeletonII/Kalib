@@ -87,7 +87,7 @@ describe('accepting a suggestion', () => {
     const invented = await db.foods.get(recipe.items[1]!.food_id);
     expect(invented?.source).toBe('custom');
     expect(invented?.verified).toBe(false);
-    expect(invented?.per_100g.kcal).toBe(350);
+    expect(invented?.per_100g?.kcal).toBe(350);
 
     const prices = await listPrices();
     expect(

@@ -1,7 +1,10 @@
 // SPEC §8.1 — custom foods: the user's real rotation, entered once, logged in one tap.
 // Stored per 100 g like every other food; the serving the user typed becomes its first portion.
+import type { Weighable } from '@/core/nutrition';
 import type { Food } from '@/core/types';
 import { addFood, updateFood } from '@/db/repo/foods';
+
+const EMPTY_PER_100G = { kcal: 0, protein: 0, carb: 0, fat: 0, fiber: 0 };
 
 export interface CustomFoodInput {
   name: string;
@@ -39,21 +42,25 @@ export function toFoodFields(i: CustomFoodInput) {
 export function fromFood(food: Food): CustomFoodInput {
   const serving = food.portions[0]?.grams ?? 100;
   const f = serving / 100;
+  // The editor is a per-serving form in grams. A food with no weight has nothing to put in
+  // it, and §21 items are not user-editable anyway.
+  const per = food.per_100g ?? food.per_item ?? EMPTY_PER_100G;
   const out: CustomFoodInput = {
     name: food.name,
     serving_g: serving,
-    kcal: round(food.per_100g.kcal * f),
-    protein_g: round(food.per_100g.protein * f),
-    carb_g: round(food.per_100g.carb * f),
-    fat_g: round(food.per_100g.fat * f),
-    fiber_g: round(food.per_100g.fiber * f),
+    kcal: round(per.kcal * f),
+    protein_g: round(per.protein * f),
+    carb_g: round(per.carb * f),
+    fat_g: round(per.fat * f),
+    fiber_g: round(per.fiber * f),
   };
   if (food.brand) out.brand = food.brand;
   return out;
 }
 
-export async function createCustomFood(i: CustomFoodInput): Promise<Food> {
-  return addFood({ source: 'custom', ...toFoodFields(i) });
+/** Always weighable: the editor is a per-serving form in grams, so there is always one. */
+export async function createCustomFood(i: CustomFoodInput): Promise<Weighable<Food>> {
+  return (await addFood({ source: 'custom', ...toFoodFields(i) })) as Weighable<Food>;
 }
 
 export async function updateCustomFood(id: string, i: CustomFoodInput): Promise<void> {

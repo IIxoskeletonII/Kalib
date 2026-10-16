@@ -2,7 +2,7 @@
 // portion arithmetic. The yield (cooked weight) divides the totals; until it is known the raw
 // ingredient weight stands in.
 import { MICRO_KEYS, microCoverageOf } from './nutrients';
-import { dayTotals, scaleFood, type ScaledFood } from './nutrition';
+import { dayTotals, scaleFood, isWeighable, type ScaledFood } from './nutrition';
 import type { Food, Micros, Recipe, RecipeItem } from './types';
 
 /** Sum of the ingredients as bought, in grams. */
@@ -28,7 +28,8 @@ export function recipeTotals(
   const parts: ScaledFood[] = [];
   for (const it of items) {
     const f = foods.get(it.food_id);
-    if (f) parts.push(scaleFood(f, it.grams));
+    // An ingredient is weighed into a recipe, so a food with no weight cannot be one.
+    if (f && isWeighable(f)) parts.push(scaleFood(f, it.grams));
   }
   return dayTotals(parts);
 }

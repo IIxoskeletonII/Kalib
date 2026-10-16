@@ -114,7 +114,21 @@ export interface Food extends SyncMeta {
   source_ref?: string;
   /** Source's food group (USDA category) — used to keep coach suggestions to real dishes. */
   category?: string;
-  per_100g: Per100g;
+  /**
+   * Composition per 100 g.
+   *
+   * Optional only since §21: a restaurant menu item is sold as a thing, not by weight, and
+   * many chains publish its macros without ever publishing what it weighs. Domino's gives
+   * pieces; much of the United States set gives nothing. A weight cannot be invented (§2.4),
+   * so those foods carry `per_item` instead and are not weighable.
+   *
+   * Exactly one of `per_100g` and `per_item` is always present.
+   */
+  per_100g?: Per100g;
+  /** Composition of one whole item, for a food sold as an item and published without a weight. */
+  per_item?: Per100g;
+  /** What one of them is called: "pizza", "6-inch sub". Shown instead of a gram amount. */
+  item_label?: string;
   micros: Micros;
   /** 0–1: fraction of MICRO_KEYS present. */
   micro_coverage: number;

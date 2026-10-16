@@ -3,7 +3,7 @@
 import { Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { useEffect, useMemo, useState } from 'react';
-import { scaleFood } from '@/core/nutrition';
+import { isWeighable, scaleFood } from '@/core/nutrition';
 import { qualityNote } from '@/core/quality';
 import { formatPortions } from '@/core/recipes';
 import {
@@ -90,6 +90,17 @@ export const SOURCE_BADGE: Record<Food['source'], string> = {
 };
 
 const SLOT_OPTIONS = MEAL_SLOTS.map((s) => ({ value: s, label: SLOT_LABEL[s] }));
+
+/** Stands in where a food has no per-100 g composition, so the quality note says nothing. */
+const NO_COMPOSITION = { kcal: 0, protein: 0, carb: 0, fat: 0, fiber: 0 };
+const NOTHING_SCALED = {
+  kcal: 0,
+  protein_g: 0,
+  carb_g: 0,
+  fat_g: 0,
+  fiber_g: 0,
+  micros: {},
+};
 
 export function AmountSheet(p: AmountSheetProps) {
   return (
@@ -179,7 +190,11 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
     p.initialGrams != null ? String(fromGramsIn(p.initialGrams, unitMeasure)) : '',
   );
   /** An untouched portion measure counts one of them; an untouched weight counts nothing. */
-  const note = qualityNote(p.food.per_100g);
+  // This sheet is a weighing instrument: a number pad, unit measures and portion chips. An
+  // item published without a weight (§21) has nothing for it to weigh, so it is narrowed at
+  // each point of use rather than pretended about. Logging those by the item is still to come.
+  const weighable = isWeighable(p.food) ? p.food : null;
+  const note = qualityNote(p.food.per_100g ?? NO_COMPOSITION);
   const shown = amount === '' && measure.kind === 'portion' ? '1' : amount;
   // A prefilled amount (last time's grams, or a portion chip) is replaced by the first key
   // press rather than appended to — "150" → tap 2 → "2", not "1502".
@@ -205,7 +220,10 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
   const [busy, setBusy] = useState(false);
 
   const g = Math.round(toGramsIn(Number(shown) || 0, measure) * 10) / 10;
-  const preview = useMemo(() => scaleFood(p.food, g), [p.food, g]);
+  const preview = useMemo(
+    () => (weighable ? scaleFood(weighable, g) : NOTHING_SCALED),
+    [weighable, g],
+  );
   const done = p.onSaved ?? p.onClose;
   const portion = batchPortion;
 
@@ -214,12 +232,12 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
     setBusy(true);
     try {
       if (p.recipe) await addRecipeItem(p.recipe.id, p.food, g);
-      else if (p.entryId) await rescaleEntry(p.entryId, p.food, g, slot);
+      else if (p.entryId && weighable) await rescaleEntry(p.entryId, weighable, g, slot);
       else if (p.batch)
         await logBatchPortion({ ...p.batch, grams: g, meal_slot: slot, date: p.date });
-      else
+      else if (weighable)
         await logFood({
-          food: p.food,
+          food: weighable,
           grams: g,
           meal_slot: slot,
           date: p.date,

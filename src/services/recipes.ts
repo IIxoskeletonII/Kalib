@@ -1,6 +1,7 @@
 // SPEC §8.2 — recipes and batches. Every write to a recipe rewrites its materialised food so
 // the rest of the app (search, favourites, coach, amount sheet) only ever sees a food.
 import { todayKey } from '@/core/dates';
+import { isWeighable } from '@/core/nutrition';
 import { encodeShare, packRecipe, type SharedRecipe } from '@/core/recipeShare';
 import { portionGrams, recipeFoodFields, servingsOf } from '@/core/recipes';
 import type { Batch, Food, MealSlot, Recipe, RecipeItem } from '@/core/types';
@@ -141,6 +142,10 @@ export interface BatchPortionOpts {
 export async function logBatchPortion(o: BatchPortionOpts) {
   const food = await getFood(o.recipe.food_id);
   if (!food) throw new Error('This recipe’s food is missing.');
+  // A recipe's materialised food is composed from weighed ingredients, so it always has a
+  // per-100 g composition. Narrowed rather than asserted, so a future change that breaks the
+  // assumption says so instead of producing a batch logged as nothing.
+  if (!isWeighable(food)) throw new Error('This recipe’s food has no composition.');
   const portion = o.batch.total_g / o.batch.portions_total;
   const servings = servingsOf(o.grams, portion);
   const entry = await addEntry({

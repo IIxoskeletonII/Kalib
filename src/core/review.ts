@@ -192,7 +192,7 @@ export function daySodium(
     for (const e of list) {
       total += e.kcal;
       const food = e.food_id ? foodById.get(e.food_id) : undefined;
-      const per100 = food?.per_100g.sodium;
+      const per100 = food?.per_100g?.sodium;
       if (per100 != null && e.grams > 0) {
         mg += (per100 * e.grams) / 100;
         covered += e.kcal;

@@ -54,8 +54,8 @@ describe('materialised food', () => {
       { name: 'Chicken & rice', items, yield_g: 2200, portions: 4 },
       foods,
     );
-    expect(f.per_100g.kcal).toBeCloseTo(2640 / 22, 1);
-    expect(f.per_100g.protein).toBeCloseTo(253 / 22, 1);
+    expect(f.per_100g?.kcal).toBeCloseTo(2640 / 22, 1);
+    expect(f.per_100g?.protein).toBeCloseTo(253 / 22, 1);
     expect(f.portions).toEqual([{ label: '1 portion', grams: 550 }]);
     expect(f.micros.iron).toBeCloseTo(7.2 / 22, 2);
     expect(f.verified).toBe(false);
@@ -63,7 +63,7 @@ describe('materialised food', () => {
   it('is empty-safe', () => {
     const f = recipeFoodFields({ name: ' ', items: [], portions: 4 }, foods);
     expect(f.name).toBe('Recipe');
-    expect(f.per_100g.kcal).toBe(0);
+    expect(f.per_100g?.kcal).toBe(0);
     expect(f.portions).toEqual([]);
   });
   it('weights micro coverage by ingredient grams', () => {
