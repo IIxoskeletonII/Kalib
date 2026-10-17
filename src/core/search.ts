@@ -1,6 +1,7 @@
 // In-memory food search. ~5k USDA rows + custom foods is small enough to score on every
 // keystroke; ranking prefers Foundation over SR Legacy and foods the user actually logs.
 import { bestTokenScore, matchToken, tokenize } from './text';
+import type { Market } from './market';
 import type { FoodSource } from './types';
 
 export { tokenize } from './text';
@@ -12,6 +13,8 @@ export interface SearchDoc {
   source: FoodSource;
   /** Materialised recipe (SPEC §8.2). */
   recipe?: boolean;
+  /** Which country's menu, for chain foods only (§21). */
+  market?: Market;
   tokens: string[];
 }
 
@@ -46,6 +49,7 @@ export function buildSearchDoc(f: {
   aliases?: string[] | undefined;
   source: FoodSource;
   recipe_id?: string | undefined;
+  market?: Market | undefined;
 }): SearchDoc {
   // Aliases join the token index but not the name, so a match on "ceci" still shows the food
   // by the name the database gives it.
@@ -58,6 +62,7 @@ export function buildSearchDoc(f: {
   };
   if (f.brand) doc.brand = f.brand;
   if (f.recipe_id) doc.recipe = true;
+  if (f.market) doc.market = f.market;
   return doc;
 }
 
@@ -116,16 +121,27 @@ export function matchQuality(doc: SearchDoc, query: string): number {
  * Every query token must prefix-match some document token. Score = match quality +
  * source boost + log2(1 + usage) + a small bonus for short names.
  */
+/**
+ * `markets` is the list from `marketsFor()`: where you are, then the countries whose menus
+ * are the same menu. A chain food from anywhere else is not ranked lower, it is not a result
+ * — an Italian Big Mac is a different sandwich from an Omani one, and offering both and
+ * letting you guess would be worse than offering neither.
+ *
+ * Foods that are not chain menus have no market and are never filtered: a national food
+ * table is not a menu.
+ */
 export function searchFoods(
   docs: readonly SearchDoc[],
   query: string,
   usage?: ReadonlyMap<string, number>,
   limit = 30,
+  markets?: readonly Market[],
 ): SearchHit[] {
   const q = tokenize(query);
   if (q.length === 0) return [];
   const hits: SearchHit[] = [];
   for (const d of docs) {
+    if (d.market && markets && !markets.includes(d.market)) continue;
     let score = 0;
     let ok = true;
     for (const qt of q) {
@@ -140,6 +156,9 @@ export function searchFoods(
     score += headBonus(q, d.tokens);
     score -= everydayPenalty(d.tokens);
     score += SOURCE_BOOST[d.source];
+    // Your own country's row outranks the same row borrowed from next door, so the common
+    // case needs no explanation and only the borrowed ones carry a label.
+    if (d.market && markets && markets[0] === d.market) score += 0.5;
     const used = usage?.get(d.id) ?? 0;
     if (used > 0) score += Math.log2(1 + used);
     score += 1 / Math.max(1, d.tokens.length);

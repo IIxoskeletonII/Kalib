@@ -158,3 +158,40 @@ describe('aliases', () => {
     ).toEqual(['rice', 'white']);
   });
 });
+
+describe('market filtering (§21)', () => {
+  const doc = (id: string, name: string, market?: 'IT' | 'OM' | 'AE') =>
+    buildSearchDoc({ id, name, source: 'chain', ...(market ? { market } : {}) });
+
+  const bigMacIT = doc('it', 'Big Mac (McDonald’s)', 'IT');
+  const bigMacOM = doc('om', 'Big Mac (McDonald’s)', 'OM');
+  const bigMacAE = doc('ae', 'Big Mac (McDonald’s)', 'AE');
+  const chicken = buildSearchDoc({ id: 'usda', name: 'Chicken breast', source: 'usda_foundation' });
+  const all = [bigMacIT, bigMacOM, bigMacAE, chicken];
+
+  it('shows only the markets it was given', () => {
+    const ids = searchFoods(all, 'big mac', undefined, 30, ['OM', 'AE', 'SA']).map((h) => h.id);
+    expect(ids).toContain('om');
+    expect(ids).toContain('ae');
+    expect(ids).not.toContain('it');
+  });
+
+  it('puts your own country first among them', () => {
+    // A Dubai figure may answer an Omani question, but Oman's own answer comes first.
+    const ids = searchFoods(all, 'big mac', undefined, 30, ['OM', 'AE', 'SA']).map((h) => h.id);
+    expect(ids[0]).toBe('om');
+  });
+
+  it('never filters a food that is not a menu', () => {
+    // A national food table has no market. Chicken is chicken in every country.
+    const ids = searchFoods(all, 'chicken', undefined, 30, ['OM', 'AE', 'SA']).map((h) => h.id);
+    expect(ids).toEqual(['usda']);
+  });
+
+  it('shows every market when none is given', () => {
+    // No market chosen yet, or somewhere we hold no menus: better all of them than none,
+    // because the alternative is a search that silently returns nothing.
+    const ids = searchFoods(all, 'big mac').map((h) => h.id);
+    expect(ids.sort()).toEqual(['ae', 'it', 'om']);
+  });
+});

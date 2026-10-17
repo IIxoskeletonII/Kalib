@@ -10,6 +10,7 @@ import {
   Search,
   SearchX,
   Utensils,
+  MapPin,
   WifiOff,
   X,
 } from 'lucide-react';
@@ -30,6 +31,8 @@ import {
 } from '@/components/ui';
 import { mealSlotForTime, todayKey } from '@/core/dates';
 import { searchFoods, type SearchHit } from '@/core/search';
+import { chooseMarket, useMarket } from '@/hooks/useMarket';
+import { MARKET_NAME } from '@/core/market';
 import type { Food, MealSlot } from '@/core/types';
 import { getFood, getFoods } from '@/db/repo/foods';
 import { lastGramsForFood } from '@/db/repo/logEntries';
@@ -80,9 +83,12 @@ export default function LogFood() {
     inputRef.current?.focus();
   }, []);
 
+  // Chain menus are filtered to where you are (§21). A Big Mac is 510 kcal in Italy and 560
+  // in Oman; returning both and leaving you to guess would be worse than returning neither.
+  const { markets, offer } = useMarket();
   const hits: SearchHit[] = useMemo(
-    () => (docs && deferred.trim() ? searchFoods(docs, deferred, usage) : []),
-    [docs, deferred, usage],
+    () => (docs && deferred.trim() ? searchFoods(docs, deferred, usage, 30, markets) : []),
+    [docs, deferred, usage, markets],
   );
 
   // kcal / 100 g for the visible hits — one bulk read, keyed by id.
@@ -239,6 +245,22 @@ export default function LogFood() {
           )}
         </div>
       </div>
+
+      {offer && (
+        <div className="rise-in mb-3 flex items-center gap-3 rounded-2xl bg-surface-2 px-4 py-3">
+          <MapPin size={16} className="shrink-0 text-accent" aria-hidden />
+          <p className="flex-1 text-[13px] leading-snug text-ink-2">
+            You are in {MARKET_NAME[offer]}. Show its menus?
+          </p>
+          <button
+            type="button"
+            onClick={() => void chooseMarket(offer)}
+            className="hit h-9 shrink-0 rounded-full bg-primary px-4 text-[13px] font-semibold text-on-primary active:scale-[0.97]"
+          >
+            Switch
+          </button>
+        </div>
+      )}
 
       <div className="rail -mx-4 flex gap-2 overflow-x-auto px-4 pb-3">
         <Chip icon={Camera} onClick={runScan} disabled={scan.state === 'busy'}>
