@@ -17,6 +17,7 @@ import {
   Spinner,
   fmt,
 } from '@/components/ui';
+import { ChainOrders } from '@/components/ChainOrders';
 import { MicButton } from '@/components/MicButton';
 import { mealSlotForTime, todayKey } from '@/core/dates';
 import type { GroundedItem } from '@/core/estimate';
@@ -117,6 +118,9 @@ export default function Menu() {
           <p className="text-[13px] text-muted">A photo of the menu, then log what you order.</p>
         </div>
       </div>
+
+      {/* The chains whose figures are published need no photograph and no estimate. */}
+      {phase.state !== 'result' && <ChainOrders date={date} slot={slot} />}
 
       {phase.state !== 'result' && (
         <>

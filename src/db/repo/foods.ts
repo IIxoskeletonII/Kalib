@@ -1,5 +1,6 @@
 import { buildSearchDoc, type SearchDoc } from '@/core/search';
 import { bestPortionDonor, usablePortions, type Portion } from '@/core/units';
+import type { Market } from '@/core/market';
 import type { Food, SyncMeta } from '@/core/types';
 import { db, isLive, newMeta } from '../db';
 
@@ -97,4 +98,15 @@ export async function deleteFood(id: string): Promise<void> {
 export async function restoreFood(id: string): Promise<void> {
   const ts = new Date().toISOString();
   await db.foods.update(id, { deleted_at: null, updated_at: ts });
+}
+
+/**
+ * Every chain menu row for the markets given (§21).
+ *
+ * Indexed on `source`, so this reads one slice of the table rather than scanning it: the chain
+ * rows are a few hundred among sixteen thousand foods.
+ */
+export async function listChainFoods(markets: readonly Market[]): Promise<Food[]> {
+  const rows = await db.foods.where('source').equals('chain').toArray();
+  return rows.filter((f) => isLive(f) && f.market && markets.includes(f.market));
 }
