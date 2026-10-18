@@ -1401,6 +1401,58 @@ metabolic benefit would be the easy copy and the dishonest one.
 - Today names the shift on its own line — "Training day — 172 kcal borrowed from your rest
   days" — because *borrowed* is the accurate word and *earned* would not be.
 
+### 20.8 What to do next (added 18 Oct 2026)
+
+Logging what you lifted is a diary. Saying what to lift is the part people pay for, and it is
+two questions, not one: what to do on *this* lift, and whether the *week* covers you.
+
+**The lift — `core/progression.ts`.** The rule is double progression. Inside a rep range you add
+reps until every working set reaches the top of it, and only then add load and drop back to the
+bottom. One new thing is asked of you per session, never two.
+
+It is automatable precisely because the evidence does not prefer either lever: trials comparing
+load-increase against rep-increase find near-identical growth over eight weeks. The choice is
+bookkeeping rather than physiology, which is the kind of choice a program should make for you.
+
+- **Every working set, not the best one.** Clearing the range once and falling short twice has
+  not earned the next load; that is how a stall gets built.
+- **The working load is the modal weight, not the heaviest.** A top single followed by three
+  back-offs is worked at the back-off weight, and judging the session on the single would call
+  three successful sets a failure.
+- **RIR separates two failures that look alike.** Falling short of the range having stopped four
+  reps clear of failure is an effort problem; dropping the load would solve the wrong thing. The
+  interface says which it is rather than silently prescribing the same weight again.
+- **Default target is 2 reps in reserve** — inside the 0–3 band the hypertrophy evidence
+  clusters in, and far enough from failure that the next set is not compromised. The default
+  increment is **2.5 kg**, two 1.25 kg plates, and new loads are rounded to whole increments
+  because half a plate does not exist.
+- **Stalling is a state, not a feeling.** Three sessions at one load without ever clearing the
+  range is a stall, and the answer is to back off 10% rather than to try the same weight a
+  fourth time. A single session at a different load breaks the run — the lift moved, so it is
+  not stuck.
+- **Bodyweight work has no bar**, so the range is the only lever and the reps simply keep
+  climbing past the top of it.
+- **It refuses rather than guesses.** A plank has no load-and-reps to trade off; a session with
+  no rep range has no top of the range to clear; an exercise never performed has nothing to
+  progress from. Each says which of those it is, and the screen falls back to showing last time.
+
+**The week — `core/trainingLoad.ts`.** Hard sets per muscle per week, because that is the dose
+the hypertrophy literature actually measures. Not tonnage, which rewards squatting over pressing
+for reasons of leverage, and not session count, which says nothing about what was trained.
+
+- **Ten to twenty sets** is the band, spread over **at least two days**. Enough sets crammed
+  into one day is reported as its own problem — a frequency gap, not a volume one.
+- **An assisting muscle counts half a set.** A row trains the lats directly and the biceps
+  incidentally, and counting both whole would make every pulling day read as a full arm session.
+  This is a convention rather than a measurement, so the direct count is kept beside it.
+- **Cardio is not a muscle with a weekly dose**, even though an exercise may declare it, or a
+  rowing machine would turn up inside a coverage gap.
+- **Nothing is reported as untrained unless the caller says what it expected** — normally the
+  muscles the person's own routines target. Flagging all nineteen at someone who only ever meant
+  to train five is noise, not advice.
+- **Work that cannot be attributed is counted as unknown, never as zero**, exactly as §20.4 does
+  with unpriced bodyweight sets.
+
 ---
 
 ---
