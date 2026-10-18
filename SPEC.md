@@ -1473,6 +1473,57 @@ for reasons of leverage, and not session count, which says nothing about what wa
 - **Work that cannot be attributed is counted as unknown, never as zero**, exactly as §20.4 does
   with unpriced bodyweight sets.
 
+### 20.9 Writing the week (added 18 Oct 2026)
+
+§20.8 answers what to do on a lift you already train. This writes the week in the first place —
+`core/program.ts`, from a number of days and whatever the gym has.
+
+**Frequency decides the shape.** Most of a split is taste, but this part is not: a muscle
+trained twice a week beats the same sets trained once. Every split here gives every programmed
+muscle at least two sessions, which is why **three days is three full-body days rather than
+push/pull/legs**. PPL on three days is the common default and gives each muscle exactly one
+session a week. On six days it is right, because then it is twice.
+
+| Days | Week |
+| --- | --- |
+| 2 | Full body × 2 |
+| 3 | Full body × 3 |
+| 4 | Upper, Lower, Upper, Lower |
+| 5 | Upper, Lower, Push, Pull, Legs |
+| 6 | Push, Pull, Legs × 2 |
+
+**Eleven muscles are programmed, not nineteen.** Forearms, traps, lower back, obliques,
+adductors and abductors are trained by movements that already appear — a row works the traps, a
+squat works the lower back — and programming them directly is a choice someone makes rather
+than a default to impose. Neck and cardio are not hypertrophy targets. The list matters because
+it is what the frequency guarantee is made over, and a full-body day owing fourteen muscles
+cannot honour that guarantee in a session anyone would finish.
+
+**One movement per muscle per day**, taking whichever muscle is furthest behind for the week
+first. Volume still owed afterwards becomes *sets on what is already there*, never a second
+movement for the same muscle — the first version of this produced a leg day of back squat,
+front squat, overhead squat and goblet squat with no hamstring curl in it.
+
+**The staples are named, and that is the hard-won part.** The catalogue has 1,394 exercises and
+no notion of which of them anyone programs. Difficulty does not separate a bench press from a
+boxing uppercut; equipment does not separate a squat from a groin kick. Scored on muscles
+covered alone the generator reliably picks the library's oddest entries, because an exercise
+claiming six assisting muscles outscores one claiming two — the first honest output of this
+module was a full-body day opening with a strongman car flip. So three or four movements per
+muscle are named, all of them ones a lifter would recognise. They are a preference and not a
+filter: restrict the equipment far enough and it falls back to scoring the rest of the
+catalogue, which is right for a hotel gym and wrong as a default.
+
+Two smaller consequences of the same problem. No exercise is paid for more than **two**
+assisting muscles, because past that the list describes anatomy rather than training. And
+**advanced movements are left out** unless asked for: a generated program is the one nobody
+chose exercise by exercise, so it should not open with a muscle-up.
+
+**It is a starting point and is built to be edited.** The output is ordinary routines, so
+swapping a movement is two taps. What it will not do is pretend: muscles it could not cover
+with the equipment allowed are named rather than quietly dropped, exactly as §20.4 reports
+unpriced sets and §7.4 reports missing micronutrients.
+
 ---
 
 ---
