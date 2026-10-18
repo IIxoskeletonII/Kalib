@@ -18,6 +18,8 @@ export interface ExerciseDoc {
   secondary_muscles: Muscle[];
   category: ExerciseCategory;
   custom: boolean;
+  /** Basename of the demo, so a result can show the movement without a second read. */
+  media?: string;
   tokens: string[];
   /** The whole name, normalised, so typing it exactly is recognised as meaning exactly it. */
   nameKey: string;
@@ -44,6 +46,7 @@ export function buildExerciseDoc(e: {
   primary_muscle: Muscle;
   secondary_muscles?: Muscle[] | undefined;
   category: ExerciseCategory;
+  media?: string | undefined;
   source: Exercise['source'];
 }): ExerciseDoc {
   // Aliases join the index but not the name, so a hit on "rdl" still shows "Barbell Romanian
@@ -57,6 +60,7 @@ export function buildExerciseDoc(e: {
     secondary_muscles: e.secondary_muscles ?? [],
     category: e.category,
     custom: e.source === 'custom',
+    ...(e.media ? { media: e.media } : {}),
     tokens: tokenize([e.name, ...(e.aliases ?? [])].join(' ')),
     nameKey: nameTokens.join(' '),
     shorthandKeys: (e.shorthand ?? []).map((a) => tokenize(a).join(' ')).filter(Boolean),

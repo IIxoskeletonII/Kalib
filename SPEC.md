@@ -1282,8 +1282,22 @@ information. The repo ships its figures and its renderer, whose palette is modul
 `accent`. No other tracker has exercise art in its own colours, because no other tracker has the
 source art. The media is gitignored and regenerated; only the metadata is committed.
 
-Nothing downloads until an exercise is opened, and the service worker then keeps it, so a
-routine is fully offline after one session with it.
+**Lists show a still; opening shows the movement (added 18 Oct 2026).** The clips average
+47 KB, which is right for one exercise and wrong for thirty you are scrolling past — a search
+for "bench" returns 33 results, and animating all of them would pull over a megabyte before you
+had chosen anything. So `scripts/make-exercise-posters.py` takes the first frame of each clip at
+160 px, about 4 KB, and that is what search results and routine rows carry. The two are cached
+separately, stills far more generously than clips, or a browse would evict the animations.
+
+In a list the picture is its own control: the row picks the exercise, the still shows it. That
+separation is the point — eleven things are called bench press, and you must be able to look
+without choosing.
+
+Nothing downloads until an exercise is opened, and the service worker then keeps it. **Saving a
+routine warms its own clips**, so a routine built at home works in a basement gym without ever
+having opened its exercises one by one. It is not awaited and not required: building a routine
+with no signal simply leaves the clips to arrive the first time they are opened, which is the
+behaviour that existed before.
 
 ### 20.3 Logging a session
 

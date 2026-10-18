@@ -54,6 +54,18 @@ export default defineConfig({
             options: { cacheName: 'kalib-data', expiration: { maxEntries: 8 } },
           },
           {
+            // §20.2 — the list stills. Tiny (~4 KB), so far more of them are worth keeping
+            // than clips are, and they must be matched before the clip rule below or that
+            // rule's prefix would swallow them and evict stills to make room for animations.
+            urlPattern: ({ url }) => url.pathname.startsWith('/exercises/posters/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'kalib-exercise-posters',
+              expiration: { maxEntries: 1600, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // §20.2 — form animations, fetched the first time an exercise is opened and kept
             // afterwards, so a routine is fully offline after one session with it. Not
             // precached: 1,394 clips is ~55 MB nobody should pay for on install, and most

@@ -228,6 +228,7 @@ export function ListRow({
   valueSub,
   icon: Icon,
   iconTone = 'muted',
+  leading,
   onClick,
   badge,
   wrapTitle = false,
@@ -240,6 +241,8 @@ export function ListRow({
   value?: ReactNode;
   valueSub?: ReactNode;
   icon?: LucideIcon;
+  /** Something to stand where the icon would, when a picture says more than a glyph. */
+  leading?: ReactNode;
   iconTone?: 'muted' | 'accent' | 'kcal' | 'protein' | 'fiber' | 'carb' | 'fat';
   onClick?: (() => void) | undefined;
   badge?: ReactNode;
@@ -261,6 +264,7 @@ export function ListRow({
   };
   const inner = (
     <>
+      {leading}
       {Icon && (
         <span
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${tone[iconTone]}`}

@@ -10,6 +10,49 @@
 import { Dumbbell } from 'lucide-react';
 import { useState } from 'react';
 
+/**
+ * The still, for lists.
+ *
+ * A list of thirty results showing thirty 47 KB animations would pull over a megabyte before
+ * you had chosen anything, which on a roaming connection is a real cost for a thumbnail. The
+ * poster is one frame at a few kilobytes, so every row can carry one; the animation still loads
+ * only when an exercise is actually opened.
+ */
+export function ExerciseThumb({
+  media,
+  name,
+  className = '',
+}: {
+  media: string | undefined;
+  name: string;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const base = `h-11 w-11 shrink-0 overflow-hidden rounded-xl ${className}`;
+
+  if (!media || failed) {
+    return (
+      <span className={`${base} flex items-center justify-center bg-surface-2 text-muted`}>
+        <Dumbbell size={18} strokeWidth={1.6} aria-hidden />
+      </span>
+    );
+  }
+  return (
+    <img
+      src={`/exercises/posters/${media}.webp`}
+      // The name is already the row's own text, so repeating it here would make a screen reader
+      // say every exercise twice. The picture adds nothing a reader needs.
+      alt=""
+      aria-hidden
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+      className={`${base} bg-surface object-contain`}
+      data-exercise-thumb={name}
+    />
+  );
+}
+
 export function ExerciseDemo({
   media,
   name,

@@ -10,6 +10,7 @@ import { searchExercises, type ExerciseDoc } from '@/core/exerciseSearch';
 import { MUSCLE_LABEL } from '@/core/muscles';
 import type { Muscle } from '@/core/types';
 import { Badge, Chip, EmptyState, Sheet, Skeleton } from '@/components/ui';
+import { ExerciseDemo, ExerciseThumb } from '@/components/ExerciseDemo';
 import { useExerciseDocs } from '@/hooks/useWorkouts';
 
 /** Muscles worth a filter chip, in the order a split is usually planned. */
@@ -57,6 +58,8 @@ function PickerBody({
   const docs = useExerciseDocs();
   const [q, setQ] = useState('');
   const [muscle, setMuscle] = useState<Muscle | null>(null);
+  // One open at a time: a list of expanded animations is a list you cannot scan.
+  const [shown, setShown] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -147,14 +150,31 @@ function PickerBody({
       ) : (
         <ul className="max-h-[48dvh] divide-y divide-line overflow-y-auto">
           {hits.map((h, i) => (
-            <li key={h.id}>
-              <button
-                type="button"
-                onClick={() => onPick(h.id)}
-                className="rise-in flex w-full items-center gap-3 py-3 text-left active:bg-surface-2"
-                style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}
-              >
-                <span className="min-w-0 flex-1">
+            <li
+              key={h.id}
+              className="rise-in"
+              style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}
+            >
+              <div className="flex items-center gap-3">
+                {/* The still is its own control: the row picks the exercise, the picture shows
+                    it. Separating them means you can look without choosing, which is the whole
+                    difficulty with a list of eleven things all called bench press. */}
+                <button
+                  type="button"
+                  onClick={() => setShown(shown === h.id ? null : h.id)}
+                  aria-expanded={shown === h.id}
+                  aria-label={
+                    shown === h.id ? `Hide how to do ${h.name}` : `See how to do ${h.name}`
+                  }
+                  className="my-1.5 rounded-xl"
+                >
+                  <ExerciseThumb media={h.media} name={h.name} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onPick(h.id)}
+                  className="min-w-0 flex-1 py-3 text-left active:bg-surface-2"
+                >
                   <span className="flex items-center gap-2">
                     <span className="truncate text-[16px] font-medium">{h.name}</span>
                     {h.custom && <Badge tone="accent">Mine</Badge>}
@@ -162,8 +182,11 @@ function PickerBody({
                   <span className="mt-0.5 block truncate text-[13px] text-muted">
                     {MUSCLE_LABEL[h.primary_muscle]} · {h.equipment}
                   </span>
-                </span>
-              </button>
+                </button>
+              </div>
+              {shown === h.id && (
+                <ExerciseDemo media={h.media} name={h.name} className="mb-3 ml-14 max-w-[180px]" />
+              )}
             </li>
           ))}
         </ul>

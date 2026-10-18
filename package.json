@@ -1,7 +1,7 @@
 {
   "name": "kalib",
   "private": true,
-  "version": "0.33.0",
+  "version": "0.34.0",
   "description": "Kalib — adaptive macro tracker (local-first PWA)",
   "type": "module",
   "scripts": {
@@ -24,7 +24,8 @@
     "seed:mena": "node --import tsx scripts/seed-mena.ts",
     "seed:exercises": "node --import tsx scripts/seed-exercises.ts",
     "seed:chains": "node --import tsx scripts/seed-chains.ts",
-    "seed:exercise-media": "python scripts/render-exercise-media.py"
+    "seed:exercise-media": "python scripts/render-exercise-media.py",
+    "seed:exercise-posters": "python scripts/make-exercise-posters.py"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

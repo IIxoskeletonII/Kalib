@@ -227,6 +227,8 @@ test.describe('getting around', () => {
 
 /** Everything worth looking at on a screen that has just arrived. */
 async function inspect(page: Page): Promise<string[]> {
+  // Every geometric check below reads a rectangle, so nothing may still be moving.
+  await restIn(page);
   const found: string[] = [];
   const body = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
   if (/Something went wrong|Unexpected error/i.test(body)) found.push('error boundary');
@@ -513,7 +515,36 @@ async function settled(page: Page): Promise<void> {
   await page
     .waitForSelector('nav a, button[aria-label="Back"], main h1', { timeout: 10_000 })
     .catch(() => {});
-  await page.waitForTimeout(500);
+  await restIn(page);
+}
+
+/**
+ * Wait for the arrival animations to finish.
+ *
+ * Lists arrive with a staggered `.rise-in` — up to 320 ms of delay before a row even starts
+ * moving. Until it lands, a row's rectangle is wherever the transform has got to, so measuring
+ * then asks where things were rather than where they are, and the checks that compare one
+ * control against another read a layout that never existed. A flat sleep was standing in for
+ * this and was long enough on an idle machine and not on a loaded one, which is precisely the
+ * shape of a flake.
+ *
+ * Indefinite animations — spinners, the pulsing skeletons — never finish and are skipped, or
+ * this would wait for a loading state to stop loading by itself.
+ */
+async function restIn(page: Page): Promise<void> {
+  await page
+    .evaluate(async () => {
+      const finite = document.getAnimations().filter((a) => {
+        const t = a.effect?.getComputedTiming();
+        return t != null && t.iterations !== Infinity;
+      });
+      await Promise.all(finite.map((a) => a.finished.catch(() => undefined)));
+    })
+    .catch(() => {});
+  // One frame after the last one lands, so the final rectangles are the ones read.
+  await page.evaluate(
+    () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),
+  );
 }
 
 async function open(page: Page, url: string): Promise<void> {

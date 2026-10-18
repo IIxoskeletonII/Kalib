@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { ExercisePicker } from '@/components/ExercisePicker';
 import { NumberPad } from '@/components/NumberPad';
+import { ExerciseThumb } from '@/components/ExerciseDemo';
 import { SwipeRow } from '@/components/SwipeRow';
 import { toast } from '@/components/Toast';
 import { Button, Card, IconButton, ListRow, Segmented, Sheet } from '@/components/ui';
@@ -16,8 +17,9 @@ import { moveItem, removeItem, toggleSuperset } from '@/core/routines';
 import type { RoutineItem } from '@/core/types';
 import { getExercise } from '@/db/repo/exercises';
 import { addRoutine, deleteRoutine, nextRoutineOrder, updateRoutine } from '@/db/repo/workouts';
+import { warmExerciseMedia } from '@/services/exerciseMedia';
 import { useBack } from '@/hooks/useBack';
-import { useRoutine } from '@/hooks/useWorkouts';
+import { useExercisesByIds, useRoutine } from '@/hooks/useWorkouts';
 
 /**
  * Resolves the routine, then mounts the form keyed on it. The form owns draft state, so it must
@@ -62,6 +64,7 @@ function RoutineForm({
   const [name, setName] = useState(initialName);
   const [items, setItems] = useState<RoutineItem[]>(initialItems);
   const [picking, setPicking] = useState(false);
+  const media = useExercisesByIds(items.map((it) => it.exercise_id));
   const [editing, setEditing] = useState<number | null>(null);
 
   const save = async () => {
@@ -76,6 +79,10 @@ function RoutineForm({
     } else if (id) {
       await updateRoutine(id, { name: trimmed, items });
     }
+    // A routine you built at home should work in a basement gym, so its demonstrations are
+    // fetched now rather than the first time each exercise is opened. Not awaited: the routine
+    // is saved either way, and a download is not worth standing still for.
+    void warmExerciseMedia(items.map((it) => media?.get(it.exercise_id)?.media));
     navigate('/train', { replace: true });
     toast(`${trimmed} saved`);
   };
@@ -166,6 +173,10 @@ function RoutineForm({
                   style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
                   onClick={() => setEditing(i)}
                   chevron
+                  // The name alone does not tell you which of eleven bench presses this is.
+                  leading={
+                    <ExerciseThumb media={media?.get(it.exercise_id)?.media} name={it.name} />
+                  }
                   title={it.name}
                   subtitle={
                     <>
