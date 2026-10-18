@@ -156,21 +156,24 @@ test.describe('getting around', () => {
 
     const how = page.getByRole('button', { name: 'How Kalib works' });
     await how.scrollIntoViewIfNeeded();
-    await page.waitForTimeout(300);
-    const left = await scrollTop(page);
+    const left = await settledScroll(page);
     expect(left, 'Settings is long enough for this to mean anything').toBeGreaterThan(200);
 
     await how.click();
     await expect(page).toHaveURL(/\/settings\/how$/);
-    await page.waitForTimeout(400);
-    expect(await scrollTop(page), 'a screen you have never seen starts at its top').toBe(0);
+    // The URL changes before the lazy chunk renders, and until it does <main> still holds
+    // Settings at its old offset — perfectly still, and the wrong thing to measure. Wait for
+    // the destination's own heading, which only this screen has, before reading the offset.
+    await expect(page.getByRole('heading', { name: 'How Kalib works' })).toBeVisible();
+    expect(await settledScroll(page), 'a screen you have never seen starts at its top').toBe(0);
 
     await page.getByRole('button', { name: 'Back' }).click();
     await expect(page).toHaveURL(/\/settings$/);
-    await page.waitForTimeout(600);
+    await expect(how).toBeVisible();
+    const back = await settledScroll(page);
     // Within a viewport: content that finishes loading can shift the anchor a little, and the
     // point is that you are back beside the row you tapped, not at an exact pixel.
-    expect(Math.abs((await scrollTop(page)) - left)).toBeLessThan(400);
+    expect(Math.abs(back - left)).toBeLessThan(400);
   });
 
   test('changing the day keeps your place', async ({ page }) => {
@@ -199,25 +202,24 @@ test.describe('getting around', () => {
 
     // The two stocked days, counting back from today at the right-hand end of the strip.
     await tapDay(count - 3);
-    await page.waitForTimeout(700);
+    await settledScroll(page);
     await page.evaluate(() => {
       const m = document.querySelector('main');
       if (m) m.scrollTop = Math.round((m.scrollHeight - m.clientHeight) / 2);
     });
-    await page.waitForTimeout(300);
-    const before = await scrollTop(page);
+    const before = await settledScroll(page);
     expect(before, 'a stocked day is longer than the viewport').toBeGreaterThan(40);
 
     await tapDay(count - 4);
     await expect(page).toHaveURL(/\?d=/);
-    await page.waitForTimeout(700);
+    const after = await settledScroll(page);
 
     // Kept, as far as the new day's content allows: a shorter day legitimately clamps.
     const room = await page.evaluate(() => {
       const m = document.querySelector('main');
       return m ? m.scrollHeight - m.clientHeight : 0;
     });
-    expect(await scrollTop(page)).toBeGreaterThanOrEqual(Math.min(before, room) - 8);
+    expect(after).toBeGreaterThanOrEqual(Math.min(before, room) - 8);
   });
 });
 
@@ -466,6 +468,29 @@ function byName(page: Page, name: string): Locator {
 
 const scrollTop = (page: Page): Promise<number> =>
   page.evaluate(() => document.querySelector('main')?.scrollTop ?? 0);
+
+/**
+ * The offset once it has stopped moving.
+ *
+ * A fixed delay here is a guess about how long a smooth scroll, a render and a restore take
+ * together, and under a parallel run the guess is wrong — which is the whole of this suite's
+ * flakiness. Poll the number that actually matters and return when it has held still, so the
+ * check waits exactly as long as the machine needs and no longer.
+ */
+async function settledScroll(page: Page, holds = 3): Promise<number> {
+  let last = await scrollTop(page);
+  let stable = 0;
+  for (let i = 0; i < 80 && stable < holds; i++) {
+    await page.waitForTimeout(50);
+    const now = await scrollTop(page);
+    if (now === last) stable++;
+    else {
+      stable = 0;
+      last = now;
+    }
+  }
+  return last;
+}
 
 /**
  * Wait for a screen to actually be on the page.

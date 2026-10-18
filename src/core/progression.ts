@@ -14,7 +14,7 @@
 // Nothing here guesses. Where the inputs do not support an instruction — a plank, a session with
 // no rep range, an exercise never done before — it says so rather than inventing one.
 import { isWorkingSet } from './sets';
-import type { LoadType, WorkoutSet } from './types';
+import type { LoadType, WorkoutSession, WorkoutSet } from './types';
 
 /**
  * Reps you mean to leave in the tank. Two sits inside the 0-3 band where the hypertrophy
@@ -232,4 +232,36 @@ export function nextPrescription(
 /** Whether a prescription asks for more than last time, for a screen that wants to say so. */
 export function isStepUp(p: Prescription): boolean {
   return p.kind === 'add_load' || p.kind === 'add_reps';
+}
+
+/**
+ * One exercise's sets, one entry per finished session, newest first — the shape
+ * `nextPrescription` expects.
+ *
+ * A session still running is skipped, including the one being logged right now: progressing
+ * from a half-finished session would move the target while you are working through it.
+ */
+export function performances(
+  sessions: readonly WorkoutSession[],
+  exercise_id: string,
+  exclude_session_id?: string,
+): Performance[] {
+  return sessions
+    .filter((s) => s.ended_at && s.id !== exclude_session_id)
+    .sort((a, b) => (a.started_at < b.started_at ? 1 : -1))
+    .map((s) => s.entries.filter((e) => e.exercise_id === exercise_id).flatMap((e) => e.sets))
+    .filter((sets) => sets.some(isWorkingSet));
+}
+
+/**
+ * The set a screen should offer as a starting point, or undefined when there is nothing to
+ * suggest. This is what the Session cells show faintly: not what you did, but what to do.
+ */
+export function suggestedSet(p: Prescription): { weight_kg?: number; reps?: number } | undefined {
+  if (p.kind === 'no_advice' || p.kind === 'first_time') return undefined;
+  if (p.weight_kg == null && p.reps == null) return undefined;
+  return {
+    ...(p.weight_kg != null ? { weight_kg: p.weight_kg } : {}),
+    ...(p.reps != null ? { reps: p.reps } : {}),
+  };
 }

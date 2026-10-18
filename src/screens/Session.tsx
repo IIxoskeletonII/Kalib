@@ -17,6 +17,7 @@ import { toast } from '@/components/Toast';
 import { Button, Card, IconButton, Sheet } from '@/components/ui';
 import { usesReps, usesWeight } from '@/core/exercises';
 import { describePlates, plateLoad, warmupRamp } from '@/core/plates';
+import { suggestedSet, type Prescription } from '@/core/progression';
 import { formatClock } from '@/core/restTimer';
 import { isWorkingSet } from '@/core/sets';
 import type { LoadType, WorkoutEntry, WorkoutSession, WorkoutSet } from '@/core/types';
@@ -30,6 +31,7 @@ import {
   useExercisesByIds,
   useLastPerformances,
   useNow,
+  usePrescriptions,
   useWeightUnit,
 } from '@/hooks/useWorkouts';
 import {
@@ -49,6 +51,50 @@ interface Editing {
   e: number;
   s: number;
   field: Field;
+}
+
+/**
+ * What an empty cell offers.
+ *
+ * Progression's answer where there is one, last time's figures where there is not. The
+ * difference matters the moment the two disagree: once the range is cleared, repeating last
+ * week's weight is precisely what you should not do, and a ghost that still suggested it would
+ * be arguing with the line above it.
+ */
+function ghostSet(
+  p: Prescription | undefined,
+  fallback: WorkoutSet | undefined,
+): WorkoutSet | undefined {
+  const next = p ? suggestedSet(p) : undefined;
+  if (!next) return fallback;
+  return { kind: 'normal', done: false, ...next };
+}
+
+/**
+ * The one thing the cells cannot say: why today's numbers are what they are. The figures
+ * themselves are already in the row as ghosts, so printing them here too would spend a line
+ * repeating the line below it.
+ */
+function describeAdvice(p: Prescription | undefined): string | undefined {
+  if (!p) return undefined;
+  switch (p.kind) {
+    case 'add_load':
+      return 'Cleared the range — going up';
+    case 'add_reps':
+      return p.reason === 'left_reps_in_reserve'
+        ? 'You had reps left — push closer'
+        : p.reason === 'cleared_range'
+          ? 'Cleared the range — more reps'
+          : 'One more rep than last time';
+    case 'hold':
+      return p.reason === 'left_reps_in_reserve'
+        ? 'You had reps left — push closer'
+        : 'Short of the range — same weight';
+    case 'deload':
+      return `Stuck ${p.stalled_sessions} sessions — backing off`;
+    default:
+      return undefined;
+  }
 }
 
 export default function Session() {
@@ -79,6 +125,7 @@ function SessionView({ session, onLeave }: { session: WorkoutSession; onLeave: (
 
   const exerciseIds = useMemo(() => session.entries.map((e) => e.exercise_id), [session.entries]);
   const previous = useLastPerformances(exerciseIds, session.id);
+  const advice = usePrescriptions(session);
   const exercises = useExercisesByIds(exerciseIds);
 
   const totals = useMemo(() => {
@@ -141,7 +188,10 @@ function SessionView({ session, onLeave }: { session: WorkoutSession; onLeave: (
     // Accepting the ghost is the whole point of showing it: repeating last week's set is one
     // tap, and only then does the suggestion become a logged figure.
     if (entry && set && !set.done) {
-      const ghost = previous?.get(entry.exercise_id)?.sets[s];
+      const ghost = ghostSet(
+        advice?.get(entry.exercise_id),
+        previous?.get(entry.exercise_id)?.sets[s],
+      );
       const patch: Partial<WorkoutSet> = {};
       if (set.weight_kg == null && ghost?.weight_kg != null) patch.weight_kg = ghost.weight_kg;
       if (set.reps == null && ghost?.reps != null) patch.reps = ghost.reps;
@@ -216,7 +266,10 @@ function SessionView({ session, onLeave }: { session: WorkoutSession; onLeave: (
     const entry = session.entries[ei];
     if (!entry || entry.load_type !== 'weight_reps') return undefined;
     const working = entry.sets.find((x) => x.kind !== 'warmup');
-    const ghost = previous?.get(entry.exercise_id)?.sets[0];
+    const ghost = ghostSet(
+      advice?.get(entry.exercise_id),
+      previous?.get(entry.exercise_id)?.sets[0],
+    );
     const kg = working?.weight_kg ?? ghost?.weight_kg;
     if (kg == null || kg <= 0) return undefined;
     const ramp = warmupRamp(kg, { unit });
@@ -299,6 +352,7 @@ function SessionView({ session, onLeave }: { session: WorkoutSession; onLeave: (
             index={ei}
             unit={unit}
             previous={previous?.get(entry.exercise_id)?.sets}
+            prescription={advice?.get(entry.exercise_id)}
             firstOfSuperset={
               entry.superset != null && session.entries[ei - 1]?.superset !== entry.superset
             }
@@ -457,6 +511,7 @@ function ExerciseBlock({
   index,
   unit,
   previous,
+  prescription,
   firstOfSuperset,
   editing,
   draft,
@@ -470,6 +525,7 @@ function ExerciseBlock({
   index: number;
   unit: 'kg' | 'lb';
   previous: WorkoutSet[] | undefined;
+  prescription: Prescription | undefined;
   firstOfSuperset: boolean;
   editing: Editing | null;
   draft: string;
@@ -482,10 +538,9 @@ function ExerciseBlock({
   // The cells already carry last time's figures as ghosts, so repeating them here would be
   // saying it twice. This line carries what they cannot: the rest interval, which is otherwise
   // invisible until a set is ticked, and whether there is any history at all.
+  const rest = entry.rest_sec != null ? `Rest ${formatClock(entry.rest_sec)}` : undefined;
   const meta = previous?.length
-    ? entry.rest_sec != null
-      ? `Rest ${formatClock(entry.rest_sec)}`
-      : undefined
+    ? [describeAdvice(prescription), rest].filter(Boolean).join(' · ') || undefined
     : 'First time — the cells start empty';
 
   return (
@@ -538,7 +593,7 @@ function ExerciseBlock({
               index={si}
               load_type={entry.load_type}
               unit={unit}
-              ghost={previous?.[si]}
+              ghost={ghostSet(prescription, previous?.[si])}
               editing={editing?.s === si ? editing.field : null}
               draft={draft}
               onSelect={(field) => onSelect({ e: index, s: si, field })}

@@ -3,9 +3,11 @@ import type { WorkoutSet } from './types';
 import {
   DEFAULT_INCREMENT_KG,
   STALL_SESSIONS,
-  nextPrescription,
-  workingLoad,
   isStepUp,
+  nextPrescription,
+  performances,
+  suggestedSet,
+  workingLoad,
 } from './progression';
 
 /** A logged working set. */
@@ -215,6 +217,84 @@ describe('isStepUp', () => {
     expect(isStepUp({ kind: 'hold', reason: 'missed_range' })).toBe(false);
     expect(isStepUp({ kind: 'deload', reason: 'stalled' })).toBe(false);
     expect(isStepUp({ kind: 'first_time', reason: 'no_history' })).toBe(false);
+  });
+});
+
+describe('performances', () => {
+  const sess = (id: string, started_at: string, sets: WorkoutSet[], ended = true) => ({
+    id,
+    user_id: 'u',
+    created_at: started_at,
+    updated_at: started_at,
+    started_at,
+    ...(ended ? { ended_at: started_at } : {}),
+    name: 'x',
+    entries: [{ exercise_id: 'bench', name: 'bench', load_type: 'weight_reps' as const, sets }],
+  });
+
+  it('returns one entry per session, newest first', () => {
+    const got = performances(
+      [
+        sess('a', '2026-10-01T10:00:00.000Z', [s(60, 8)]),
+        sess('c', '2026-10-15T10:00:00.000Z', [s(70, 8)]),
+        sess('b', '2026-10-08T10:00:00.000Z', [s(65, 8)]),
+      ],
+      'bench',
+    );
+    expect(got.map((p) => p[0]?.weight_kg)).toEqual([70, 65, 60]);
+  });
+
+  it('skips the session being logged, and any still running', () => {
+    const got = performances(
+      [
+        sess('live', '2026-10-16T10:00:00.000Z', [s(80, 8)], false),
+        sess('now', '2026-10-15T10:00:00.000Z', [s(75, 8)]),
+        sess('past', '2026-10-08T10:00:00.000Z', [s(65, 8)]),
+      ],
+      'bench',
+      'now',
+    );
+    expect(got.map((p) => p[0]?.weight_kg)).toEqual([65]);
+  });
+
+  it('skips sessions where the exercise did no working sets', () => {
+    const warm: WorkoutSet[] = [{ kind: 'warmup', done: true, weight_kg: 40, reps: 10 }];
+    const got = performances(
+      [
+        sess('a', '2026-10-08T10:00:00.000Z', warm),
+        sess('b', '2026-10-01T10:00:00.000Z', [s(60, 8)]),
+      ],
+      'bench',
+    );
+    expect(got).toHaveLength(1);
+  });
+
+  it('ignores other exercises entirely', () => {
+    expect(performances([sess('a', '2026-10-08T10:00:00.000Z', [s(60, 8)])], 'squat')).toEqual([]);
+  });
+});
+
+describe('suggestedSet', () => {
+  it('offers the prescribed load and reps', () => {
+    const p = nextPrescription([[s(60, 8), s(60, 8)]], RANGE);
+    expect(suggestedSet(p)).toEqual({ weight_kg: 62.5, reps: 6 });
+  });
+
+  it('offers reps alone for bodyweight work', () => {
+    const p = nextPrescription([[body(10), body(10)]], {
+      load_type: 'bodyweight_reps',
+      rep_low: 6,
+      rep_high: 10,
+    });
+    expect(suggestedSet(p)).toEqual({ reps: 11 });
+  });
+
+  it('offers nothing the first time, so the cells stay empty', () => {
+    expect(suggestedSet({ kind: 'first_time', reason: 'no_history' })).toBeUndefined();
+  });
+
+  it('offers nothing where there is no advice to give', () => {
+    expect(suggestedSet({ kind: 'no_advice', reason: 'not_a_lift' })).toBeUndefined();
   });
 });
 

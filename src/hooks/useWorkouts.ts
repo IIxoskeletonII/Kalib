@@ -4,7 +4,9 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import type { ExerciseDoc } from '@/core/exerciseSearch';
 import { lastPerformance, personalRecords, type ExercisePR, type LastPerformance } from '@/core/pr';
+import type { Prescription } from '@/core/progression';
 import type { RestTimer } from '@/core/restTimer';
+import type { LoadReport } from '@/core/trainingLoad';
 import type { Exercise, Routine, WeightUnit, WorkoutSession } from '@/core/types';
 import { getExercise, getExercises, listExerciseDocs } from '@/db/repo/exercises';
 import { getDailyTarget } from '@/db/repo/dailyTargets';
@@ -16,6 +18,7 @@ import {
   listRoutines,
   listSessions,
 } from '@/db/repo/workouts';
+import { prescriptionsFor, weeklyLoad } from '@/services/training';
 import { flatTargetFor } from '@/services/targets';
 import { recentSessions, REST_TIMER_KEY, WEIGHT_UNIT_KEY } from '@/services/workouts';
 
@@ -172,4 +175,25 @@ export function useExerciseHistory(exercise_id: string | undefined): WorkoutSess
     const all = await recentSessions();
     return all.filter((s) => s.entries.some((e) => e.exercise_id === exercise_id)).reverse();
   }, [exercise_id]);
+}
+
+/**
+ * What to do next on every exercise in the session on screen (§20.8).
+ *
+ * Keyed on the exercises rather than on the session row, so ticking a set does not recompute
+ * every prescription: the advice comes from finished sessions and cannot change mid-workout.
+ */
+export function usePrescriptions(
+  session: Pick<WorkoutSession, 'id' | 'routine_id' | 'entries'> | undefined,
+): Map<string, Prescription> | undefined {
+  const key = session ? `${session.id}|${session.entries.map((e) => e.exercise_id).join(',')}` : '';
+  return useLiveQuery(async () => {
+    if (!session) return new Map<string, Prescription>();
+    return prescriptionsFor(session);
+  }, [key]);
+}
+
+/** This week's hard sets per muscle, and where the week is short (§20.8). */
+export function useWeeklyLoad(): LoadReport | undefined {
+  return useLiveQuery(() => weeklyLoad(), []);
 }

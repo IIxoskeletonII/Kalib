@@ -10,6 +10,7 @@ import { toast } from '@/components/Toast';
 import { Button, Card, EmptyState, ListRow, SectionHeading, Skeleton, fmt } from '@/components/ui';
 import { fromDateKey, toDateKey } from '@/core/dates';
 import { formatDuration } from '@/core/restTimer';
+import { MAX_SETS, MIN_SETS, type LoadReport } from '@/core/trainingLoad';
 import { trainingWeek, weekStart } from '@/core/trainingWeek';
 import type { Routine } from '@/core/types';
 import { toDisplay, UNIT_LABEL } from '@/core/weightUnit';
@@ -18,9 +19,45 @@ import {
   useActiveSession,
   useRecentSessions,
   useRoutines,
+  useWeeklyLoad,
   useWeightUnit,
 } from '@/hooks/useWorkouts';
 import { startSession } from '@/services/workouts';
+
+/**
+ * Where the week is short (§20.8).
+ *
+ * One line, not a chart. A per-muscle bar chart would be the obvious thing to build and the
+ * wrong thing to read: the only question worth answering on this screen is whether anything
+ * needs attention, and a chart makes you work that out for yourself. Muscles are named at most
+ * three at a time for the same reason.
+ */
+function Coverage({ report }: { report: LoadReport }) {
+  const name = (ms: readonly string[]) =>
+    ms.length <= 3 ? ms.join(', ') : `${ms.slice(0, 3).join(', ')} +${ms.length - 3}`;
+
+  // A muscle your own routines mean to train and have not is the most actionable gap, so it is
+  // read first; under-trained is the same complaint one degree weaker.
+  const short = [...report.untrained, ...report.under];
+  let line: string | undefined;
+  if (short.length > 0) line = `Short this week: ${name(short)}`;
+  else if (report.concentrated.length > 0) line = `All in one day: ${name(report.concentrated)}`;
+  else if (report.over.length > 0) line = `Over ${MAX_SETS} sets: ${name(report.over)}`;
+  else if (report.muscles.length > 0) line = `Every muscle inside ${MIN_SETS}-${MAX_SETS} sets`;
+
+  if (!line && report.unknown_sets === 0) return null;
+
+  return (
+    <p className="mt-2 text-[13px] text-muted">
+      {line}
+      {report.unknown_sets > 0 && (
+        <span className={line ? 'before:content-["_·_"]' : ''}>
+          {report.unknown_sets} {report.unknown_sets === 1 ? 'set' : 'sets'} unattributed
+        </span>
+      )}
+    </p>
+  );
+}
 
 export default function Train() {
   const navigate = useNavigate();
@@ -28,6 +65,7 @@ export default function Train() {
   const routines = useRoutines();
   const recent = useRecentSessions(30);
   const unit = useWeightUnit();
+  const coverage = useWeeklyLoad();
   const weighIns = useWeighIns();
 
   const week = useMemo(
@@ -80,6 +118,7 @@ export default function Train() {
               </div>
             </div>
             <WeekDots trained={week.days} />
+            {coverage && <Coverage report={coverage} />}
           </>
         )}
       </section>

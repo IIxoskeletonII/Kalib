@@ -1290,10 +1290,16 @@ routine is fully offline after one session with it.
 Numbers go on the docked `NumberPad`, never the OS keyboard (§8). The selected cell takes a ring;
 Enter moves weight — reps.
 
-**Cells carry last session's figures as ghosts.** Faint enough to read as a suggestion, real
-enough for the tick to accept. Repeating a weight is therefore one tap rather than two numbers.
-Hevy prefills the input *and* prints the same value in a Previous column beside it; showing it
-once frees the column that was squeezing the exercise names.
+**Cells carry a ghost figure.** Faint enough to read as a suggestion, real enough for the tick
+to accept, so taking the suggestion is one tap rather than two numbers. Hevy prefills the input
+*and* prints the same value in a Previous column beside it; showing it once frees the column
+that was squeezing the exercise names.
+
+Since §20.8 the ghost is **what to do, not what was done** — the prescription where there is
+one, last session's figures where there is not. The two disagree exactly when it matters: the
+session after you clear a rep range, repeating last week's weight is precisely the wrong move,
+and a ghost still offering it would be arguing with the line above it. The line above carries
+the reason rather than the figures, because the figures are already in the row.
 
 - **Rest is arithmetic, not a clock.** No JS timer survives an iOS screen lock, and a
   tick-counting timer would be wrong by exactly the interval it is meant to measure. One
