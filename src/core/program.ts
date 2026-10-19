@@ -329,6 +329,18 @@ function prescriptionFor(
   const compound =
     !REGION.Core.includes(e.primary_muscle) &&
     (e.secondary_muscles ?? []).length >= COMPOUND_SECONDARIES;
+
+  // A movement that cannot carry added weight has only reps to make it hard, so the range sits
+  // higher: six to ten bodyweight squats is a warm-up. It starts lower than it might because
+  // some of these are genuinely hard — an inverted row, a captain's chair straight-leg raise —
+  // and progression (§20.8) keeps adding reps past the top once it is cleared, so the range
+  // only says where to begin. Push-ups, chin-ups and dips are `weighted_bodyweight`: they take a
+  // belt or a vest, so they keep the loaded ranges.
+  if (e.load_type === 'bodyweight_reps') {
+    return compound
+      ? { rep_low: 10, rep_high: 20, rest_sec: 120 }
+      : { rep_low: 12, rep_high: 20, rest_sec: 90 };
+  }
   return compound
     ? { rep_low: 6, rep_high: 10, rest_sec: 180 }
     : { rep_low: 10, rep_high: 15, rest_sec: 90 };

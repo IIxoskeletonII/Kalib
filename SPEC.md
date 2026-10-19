@@ -1562,6 +1562,15 @@ library holds every staple to *not advanced*. And core work is never given the h
 rule, and it was prescribed 6–10 reps at three minutes' rest, like a squat. It is now 10–15 at 90
 seconds like any other isolation.
 
+**Body weight is prescribed in reps, not load** (v0.36.2). A movement the library marks
+`bodyweight_reps` cannot carry added weight, so reps are the only way to make it hard, and six
+to ten bodyweight squats is a warm-up. Those now start at **10–20** (two minutes' rest) for
+compounds and **12–20** (90 seconds) for single-muscle and core work. The bottom of each range
+sits lower than it might because some of these are hard — an inverted row, a captain's chair
+straight-leg raise — and §20.8 keeps adding reps past the top once it is cleared, so the range
+only says where to begin. Push-ups, chin-ups and dips are `weighted_bodyweight`: they take a
+vest or a belt, so they keep the loaded ranges.
+
 ---
 
 ---

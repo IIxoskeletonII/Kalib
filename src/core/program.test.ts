@@ -179,7 +179,39 @@ describe('what lands in a session', () => {
     const item = buildProgram([situp], { days: 3 })
       .days.flatMap((d) => d.items)
       .find((i) => i.exercise_id === 'situp');
-    expect(item).toMatchObject({ rep_low: 10, rep_high: 15, rest_sec: 90 });
+    // Not the loaded isolation range either: it is body weight, so reps are the only lever.
+    expect(item).toMatchObject({ rep_low: 12, rep_high: 20, rest_sec: 90 });
+  });
+
+  it('asks more reps of what cannot carry added weight', () => {
+    const one = (load_type: ProgramExercise['load_type'], secondary: Muscle[]) => {
+      const e: ProgramExercise = {
+        id: 'x',
+        name: 'Split Squats',
+        primary_muscle: 'quads',
+        secondary_muscles: secondary,
+        equipment: 'body weight',
+        load_type,
+        category: 'strength',
+      };
+      return buildProgram([e], { days: 3 }).days[0]?.items[0];
+    };
+    expect(one('bodyweight_reps', ['glutes', 'hamstrings'])).toMatchObject({
+      rep_low: 10,
+      rep_high: 20,
+      rest_sec: 120,
+    });
+    expect(one('bodyweight_reps', [])).toMatchObject({ rep_low: 12, rep_high: 20, rest_sec: 90 });
+    // A push-up or a dip takes a vest, so it keeps the loaded range.
+    expect(one('weighted_bodyweight', ['glutes', 'hamstrings'])).toMatchObject({
+      rep_low: 6,
+      rep_high: 10,
+    });
+    expect(one('weight_reps', ['glutes', 'hamstrings'])).toMatchObject({
+      rep_low: 6,
+      rep_high: 10,
+      rest_sec: 180,
+    });
   });
 
   it('prefers the compound, because it closes more of the day at once', () => {
