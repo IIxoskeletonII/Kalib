@@ -3,7 +3,7 @@
 // Structured the way the rest of the app is: the week's figures sit directly on the background,
 // and the cards below are things you tap. Starting a routine is the common act, so the routines
 // carry the weight; an empty workout is the exception and reads like one.
-import { Dumbbell, Play, Plus } from 'lucide-react';
+import { Dumbbell, ListPlus, Play, Plus } from 'lucide-react';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from '@/components/Toast';
@@ -147,8 +147,10 @@ export default function Train() {
             title="No routines yet"
             body="A routine is the list you work through — build one once and start it in a tap."
             action={
-              <Button variant="primary" icon={Plus} onClick={() => navigate('/train/routine/new')}>
-                New routine
+              // Writing a week is the better first step for someone with nothing yet; building
+              // one routine by hand is the button just below.
+              <Button variant="primary" icon={ListPlus} onClick={() => navigate('/train/build')}>
+                Build a week for me
               </Button>
             }
           />
@@ -185,6 +187,17 @@ export default function Train() {
             Empty workout
           </Button>
         </div>
+        {routines && routines.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={ListPlus}
+            className="mt-2 w-full"
+            onClick={() => navigate('/train/build')}
+          >
+            Build a week for me
+          </Button>
+        )}
       </section>
 
       {recent && recent.length > 0 && (

@@ -80,3 +80,16 @@ export function toggleSuperset(items: readonly RoutineItem[], index: number): Ro
   next[index] = { ...me, superset: letter };
   return normaliseSupersets(next);
 }
+
+/**
+ * A name nothing else is using, so writing a week twice does not leave two routines called
+ * "Upper A" that you have to open to tell apart.
+ */
+export function uniqueRoutineName(name: string, taken: Iterable<string>): string {
+  const used = new Set([...taken].map((t) => t.trim().toLowerCase()));
+  if (!used.has(name.toLowerCase())) return name;
+  for (let n = 2; ; n++) {
+    const candidate = `${name} (${n})`;
+    if (!used.has(candidate.toLowerCase())) return candidate;
+  }
+}

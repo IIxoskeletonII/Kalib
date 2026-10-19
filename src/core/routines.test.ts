@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { moveItem, normaliseSupersets, removeItem, toggleSuperset } from './routines';
+import {
+  moveItem,
+  normaliseSupersets,
+  removeItem,
+  toggleSuperset,
+  uniqueRoutineName,
+} from './routines';
 import type { RoutineItem } from './types';
 
 const item = (name: string, superset?: string): RoutineItem => ({
@@ -99,5 +105,19 @@ describe('toggleSuperset', () => {
 
   it('does nothing to the first item, which has nothing above it', () => {
     expect(shape(toggleSuperset([item('a'), item('b')], 0))).toBe('a b');
+  });
+});
+
+describe('uniqueRoutineName', () => {
+  it('keeps a name nobody is using', () => {
+    expect(uniqueRoutineName('Upper A', ['Legs'])).toBe('Upper A');
+  });
+
+  it('numbers a clash from two, ignoring case and stray spaces', () => {
+    expect(uniqueRoutineName('Upper A', [' upper a '])).toBe('Upper A (2)');
+  });
+
+  it('skips numbers already taken', () => {
+    expect(uniqueRoutineName('Upper A', ['Upper A', 'Upper A (2)'])).toBe('Upper A (3)');
   });
 });

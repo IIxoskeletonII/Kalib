@@ -16,7 +16,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   projects: [
-    { name: 'flows', testMatch: /(day-one|offline)\.spec\.ts/, workers: 2 },
+    { name: 'flows', testMatch: /(day-one|offline|build-week)\.spec\.ts/, workers: 2 },
     { name: 'sweep', testMatch: /sweep\.spec\.ts/, dependencies: ['flows'] },
   ],
   use: {

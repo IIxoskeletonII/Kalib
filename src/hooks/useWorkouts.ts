@@ -8,7 +8,12 @@ import type { Prescription } from '@/core/progression';
 import type { RestTimer } from '@/core/restTimer';
 import type { LoadReport } from '@/core/trainingLoad';
 import type { Exercise, Routine, WeightUnit, WorkoutSession } from '@/core/types';
-import { getExercise, getExercises, listExerciseDocs } from '@/db/repo/exercises';
+import {
+  getExercise,
+  getExercises,
+  listExerciseDocs,
+  listStrengthExercises,
+} from '@/db/repo/exercises';
 import { getDailyTarget } from '@/db/repo/dailyTargets';
 import { getSetting } from '@/db/repo/settings';
 import {
@@ -53,6 +58,11 @@ export function useExercise(id: string | undefined): Exercise | null | undefined
  */
 export function useExerciseDocs(): ExerciseDoc[] | undefined {
   return useLiveQuery(listExerciseDocs, []);
+}
+
+/** What a week can be written from (§20.9). Read once per visit; the library does not move. */
+export function useStrengthExercises(): Exercise[] | undefined {
+  return useLiveQuery(listStrengthExercises, []);
 }
 
 export function useWeightUnit(): WeightUnit {

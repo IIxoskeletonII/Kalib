@@ -77,6 +77,13 @@ export const STAPLE_EQUIPMENT: readonly string[] = [
   'band',
 ];
 
+/**
+ * Filed as strength, and not something to put in a program. The library's boxing drills list
+ * shoulders as their primary muscle, so on a body-weight week a left hook was written in as the
+ * shoulder work.
+ */
+const NOT_PROGRAMMED = /\bboxing\b/i;
+
 const DIFFICULTY_RANK: Record<string, number> = { beginner: 0, intermediate: 1, advanced: 2 };
 
 const REGION = Object.fromEntries(MUSCLE_REGIONS.map((r) => [r.label, r.muscles])) as Record<
@@ -185,16 +192,70 @@ export const STAPLES: Partial<Record<Muscle, readonly string[]>> = {
   abs: ['Hanging Leg Raise', 'Cable Kneeling Crunch', '3/4 Sit-Up'],
 };
 
-const STAPLE_NAMES = new Set(
-  Object.values(STAPLES)
-    .flat()
-    .map((n) => (n as string).toLowerCase()),
-);
+/**
+ * The same, for a floor and a doorframe.
+ *
+ * A second tier rather than more entries in the first: in a full gym a body-weight squat must
+ * never edge out a goblet squat on a tie-break, and in a living room the alternative to these
+ * was the fallback scoring, which wrote "One Arm Against Wall" in as the leg work and "Kick Out
+ * Sit" as the quads. Every name verified present and not marked advanced.
+ *
+ * Shoulders and biceps have one entry each and both need a band, and that is not an oversight.
+ * The library has no pike push-up, and nothing body-weight-only that trains either muscle as
+ * its own movement; rather than name the least bad option as though it were a staple, the
+ * program reports those muscles as `improvised` and the screen says so.
+ */
+export const HOME_STAPLES: Partial<Record<Muscle, readonly string[]>> = {
+  chest: ['Push-Up', 'Incline Push-Up', 'Decline Push-Up'],
+  lats: ['Chin-Up', 'Band Assisted Pull-Up'],
+  'upper back': ['Inverted Row', 'Band One Arm Standing Low Row'],
+  shoulders: ['Band Shoulder Press'],
+  triceps: ['Triceps Dip', 'Diamond Push-Up', 'Close-Grip Push-Up'],
+  biceps: ['Band Alternating Biceps Curl'],
+  quads: ['Quads (bodyweight Squat)', 'Split Squats'],
+  hamstrings: [
+    'Self Assisted Inverse Leg Curl (Hands on Bench)',
+    'Inverse Leg Curl (bench Support)',
+  ],
+  glutes: ['Forward Lunge', 'Low Glute Bridge On Floor'],
+  calves: ['Bodyweight Standing Calf Raise'],
+  abs: ['Crunch Floor', 'Reverse Crunch'],
+};
+
+const namesOf = (t: Partial<Record<Muscle, readonly string[]>>) =>
+  new Set(
+    Object.values(t)
+      .flat()
+      .map((n) => (n as string).toLowerCase()),
+  );
+const STAPLE_NAMES = namesOf(STAPLES);
+const HOME_STAPLE_NAMES = namesOf(HOME_STAPLES);
 
 /** Whether this is one of the named movements, rather than merely something that scores. */
 export function isStaple(e: { name: string }): boolean {
   return STAPLE_NAMES.has(e.name.toLowerCase());
 }
+
+/** 2 for a gym staple, 1 for a home one, 0 for anything the scoring found on its own. */
+export function stapleTier(e: { name: string }): number {
+  const n = e.name.toLowerCase();
+  return STAPLE_NAMES.has(n) ? 2 : HOME_STAPLE_NAMES.has(n) ? 1 : 0;
+}
+
+/**
+ * What someone has to train with, as three answers rather than nine switches.
+ *
+ * Nine equipment toggles is 511 combinations, and the only ones anyone has checked the output
+ * of are these. A person knows whether they are in a gym, at home with dumbbells, or on a
+ * floor; they do not know whether their week depends on the smith machine.
+ */
+export type Kit = 'gym' | 'dumbbells' | 'bodyweight';
+
+export const KITS: Record<Kit, { label: string; equipment: readonly string[] }> = {
+  gym: { label: 'Gym', equipment: STAPLE_EQUIPMENT },
+  dumbbells: { label: 'Dumbbells', equipment: ['dumbbell', 'body weight', 'band'] },
+  bodyweight: { label: 'Body weight', equipment: ['body weight'] },
+};
 
 export const MIN_DAYS = 2;
 export const MAX_DAYS = 6;
@@ -225,6 +286,11 @@ export interface Program {
   weekly: { muscle: Muscle; sets: number }[];
   /** Programmed muscles the catalogue could not cover with the equipment allowed. */
   uncovered: Muscle[];
+  /**
+   * Covered, but only by a movement the scoring found rather than one that was named — worth
+   * a look before the first session, because that is where "Kick Out Sit" comes from.
+   */
+  improvised: Muscle[];
 }
 
 export interface ProgramOptions {
@@ -293,6 +359,7 @@ export function buildProgram(catalogue: readonly ProgramExercise[], opts: Progra
   const usable = catalogue
     .filter((e) => e.category === 'strength')
     .filter((e) => opts.advanced === true || e.difficulty !== 'advanced')
+    .filter((e) => !NOT_PROGRAMMED.test(e.name))
     .filter((e) => allowed.has(e.equipment.toLowerCase()))
     .slice()
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -349,9 +416,22 @@ export function buildProgram(catalogue: readonly ProgramExercise[], opts: Progra
         for (const [mm, c] of contribution(e)) if (owed.has(mm)) value += c;
 
         // Lexicographic, most significant first: a named movement, then the muscle furthest
-        // behind for the week, then how much of the day it closes, then the movement seen
-        // least this week, then the plainest kit. Each only decides what the last left tied.
-        const key = [isStaple(e) ? 1 : 0, behind, value, -(usedThisWeek.get(e.id) ?? 0), -rank(e)];
+        // behind for the week, then a gym staple over a home one, then how much of the day it
+        // closes, then the movement seen least this week, then the plainest kit. Each only
+        // decides what the last left tied.
+        //
+        // Named-at-all comes before neediness but the tier comes after it. With the tier first,
+        // a dumbbell week never reached the lats: their only staple there is a chin-up, a home
+        // one, and every gym staple outranked it however far behind the lats had fallen.
+        const tier = stapleTier(e);
+        const key = [
+          tier > 0 ? 1 : 0,
+          behind,
+          tier,
+          value,
+          -(usedThisWeek.get(e.id) ?? 0),
+          -rank(e),
+        ];
         if (bestKey === undefined || isBetter(key, bestKey)) {
           best = e;
           bestKey = key;
@@ -396,12 +476,26 @@ export function buildProgram(catalogue: readonly ProgramExercise[], opts: Progra
 
   const uncovered = PROGRAMMED.filter((m) => (weekly.get(m) ?? 0) <= 0);
 
+  const byId = new Map(usable.map((e) => [e.id, e]));
+  const named = new Set<Muscle>();
+  const given = new Set<Muscle>();
+  for (const day of out) {
+    for (const item of day.items) {
+      const e = byId.get(item.exercise_id);
+      if (!e) continue;
+      given.add(e.primary_muscle);
+      if (stapleTier(e) > 0) named.add(e.primary_muscle);
+    }
+  }
+  const improvised = PROGRAMMED.filter((m) => given.has(m) && !named.has(m));
+
   return {
     days: out,
     weekly: [...weekly.entries()]
       .map(([muscle, sets]) => ({ muscle, sets: round1(sets) }))
       .sort((a, b) => b.sets - a.sets || a.muscle.localeCompare(b.muscle)),
     uncovered,
+    improvised,
   };
 }
 
@@ -417,4 +511,25 @@ export function frequencyOf(program: Program): Map<Muscle, number> {
     for (const m of day.muscles) out.set(m, (out.get(m) ?? 0) + 1);
   }
   return out;
+}
+
+/**
+ * The week in one line's worth of numbers: how often the least-trained muscle comes round, and
+ * the range of weekly sets. Over the programmed muscles only, because those are what the
+ * program promises; a forearm getting four incidental sets is not a shortfall.
+ */
+export function summarise(program: Program): {
+  minFrequency: number;
+  minSets: number;
+  maxSets: number;
+} {
+  const freq = frequencyOf(program);
+  const sets = new Map(program.weekly.map((w) => [w.muscle, w.sets]));
+  const covered = PROGRAMMED.filter((m) => !program.uncovered.includes(m));
+  if (covered.length === 0) return { minFrequency: 0, minSets: 0, maxSets: 0 };
+  return {
+    minFrequency: Math.min(...covered.map((m) => freq.get(m) ?? 0)),
+    minSets: Math.min(...covered.map((m) => sets.get(m) ?? 0)),
+    maxSets: Math.max(...covered.map((m) => sets.get(m) ?? 0)),
+  };
 }

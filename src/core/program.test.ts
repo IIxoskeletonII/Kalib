@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Muscle } from './types';
 import {
+  HOME_STAPLES,
+  KITS,
   MAX_EXERCISES_PER_DAY,
+  STAPLES,
   MAX_SETS_PER_EXERCISE,
   MIN_FREQUENCY,
   PROGRAMMED,
@@ -9,6 +12,8 @@ import {
   WEEKLY_SETS,
   buildProgram,
   frequencyOf,
+  stapleTier,
+  summarise,
   type ProgramExercise,
 } from './program';
 
@@ -346,5 +351,115 @@ describe('what it chooses from', () => {
     const freq = frequencyOf(p);
     // Whatever it picks, nothing may end up trained only by that one movement's generosity.
     for (const m of PROGRAMMED) expect(freq.get(m) ?? 0).toBeGreaterThanOrEqual(MIN_FREQUENCY);
+  });
+});
+
+describe('training without a gym', () => {
+  const ex = (
+    id: string,
+    name: string,
+    primary: Muscle,
+    equipment: string,
+    secondary: Muscle[] = [],
+  ): ProgramExercise => ({
+    id,
+    name,
+    primary_muscle: primary,
+    secondary_muscles: secondary,
+    equipment,
+    load_type: 'weight_reps',
+    category: 'strength',
+  });
+
+  it('ranks a gym staple above a home one, and a home one above anything else', () => {
+    expect(stapleTier({ name: 'Dumbbell Goblet Squat' })).toBe(2);
+    expect(stapleTier({ name: 'Split Squats' })).toBe(1);
+    expect(stapleTier({ name: 'Kick Out Sit' })).toBe(0);
+  });
+
+  it('keeps the two lists apart, so a full gym week cannot change by adding a home movement', () => {
+    const gym = new Set(Object.values(STAPLES).flat());
+    const shared = Object.values(HOME_STAPLES)
+      .flat()
+      .filter((n) => gym.has(n));
+    // Push-up and dip are staples in both places; the tier decides, and gym wins.
+    expect(shared.sort()).toEqual(['Push-Up', 'Triceps Dip']);
+  });
+
+  it('puts a named body-weight movement in place of whatever merely scores', () => {
+    // The real failure: with body weight alone, the leg work was "One Arm Against Wall".
+    const floor = [
+      ex('wall', 'One Arm Against Wall', 'quads', 'body weight', ['glutes', 'hamstrings']),
+      ex('split', 'Split Squats', 'quads', 'body weight'),
+    ];
+    const ids = buildProgram(floor, { days: 3, equipment: KITS.bodyweight.equipment }).days.flatMap(
+      (d) => d.items.map((i) => i.exercise_id),
+    );
+    expect(ids).toContain('split');
+    expect(ids).not.toContain('wall');
+  });
+
+  it('never lets a home movement displace a gym one', () => {
+    const both = [
+      ex('goblet', 'Dumbbell Goblet Squat', 'quads', 'dumbbell'),
+      ex('bw', 'Quads (bodyweight Squat)', 'quads', 'body weight', ['glutes', 'hamstrings']),
+    ];
+    const ids = buildProgram(both, { days: 3, equipment: KITS.dumbbells.equipment }).days.flatMap(
+      (d) => d.items.map((i) => i.exercise_id),
+    );
+    expect(ids).toContain('goblet');
+    expect(ids).not.toContain('bw');
+  });
+
+  it('says which muscles only got a movement the scoring found', () => {
+    const p = buildProgram(
+      [
+        ex('pushup', 'Push-Up', 'chest', 'body weight'),
+        ex('scap', 'Incline Scapula Push Up', 'shoulders', 'body weight'),
+      ],
+      { days: 3, equipment: KITS.bodyweight.equipment },
+    );
+    expect(p.improvised).toEqual(['shoulders']);
+    // Not improvised and not uncovered are different things: biceps got nothing at all.
+    expect(p.uncovered).toContain('biceps');
+    expect(p.improvised).not.toContain('biceps');
+  });
+
+  it('does not program a boxing drill as shoulder work', () => {
+    const p = buildProgram([ex('hook', 'Left Hook (boxing)', 'shoulders', 'body weight')], {
+      days: 3,
+      equipment: KITS.bodyweight.equipment,
+    });
+    expect(p.uncovered).toContain('shoulders');
+  });
+
+  it('leaves the gym kit exactly the default', () => {
+    const a = buildProgram(catalogue(), { days: 4 });
+    const b = buildProgram(catalogue(), { days: 4, equipment: KITS.gym.equipment });
+    expect(b).toEqual(a);
+  });
+});
+
+describe('summarise', () => {
+  it('reports the floor of the guarantee, and the spread of volume', () => {
+    const p = buildProgram(catalogue(), { days: 3 });
+    const s = summarise(p);
+    expect(s.minFrequency).toBeGreaterThanOrEqual(MIN_FREQUENCY);
+    expect(s.minSets).toBeGreaterThanOrEqual(10);
+    expect(s.maxSets).toBeGreaterThanOrEqual(s.minSets);
+  });
+
+  it('is over what was covered, so one missing muscle does not read as zero for all', () => {
+    const p = buildProgram(catalogue(), { days: 3 });
+    const s = summarise({ ...p, uncovered: ['calves'] });
+    expect(s.minFrequency).toBeGreaterThan(0);
+  });
+
+  it('is all zeros when nothing could be programmed', () => {
+    expect(summarise(buildProgram([], { days: 3 }))).toEqual({
+      minFrequency: 0,
+      minSets: 0,
+      maxSets: 0,
+    });
   });
 });

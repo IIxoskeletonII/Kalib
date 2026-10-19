@@ -43,6 +43,7 @@ const VISITS: Record<string, Visit> = {
   '/train': { url: '/train' },
   '/train/exercise/:id': { url: `/train/exercise/${ID.exercise}` },
   '/train/routine/:id': { url: `/train/routine/${ID.routine}` },
+  '/train/build': { url: '/train/build?days=4&kit=dumbbells' },
   '/train/summary/:id': { url: `/train/summary/${ID.done}` },
   '/coach': { url: '/coach' },
   '/settings': { url: '/settings' },

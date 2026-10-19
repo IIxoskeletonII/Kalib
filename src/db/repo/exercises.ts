@@ -40,6 +40,15 @@ export async function listExerciseDocs(): Promise<ExerciseDoc[]> {
   return docs;
 }
 
+/** Everything a program may be written from: live strength movements, library and own alike. */
+export async function listStrengthExercises(): Promise<Exercise[]> {
+  const out: Exercise[] = [];
+  await db.exercises.each((e) => {
+    if (isLive(e) && e.category === 'strength') out.push(e);
+  });
+  return out;
+}
+
 /** The user's own exercises, newest first. The library is reached through search instead. */
 export async function listCustomExercises(): Promise<Exercise[]> {
   const rows = await db.exercises.where('source').equals('custom').toArray();

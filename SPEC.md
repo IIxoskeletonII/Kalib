@@ -1524,6 +1524,36 @@ swapping a movement is two taps. What it will not do is pretend: muscles it coul
 with the equipment allowed are named rather than quietly dropped, exactly as §20.4 reports
 unpriced sets and §7.4 reports missing micronutrients.
 
+**Three kits, not nine switches** (added 19 Oct 2026). The screen asks *where you train* —
+Gym, Dumbbells (dumbbells, body weight, bands) or Body weight — rather than offering the nine
+equipment toggles, which make 511 combinations of which nobody has read the output. Every day
+count for Gym and Dumbbells is tested against the shipped library to come out entirely from
+named movements.
+
+**A second tier of staples for no gym.** With body weight alone the fallback scoring wrote "One
+Arm Against Wall" in as the leg work and "Kick Out Sit" as the quads, so the home movements are
+named too: push-ups, chin-ups, inverted rows, split squats, inverse leg curls, glute bridges.
+They rank *below* the gym list, so in a full gym a body-weight squat never edges out a goblet
+squat, and the gym weeks are byte-for-byte what they were before. The order of the ranking
+matters and was got wrong first: with the tier ahead of neediness, a dumbbell week never reached
+the lats, because their only staple there is a chin-up and every gym staple outranked it however
+far behind the lats had fallen. So it is *named at all*, then *how far behind*, then *gym over
+home* — the tiers only ever compete for the same muscle.
+
+**What it cannot do, it says.** The library has no pike push-up and nothing body-weight-only
+that trains shoulders or biceps as its own movement. Rather than name the least bad option as
+though it were a staple, the program reports those muscles as **improvised** and the screen
+says so above the list: their picks are stand-ins, swap them for something you can load.
+Boxing drills, which the library files as strength with shoulders as the primary, are never
+programmed — on a body-weight week a left hook had become the shoulder work.
+
+**The screen** (`/train/build`, from *Build a week for me* on Train). Days and kit, a line on
+what the week delivers ("every muscle at least 3× a week, 12–14 sets"), then every day in full.
+The choices live in the URL, so watching an exercise and coming back keeps the week. Adding
+writes one ordinary routine per day *alongside* whatever is there — a preview that replaced
+your routines would be a strange thing for a button to do — numbering any name that clashes,
+with Undo on the toast.
+
 ---
 
 ---
