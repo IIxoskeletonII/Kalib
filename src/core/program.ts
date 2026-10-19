@@ -172,7 +172,7 @@ const SPLITS: Record<number, readonly DayPlan[]> = {
 export const STAPLES: Partial<Record<Muscle, readonly string[]>> = {
   chest: ['Barbell Bench Press', 'Dumbbell Bench Press', 'Barbell Incline Bench Press', 'Push-Up'],
   lats: [
-    'Pull-Up',
+    'Chin-Up',
     'Cable Bar Lateral Pulldown',
     'Barbell Bent Over Row',
     'Dumbbell One Arm Bent-Over Row',
@@ -189,7 +189,7 @@ export const STAPLES: Partial<Record<Muscle, readonly string[]>> = {
   hamstrings: ['Barbell Romanian Deadlift', 'Lever Lying Leg Curl', 'Lever Seated Leg Curl'],
   glutes: ['Barbell Glute Bridge', 'Barbell Lunge', 'Dumbbell Lunge'],
   calves: ['Lever Standing Calf Raise', 'Lever Seated Calf Raise', 'Dumbbell Standing Calf Raise'],
-  abs: ['Hanging Leg Raise', 'Cable Kneeling Crunch', '3/4 Sit-Up'],
+  abs: ['Captains Chair Straight Leg Raise', 'Cable Kneeling Crunch', '3/4 Sit-Up'],
 };
 
 /**
@@ -323,7 +323,12 @@ function isBetter(a: readonly number[], b: readonly number[]): boolean {
 function prescriptionFor(
   e: ProgramExercise,
 ): Pick<RoutineItem, 'rep_low' | 'rep_high' | 'rest_sec'> {
-  const compound = (e.secondary_muscles ?? []).length >= COMPOUND_SECONDARIES;
+  // Core work is never the heavy range, whatever it lists alongside. A 3/4 sit-up names the
+  // quads and the lower back, which made it a "compound" and gave it 6-10 reps at three
+  // minutes' rest, as though it were a squat.
+  const compound =
+    !REGION.Core.includes(e.primary_muscle) &&
+    (e.secondary_muscles ?? []).length >= COMPOUND_SECONDARIES;
   return compound
     ? { rep_low: 6, rep_high: 10, rest_sec: 180 }
     : { rep_low: 10, rep_high: 15, rest_sec: 90 };

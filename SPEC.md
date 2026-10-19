@@ -1554,6 +1554,14 @@ writes one ordinary routine per day *alongside* whatever is there — a preview 
 your routines would be a strange thing for a button to do — numbering any name that clashes,
 with Undo on the toast.
 
+**Two corrections** (v0.36.1). Pull-Up and Hanging Leg Raise were named staples and marked
+advanced in the library, and advanced movements are left out by default, so they could never be
+chosen; they are now Chin-Up and Captain's Chair Leg Raise, and a test against the shipped
+library holds every staple to *not advanced*. And core work is never given the heavy range: a
+3/4 sit-up lists the quads and lower back, which made it a compound by the two-assisting-muscles
+rule, and it was prescribed 6–10 reps at three minutes' rest, like a squat. It is now 10–15 at 90
+seconds like any other isolation.
+
 ---
 
 ---

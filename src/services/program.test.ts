@@ -82,9 +82,14 @@ describe('the shipped library', () => {
     }
   });
 
-  it('has every gym staple', () => {
+  it('has every gym staple, as a strength movement not marked advanced', () => {
+    // Advanced movements are filtered out by default, so a staple marked advanced is one that
+    // can never be chosen. Pull-Up and Hanging Leg Raise sat on this list that way for a release.
     for (const name of Object.values(STAPLES).flat()) {
-      expect(byName.has(name.toLowerCase()), name).toBe(true);
+      const e = byName.get(name.toLowerCase());
+      expect(e, name).toBeDefined();
+      expect(e?.category, name).toBe('strength');
+      expect(e?.difficulty, name).not.toBe('advanced');
     }
   });
 

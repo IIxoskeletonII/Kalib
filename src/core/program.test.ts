@@ -166,6 +166,22 @@ describe('what lands in a session', () => {
     expect(iso?.rest_sec).toBe(90);
   });
 
+  it('never gives core work the heavy range, however much else it lists', () => {
+    const situp: ProgramExercise = {
+      id: 'situp',
+      name: '3/4 Sit-Up',
+      primary_muscle: 'abs',
+      secondary_muscles: ['quads', 'lower back'],
+      equipment: 'body weight',
+      load_type: 'bodyweight_reps',
+      category: 'strength',
+    };
+    const item = buildProgram([situp], { days: 3 })
+      .days.flatMap((d) => d.items)
+      .find((i) => i.exercise_id === 'situp');
+    expect(item).toMatchObject({ rep_low: 10, rep_high: 15, rest_sec: 90 });
+  });
+
   it('prefers the compound, because it closes more of the day at once', () => {
     const p = buildProgram(catalogue(), { days: 6 });
     const legs = p.days.find((d) => d.name === 'Legs A');
@@ -382,8 +398,8 @@ describe('training without a gym', () => {
     const shared = Object.values(HOME_STAPLES)
       .flat()
       .filter((n) => gym.has(n));
-    // Push-up and dip are staples in both places; the tier decides, and gym wins.
-    expect(shared.sort()).toEqual(['Push-Up', 'Triceps Dip']);
+    // Chin-up, push-up and dip are staples in both places; the tier decides, and gym wins.
+    expect(shared.sort()).toEqual(['Chin-Up', 'Push-Up', 'Triceps Dip']);
   });
 
   it('puts a named body-weight movement in place of whatever merely scores', () => {
