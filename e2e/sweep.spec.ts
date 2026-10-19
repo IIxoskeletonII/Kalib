@@ -145,6 +145,42 @@ test.describe('every screen', () => {
   }
 });
 
+test.describe('the sweep itself', () => {
+  // A guard that fails at random gets ignored, and one that passes everything guards nothing,
+  // so the overlap checks are held to both on a page built to sit either side of the line.
+  const page = (bottomRoom: number, scrollTo: number) => `
+    <style>
+      body { margin: 0; }
+      main { height: 100vh; overflow-y: auto; padding-bottom: ${bottomRoom}px; box-sizing: border-box; }
+      main button { display: block; width: 100%; height: 60px; }
+      nav { position: fixed; left: 0; right: 0; bottom: 0; height: 80px; background: #222; }
+      nav button { position: absolute; left: 163px; top: -32px; width: 64px; height: 64px; }
+    </style>
+    <main>${Array.from({ length: 16 }, (_, i) => `<button>Row ${i + 1}</button>`).join('')}</main>
+    <nav><button>Log food</button></nav>
+    <script>document.querySelector('main').scrollTop = ${scrollTo};</script>`;
+
+  const overlaps = (found: string[]) =>
+    found.filter((f) => /answers at its centre|does not reach/.test(f));
+
+  test('a row merely scrolled under the floating button is not a finding', async ({ page: p }) => {
+    // Room to scroll every row clear, and a scroll position that parks one under the button.
+    await p.setContent(page(240, 77));
+    const under = await p.evaluate(() => {
+      const at = document.elementFromPoint(195, 844 - 80 - 10);
+      return at?.textContent ?? '';
+    });
+    expect(under, 'the fixture really does park something under the button').toBe('Log food');
+    expect(overlaps(await inspect(p))).toEqual([]);
+  });
+
+  test('a row that can never scroll clear of it still is', async ({ page: p }) => {
+    // No room below the list, so the last row ends under the tab bar for good.
+    await p.setContent(page(0, 10_000));
+    expect(overlaps(await inspect(p)).join('\n')).toMatch(/Row 16/);
+  });
+});
+
 test.describe('getting around', () => {
   test.describe.configure({ mode: 'parallel', timeout: 2 * 60_000 });
 
@@ -282,6 +318,29 @@ async function inspect(page: Page): Promise<string[]> {
       }
       return '';
     };
+    // Pinned furniture — the tab bar, its floating button, a sticky header — covers whatever
+    // happens to be scrolled beneath it. That is a scroll position, not a defect: a weigh-in row
+    // on /trend landed under the floating Log food button on arrival, depending on how tall the
+    // chart above it had rendered and on which day was today, and the sweep failed a run for it.
+    // So when what answers is pinned, the control is centred and asked again; only a control
+    // that cannot be scrolled clear of the furniture at all is a finding.
+    const pinned = (n: Element | null): boolean => {
+      for (let x = n; x; x = x.parentElement) {
+        const p = getComputedStyle(x).position;
+        if (p === 'fixed' || p === 'sticky') return true;
+      }
+      return false;
+    };
+    const home = main?.scrollTop ?? 0;
+    const homeY = window.scrollY;
+    const clear = (el: Element, ok: () => true | Element | null): boolean => {
+      const first = ok();
+      if (first === true) return true;
+      if (!pinned(first)) return false;
+      el.scrollIntoView({ block: 'center', behavior: 'instant' });
+      return ok() === true;
+    };
+
     const unnamed: string[] = [];
     for (const el of document.querySelectorAll(
       'button, a[href], input, select, [role="button"], [role="tab"]',
@@ -301,24 +360,29 @@ async function inspect(page: Page): Promise<string[]> {
       'button, a[href], input, select, [role="button"], [role="tab"]',
     )) {
       if (!offered(el) || (el as HTMLButtonElement).disabled) continue;
-      const r = el.getBoundingClientRect();
-      if (Math.min(r.width, r.height) >= 44) continue;
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
-      const reaches = (
-        [
-          [cx, cy - 21],
-          [cx, cy + 21],
-          [cx - 21, cy],
-          [cx + 21, cy],
-        ] as const
-      )
-        .filter(([x, y]) => x > 0 && y > 0 && x < innerWidth && y < innerHeight)
-        .every(([x, y]) => {
+      const first = el.getBoundingClientRect();
+      if (Math.min(first.width, first.height) >= 44) continue;
+      // The first point that something else answers, or true when every one reaches the control.
+      const reach = (): true | Element | null => {
+        const r = el.getBoundingClientRect();
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        const points = (
+          [
+            [cx, cy - 21],
+            [cx, cy + 21],
+            [cx - 21, cy],
+            [cx + 21, cy],
+          ] as const
+        ).filter(([x, y]) => x > 0 && y > 0 && x < innerWidth && y < innerHeight);
+        for (const [x, y] of points) {
           const at = document.elementFromPoint(x, y);
-          return at != null && (at === el || el.contains(at) || at.contains(el));
-        });
-      if (!reaches) {
+          if (!(at != null && (at === el || el.contains(at) || at.contains(el)))) return at;
+        }
+        return true;
+      };
+      if (!clear(el, reach)) {
+        const r = el.getBoundingClientRect();
         outOfReach.push(
           `${nameOf(el) || el.tagName.toLowerCase()} ${Math.round(r.width)}x${Math.round(r.height)}`,
         );
@@ -332,14 +396,23 @@ async function inspect(page: Page): Promise<string[]> {
       'button, a[href], input, select, [role="button"], [role="tab"]',
     )) {
       if (!offered(el) || (el as HTMLButtonElement).disabled) continue;
-      const r = el.getBoundingClientRect();
-      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-      if (at && at !== el && !el.contains(at) && !at.contains(el)) {
+      const centre = (): true | Element | null => {
+        const r = el.getBoundingClientRect();
+        const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return at && at !== el && !el.contains(at) && !at.contains(el) ? at : true;
+      };
+      if (!clear(el, centre)) {
+        const at = centre();
+        if (at === true || at == null) continue;
         stolen.push(
           `${nameOf(el) || el.tagName.toLowerCase()} -> ${nameOf(at) || at.tagName.toLowerCase()}`,
         );
       }
     }
+
+    // Put the page back where it arrived; centring controls above is the sweep's doing.
+    main?.scrollTo({ top: home, behavior: 'instant' });
+    window.scrollTo({ top: homeY, behavior: 'instant' });
 
     // Anything that floats at the bottom must stack on the tab bar, not sit on it. The
     // first-run seed banner was drawn exactly over the running-workout bar, and 88 px above
