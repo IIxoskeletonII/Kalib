@@ -147,14 +147,20 @@ test.describe('every screen', () => {
 
 test.describe('the sweep itself', () => {
   // A guard that fails at random gets ignored, and one that passes everything guards nothing,
-  // so the overlap checks are held to both on a page built to sit either side of the line.
-  const page = (bottomRoom: number, scrollTo: number) => `
+  // so the overlap checks are held to both on a page built to sit either side of the line. In
+  // both tab-bar layouts: in flow below <main> with the button rising into it, which is the
+  // app's, and fixed over it. The first version of this test had only the second, and passed
+  // while the sweep went on failing on the first.
+  type Layout = 'flow' | 'fixed';
+  const page = (layout: Layout, bottomRoom: number, scrollTo: number) => `
     <style>
-      body { margin: 0; }
-      main { height: 100vh; overflow-y: auto; padding-bottom: ${bottomRoom}px; box-sizing: border-box; }
-      main button { display: block; width: 100%; height: 60px; }
-      nav { position: fixed; left: 0; right: 0; bottom: 0; height: 80px; background: #222; }
-      nav button { position: absolute; left: 163px; top: -32px; width: 64px; height: 64px; }
+      body { margin: 0; ${layout === 'flow' ? 'height: 100vh; display: flex; flex-direction: column;' : ''} }
+      main { overflow-y: auto; padding-bottom: ${bottomRoom}px; box-sizing: border-box;
+             ${layout === 'flow' ? 'flex: 1; min-height: 0;' : 'height: 100vh;'} }
+      main button { display: block; width: 100%; height: 50px; }
+      nav { height: 80px; background: #222;
+            ${layout === 'flow' ? 'position: relative;' : 'position: fixed; left: 0; right: 0; bottom: 0;'} }
+      nav button { display: block; width: 60px; height: 60px; margin: -28px auto 0; }
     </style>
     <main>${Array.from({ length: 16 }, (_, i) => `<button>Row ${i + 1}</button>`).join('')}</main>
     <nav><button>Log food</button></nav>
@@ -163,21 +169,58 @@ test.describe('the sweep itself', () => {
   const overlaps = (found: string[]) =>
     found.filter((f) => /answers at its centre|does not reach/.test(f));
 
-  test('a row merely scrolled under the floating button is not a finding', async ({ page: p }) => {
-    // Room to scroll every row clear, and a scroll position that parks one under the button.
-    await p.setContent(page(240, 77));
-    const under = await p.evaluate(() => {
-      const at = document.elementFromPoint(195, 844 - 80 - 10);
-      return at?.textContent ?? '';
+  for (const layout of ['flow', 'fixed'] as const) {
+    test(`${layout}: a row merely scrolled under the button is not a finding`, async ({
+      page: p,
+    }) => {
+      // Room to scroll every row clear, and a scroll position that parks Row 16's centre under
+      // the button.
+      await p.setContent(page(layout, 240, 25));
+      const parked = await p.evaluate(() =>
+        [...document.querySelectorAll('main button')].some((b) => {
+          const r = b.getBoundingClientRect();
+          const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          return at?.textContent === 'Log food';
+        }),
+      );
+      expect(parked, 'the fixture really does park a row under the button').toBe(true);
+      expect(overlaps(await inspect(p))).toEqual([]);
     });
-    expect(under, 'the fixture really does park something under the button').toBe('Log food');
-    expect(overlaps(await inspect(p))).toEqual([]);
-  });
 
-  test('a row that can never scroll clear of it still is', async ({ page: p }) => {
-    // No room below the list, so the last row ends under the tab bar for good.
-    await p.setContent(page(0, 10_000));
-    expect(overlaps(await inspect(p)).join('\n')).toMatch(/Row 16/);
+    test(`${layout}: a row that can never scroll clear of it still is`, async ({ page: p }) => {
+      // No room below the list, so the last row ends under the tab bar for good.
+      await p.setContent(page(layout, 0, 10_000));
+      expect(overlaps(await inspect(p)).join('\n')).toMatch(/Row 16/);
+    });
+  }
+  test('the real tab bar: a row parked under Log food is not a finding', async ({ page: p }) => {
+    // The fixtures above are a model of the layout, and a model is what let this check pass
+    // while the sweep kept failing. So once against the app itself, on the screen that failed.
+    await p.goto('/');
+    await seed(p);
+    await open(p, '/trend');
+    // The weigh-in list arrives from a live query after the screen does; under a loaded run it
+    // was not there yet when this first looked. Wait for it rather than for a length of time.
+    await expect(p.locator('main button').filter({ hasText: /kg$/ }).first()).toBeVisible();
+    const parked = await p.evaluate(() => {
+      const main = document.querySelector('main');
+      // A link, not a button: it navigates to the log.
+      const fab = document.querySelector('nav [aria-label="Log food"]');
+      if (!main || !fab) return 'no main or no Log food button';
+      const f = fab.getBoundingClientRect();
+      const row = [...main.querySelectorAll('button')].reverse().find((b) => {
+        const r = b.getBoundingClientRect();
+        return r.width > 300 && r.left < f.left && r.right > f.right;
+      });
+      if (!row) return 'no full-width row on /trend';
+      const r = row.getBoundingClientRect();
+      main.scrollTop += r.top + r.height / 2 - (f.top + f.height / 2);
+      const n = row.getBoundingClientRect();
+      const at = document.elementFromPoint(n.left + n.width / 2, n.top + n.height / 2);
+      return at === fab || fab.contains(at) ? 'parked' : `not parked: ${at?.textContent ?? ''}`;
+    });
+    expect(parked).toBe('parked');
+    expect(overlaps(await inspect(p))).toEqual([]);
   });
 });
 
@@ -318,25 +361,39 @@ async function inspect(page: Page): Promise<string[]> {
       }
       return '';
     };
-    // Pinned furniture — the tab bar, its floating button, a sticky header — covers whatever
-    // happens to be scrolled beneath it. That is a scroll position, not a defect: a weigh-in row
-    // on /trend landed under the floating Log food button on arrival, depending on how tall the
-    // chart above it had rendered and on which day was today, and the sweep failed a run for it.
-    // So when what answers is pinned, the control is centred and asked again; only a control
-    // that cannot be scrolled clear of the furniture at all is a finding.
-    const pinned = (n: Element | null): boolean => {
-      for (let x = n; x; x = x.parentElement) {
+    // Furniture — the tab bar, its floating button, a sticky header — covers whatever happens to
+    // be scrolled beneath it. That is a scroll position, not a defect: a weigh-in row on /trend
+    // landed under the floating Log food button on arrival, depending on how tall the chart
+    // above it had rendered and on which day was today, and the sweep failed runs for it. So
+    // when furniture answers, the control is centred and asked again; only a control that
+    // cannot be scrolled clear of it at all is a finding.
+    //
+    // Furniture is anything fixed or sticky, *or anything outside the scroller the control lives
+    // in*. The first version knew only the first kind, and was tested against a fixed tab bar;
+    // the app's tab bar is in flow below <main>, its button rising into it by a negative margin,
+    // so the fix never applied to the one case that had failed.
+    const scrollerOf = (el: Element): Element | null => {
+      for (let x = el.parentElement; x; x = x.parentElement) {
+        const o = getComputedStyle(x).overflowY;
+        if ((o === 'auto' || o === 'scroll') && x.scrollHeight > x.clientHeight) return x;
+      }
+      return null;
+    };
+    const furniture = (at: Element | null, el: Element): boolean => {
+      if (!at) return false;
+      for (let x: Element | null = at; x; x = x.parentElement) {
         const p = getComputedStyle(x).position;
         if (p === 'fixed' || p === 'sticky') return true;
       }
-      return false;
+      const box = scrollerOf(el);
+      return box != null && !box.contains(at);
     };
     const home = main?.scrollTop ?? 0;
     const homeY = window.scrollY;
     const clear = (el: Element, ok: () => true | Element | null): boolean => {
       const first = ok();
       if (first === true) return true;
-      if (!pinned(first)) return false;
+      if (!furniture(first, el)) return false;
       el.scrollIntoView({ block: 'center', behavior: 'instant' });
       return ok() === true;
     };

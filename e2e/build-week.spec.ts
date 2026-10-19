@@ -57,4 +57,46 @@ test('a week is built, previewed, added as routines, and undone', async ({ page 
     await expect(page).toHaveURL(/\/train$/);
   }
   await expect(page.getByRole('button', { name: /^Upper A \(2\)/ })).toBeVisible();
+
+  // §20.10: the week just written starts at its first day...
+  const upNext = page.getByRole('region', { name: 'Up next' });
+  await expect(upNext).toContainText('Upper A');
+  await expect(upNext).toContainText('first in your list');
+
+  // ...and once that day is done, the card moves on to the one after it.
+  await page.evaluate(async () => {
+    const req = indexedDB.open('kalib');
+    const db = await new Promise<IDBDatabase>((res, rej) => {
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+    type Row = { id: string; name: string; deleted_at?: string | null };
+    const routines = await new Promise<Row[]>((res) => {
+      const r = db.transaction('routines', 'readonly').objectStore('routines').getAll();
+      r.onsuccess = () => res(r.result as Row[]);
+    });
+    // The live one: the week added and undone above is still in the store, soft-deleted, and a
+    // session from a deleted routine rightly says nothing about the rotation.
+    const upper = routines.find((r) => r.name === 'Upper A' && !r.deleted_at);
+    const at = new Date(Date.now() - 26 * 3600_000);
+    const tx = db.transaction('workout_sessions', 'readwrite');
+    tx.objectStore('workout_sessions').put({
+      id: 'e2e-upper-a',
+      user_id: 'local',
+      created_at: at.toISOString(),
+      updated_at: at.toISOString(),
+      started_at: at.toISOString(),
+      ended_at: new Date(at.getTime() + 3600_000).toISOString(),
+      routine_id: upper?.id,
+      name: 'Upper A',
+      entries: [],
+    });
+    await new Promise((r) => (tx.oncomplete = r));
+    db.close();
+  });
+  // Written past Dexie, so its live queries cannot see it; a fresh load is what returning to
+  // Train after finishing a session looks like anyway.
+  await page.reload();
+  await expect(upNext).toContainText('Lower A');
+  await expect(upNext).toContainText('after Upper A');
 });

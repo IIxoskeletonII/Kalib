@@ -1571,6 +1571,29 @@ straight-leg raise — and §20.8 keeps adding reps past the top once it is clea
 only says where to begin. Push-ups, chin-ups and dips are `weighted_bodyweight`: they take a
 vest or a belt, so they keep the loaded ranges.
 
+### 20.10 Which routine is next (added 19 Oct 2026)
+
+A week is a list of days meant to be done in order, and Train listed them side by side with
+nothing saying which was today's. Every session already records the routine it came from, so
+the app knows where you have got to (`core/rotation.ts`).
+
+**Next is the routine after the one done most recently, in the list's own order, wrapping
+round.** It is a rotation, not a calendar: missing Wednesday does not skip Wednesday's session,
+it leaves it next. That is how a rotation-based program is run, and it is the only rule that
+never asks for two sessions to catch up or drops one that has not been done. Reordering the list
+reorders the rotation.
+
+Empty workouts, sessions still running, and sessions from a routine since deleted say nothing
+about the rotation and are skipped, so deleting a routine moves "next" on to what followed it
+rather than back to the start.
+
+On Train it is one card above the list: the routine, its size, and **what it is next after and
+when** ("after Full body A yesterday"), because a suggestion that does not show its working
+reads as the app having an opinion. Once today is trained it says **Next time** and its button
+steps down, so it never reads as asking for a second session. It is absent with fewer than two
+routines, where it would only repeat the list, and while a session is running, which already
+says what is next.
+
 ---
 
 ---

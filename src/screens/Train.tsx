@@ -10,6 +10,7 @@ import { toast } from '@/components/Toast';
 import { Button, Card, EmptyState, ListRow, SectionHeading, Skeleton, fmt } from '@/components/ui';
 import { fromDateKey, toDateKey } from '@/core/dates';
 import { formatDuration } from '@/core/restTimer';
+import { nextRoutine, type NextRoutine } from '@/core/rotation';
 import { MAX_SETS, MIN_SETS, type LoadReport } from '@/core/trainingLoad';
 import { trainingWeek, weekStart } from '@/core/trainingWeek';
 import type { Routine } from '@/core/types';
@@ -68,6 +69,11 @@ export default function Train() {
   const coverage = useWeeklyLoad();
   const weighIns = useWeighIns();
 
+  const next = useMemo(
+    () => (routines && recent ? nextRoutine(routines, recent) : undefined),
+    [routines, recent],
+  );
+
   const week = useMemo(
     () => trainingWeek(recent ?? [], weekStart(), weighIns?.at(-1)?.weight_kg),
     [recent, weighIns],
@@ -122,6 +128,11 @@ export default function Train() {
           </>
         )}
       </section>
+
+      {/* One routine is its own answer, and a running session already says what is next. */}
+      {!active && next && routines && routines.length >= 2 && (
+        <UpNext next={next} onStart={() => void begin(next.routine)} />
+      )}
 
       {active && (
         <Card className="mt-6 p-5" onClick={() => navigate('/train/session')}>
@@ -225,6 +236,60 @@ export default function Train() {
         </section>
       )}
     </div>
+  );
+}
+
+/** "yesterday", "today", or a short weekday and date: as far back as a rotation reaches. */
+function whenDone(key: string): string {
+  const today = toDateKey(new Date());
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  if (key === today) return 'today';
+  if (key === toDateKey(d)) return 'yesterday';
+  return `on ${fromDateKey(key).toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })}`;
+}
+
+/**
+ * The routine after the last one you did (§20.10).
+ *
+ * It says what it is next *after*, because a suggestion that does not show its working reads
+ * as the app having an opinion. Once today is trained it turns into "next time" and its button
+ * steps down, so it never reads as asking for a second session.
+ */
+function UpNext({ next, onStart }: { next: NextRoutine; onStart: () => void }) {
+  const { routine, after, after_date, trained_today } = next;
+  const count = `${routine.items.length} exercise${routine.items.length === 1 ? '' : 's'}`;
+  return (
+    <section className="mt-6" aria-label={trained_today ? 'Next time' : 'Up next'}>
+      <Card className="p-5">
+        <div className="text-[13px] font-semibold text-muted">
+          {trained_today ? 'Next time' : 'Up next'}
+        </div>
+        <div className="mt-1 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[20px] leading-tight font-bold">{routine.name}</div>
+            <div className="mt-0.5 text-[13px] text-muted">
+              {after && after_date
+                ? `${count}, after ${after.name} ${whenDone(after_date)}`
+                : `${count}, first in your list`}
+            </div>
+          </div>
+          <Button
+            variant={trained_today ? 'secondary' : 'primary'}
+            size="sm"
+            icon={Play}
+            aria-label={`Start ${routine.name}`}
+            onClick={onStart}
+          >
+            Start
+          </Button>
+        </div>
+      </Card>
+    </section>
   );
 }
 
