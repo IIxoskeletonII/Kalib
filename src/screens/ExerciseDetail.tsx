@@ -1,10 +1,10 @@
 // SPEC §20.2 / §20.5 — one exercise: how it is done, what you have lifted on it, and when.
-import { ChevronLeft } from 'lucide-react';
+import { Bandage, ChevronLeft } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { ExerciseDemo } from '@/components/ExerciseDemo';
 import { ProgressChart } from '@/components/ProgressChart';
-import { Badge, Card, EmptyState, IconButton, Row, SectionHeading } from '@/components/ui';
+import { Badge, Button, Card, EmptyState, IconButton, Row, SectionHeading } from '@/components/ui';
 import { MUSCLE_LABEL } from '@/core/muscles';
 import { formatDuration } from '@/core/restTimer';
 import { isWorkingSet } from '@/core/sets';
@@ -39,6 +39,7 @@ export default function ExerciseDetail() {
   const unit = useWeightUnit();
   const progress = useExerciseProgress(exercise);
   const back = useBack('/train');
+  const navigate = useNavigate();
 
   const display = useCallback(
     (v: number) => (progress?.metric === 'e1rm' ? toDisplay(v, unit) : v),
@@ -92,6 +93,17 @@ export default function ExerciseDetail() {
           {exercise.secondary_muscles.map((m) => MUSCLE_LABEL[m].toLowerCase()).join(', ')}.
         </p>
       )}
+
+      {/* §20.16: the question an exercise screen is often opened to answer. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        icon={Bandage}
+        className="mt-2 px-1"
+        onClick={() => navigate(`/train/injury?exercise=${encodeURIComponent(exercise.id)}`)}
+      >
+        Something hurts?
+      </Button>
 
       {exercise.instructions && exercise.instructions.length > 0 && (
         <section className="mt-7">

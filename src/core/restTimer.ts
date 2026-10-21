@@ -46,6 +46,30 @@ export function isRestDone(t: RestTimer, now: Date = new Date()): boolean {
   return restRemaining(t, now) === 0;
 }
 
+/**
+ * How late a rest-end alert may still sound. A chime is news that the rest is over *now*; heard
+ * on returning to the app three minutes after the rest ended, it would be news about the past,
+ * and a noise from a phone in a gym bag is worse than none. Ten seconds covers a throttled tick
+ * and a screen woken just after the end, and nothing longer.
+ */
+export const REST_ALERT_GRACE_SEC = 10;
+
+/**
+ * Whether the end of this rest should be announced, given the end already announced. One alert
+ * per end instant: "+15 s" after the alert moves the end and earns a second one, which is right,
+ * since there is now a new end to announce. A rest of nothing never sounds — there was nothing
+ * to wait for.
+ */
+export function restAlertDue(
+  t: RestTimer,
+  now: Date = new Date(),
+  alreadyAlerted?: string,
+): boolean {
+  if (t.duration_sec <= 0 || t.ends_at === alreadyAlerted) return false;
+  if (!Number.isFinite(new Date(t.ends_at).getTime())) return false;
+  return isRestDone(t, now) && restOverrun(t, now) <= REST_ALERT_GRACE_SEC;
+}
+
 /** 0 to 1, for a ring or a bar. A zero-length rest reads as finished rather than dividing by it. */
 export function restProgress(t: RestTimer, now: Date = new Date()): number {
   if (t.duration_sec <= 0) return 1;
@@ -56,13 +80,17 @@ export function restProgress(t: RestTimer, now: Date = new Date()): number {
  * Moves the end instant without restarting: "+15 s" during a rest should add fifteen seconds
  * to what is left, not begin a fresh countdown. Never lands before now, so a double tap of
  * "−15" on a nearly finished rest simply ends it.
+ *
+ * A rest ended that way is recorded as a rest of nothing. That is what it became — the person
+ * chose not to wait — and it is what keeps the end-of-rest chime quiet (`restAlertDue`): the
+ * chime is for someone looking away, and someone pressing "−15" is looking at the screen.
  */
 export function adjustRest(t: RestTimer, delta_sec: number, now: Date = new Date()): RestTimer {
   const end = new Date(t.ends_at).getTime() + delta_sec * 1000;
   const floor = now.getTime();
-  const ends = Math.max(floor, end);
+  if (end <= floor) return { ends_at: new Date(floor).toISOString(), duration_sec: 0 };
   return {
-    ends_at: new Date(ends).toISOString(),
+    ends_at: new Date(end).toISOString(),
     duration_sec: Math.max(0, Math.min(MAX_REST_SEC, t.duration_sec + Math.round(delta_sec))),
   };
 }

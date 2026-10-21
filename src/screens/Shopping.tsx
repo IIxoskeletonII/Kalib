@@ -2,22 +2,37 @@
 import { Check, ChevronLeft, Share2 } from 'lucide-react';
 import { useState } from 'react';
 import { NumberPad } from '@/components/NumberPad';
-import { Button, Card, IconButton, SectionHeading, Sheet, fmt } from '@/components/ui';
+import { Button, Card, IconButton, SectionHeading, Sheet } from '@/components/ui';
+import {
+  defaultPackValue,
+  foodMassUnit,
+  formatBulkMass,
+  packEntryGrams,
+  priceMassLabel,
+  pricePerKgFrom,
+  pricePerMassUnit,
+  type UnitSystem,
+} from '@/core/measure';
 import { shoppingListText, type ShoppingLine } from '@/core/planner';
 import { useBack } from '@/hooks/useBack';
 import { usePlan } from '@/hooks/useData';
+import { useUnitSystem } from '@/hooks/useUnits';
 import { shareText } from '@/platform/share';
 import { savePrice, thisWeek, toggleChecked } from '@/services/planner';
 
 export default function Shopping() {
   const back = useBack('/plan');
   const ctx = usePlan(thisWeek());
+  const units = useUnitSystem();
   const [pricing, setPricing] = useState<ShoppingLine | null>(null);
   const [shared, setShared] = useState(false);
 
   const share = async () => {
     if (!ctx) return;
-    const r = await shareText('Kalib — shopping list', shoppingListText(ctx.list, ctx.currency));
+    const r = await shareText(
+      'Kalib — shopping list',
+      shoppingListText(ctx.list, ctx.currency, units),
+    );
     if (r === 'copied') {
       setShared(true);
       setTimeout(() => setShared(false), 1800);
@@ -79,8 +94,7 @@ export default function Shopping() {
                       {l.name.split(',').slice(0, 2).join(',')}
                     </span>
                     <span className="block truncate text-[13px] text-muted tabular">
-                      {l.grams >= 1000 ? `${(l.grams / 1000).toFixed(2)} kg` : `${fmt(l.grams)} g`}{' '}
-                      · {l.recipes.join(', ')}
+                      {formatBulkMass(l.grams, units)} · {l.recipes.join(', ')}
                     </span>
                   </button>
                   <button
@@ -99,7 +113,8 @@ export default function Shopping() {
                         <span className="block text-[11px] text-muted">
                           {l.estimated ? 'est. ' : ''}
                           {ctx.currency}
-                          {l.price_per_kg!.toFixed(2)}/kg
+                          {pricePerMassUnit(l.price_per_kg!, units).toFixed(2)}/
+                          {priceMassLabel(units)}
                         </span>
                       </>
                     ) : (
@@ -152,6 +167,7 @@ export default function Shopping() {
           <PriceForm
             key={pricing.food_id}
             currency={ctx.currency}
+            units={units}
             initial={pricing.price_per_kg}
             grams={pricing.grams}
             onSave={async (perKg) => {
@@ -167,23 +183,31 @@ export default function Shopping() {
 
 function PriceForm({
   currency,
+  units,
   initial,
   grams,
   onSave,
 }: {
   currency: string;
+  units: UnitSystem;
   initial: number | undefined;
   grams: number;
   onSave: (perKg: number) => Promise<void>;
 }) {
+  // Prices are kept per kilo whatever is shown (§22); a US shopper types them per pound, and a
+  // pack's weight in ounces, because that is what the shelf label says.
+  const per = priceMassLabel(units);
   const [mode, setMode] = useState<'kg' | 'pack'>('kg');
-  const [price, setPrice] = useState(initial != null ? initial.toFixed(2) : '');
-  const [packG, setPackG] = useState('500');
+  const [price, setPrice] = useState(
+    initial != null ? pricePerMassUnit(initial, units).toFixed(2) : '',
+  );
+  const [packG, setPackG] = useState(defaultPackValue(units));
   const [field, setField] = useState<'price' | 'pack'>('price');
   const [pristine, setPristine] = useState(true);
   const p = Number(price) || 0;
-  const pack = Number(packG) || 0;
-  const perKg = mode === 'kg' ? p : pack > 0 ? (p / pack) * 1000 : 0;
+  const packGrams = packEntryGrams(Number(packG) || 0, units);
+  const perKg =
+    mode === 'kg' ? pricePerKgFrom(p, units) : packGrams > 0 ? (p / packGrams) * 1000 : 0;
   return (
     <div className="space-y-4">
       <div className="flex gap-1.5" role="radiogroup" aria-label="Price given per">
@@ -200,7 +224,7 @@ function PriceForm({
             }}
             className={`h-9 flex-1 rounded-full text-[14px] ${mode === m ? 'bg-primary font-semibold text-on-primary' : 'bg-surface-2 text-ink'}`}
           >
-            {m === 'kg' ? 'Price per kg' : 'Price of a pack'}
+            {m === 'kg' ? `Price per ${per}` : 'Price of a pack'}
           </button>
         ))}
       </div>
@@ -218,7 +242,7 @@ function PriceForm({
             {price === '' ? <span className="text-surface-3">0</span> : price}
           </span>
           <span className="block text-[12px] text-muted">
-            {mode === 'kg' ? 'per kg' : 'per pack'}
+            {mode === 'kg' ? `per ${per}` : 'per pack'}
           </span>
         </button>
         {mode === 'pack' && (
@@ -232,7 +256,7 @@ function PriceForm({
           >
             <span className="text-[26px] font-bold tabular">
               {packG || <span className="text-surface-3">0</span>}
-              <span className="ml-1 text-[13px] font-medium text-muted">g</span>
+              <span className="ml-1 text-[13px] font-medium text-muted">{foodMassUnit(units)}</span>
             </span>
             <span className="block text-[12px] text-muted">pack weight</span>
           </button>
@@ -240,7 +264,7 @@ function PriceForm({
       </div>
       <p className="text-[13px] text-muted tabular">
         {perKg > 0
-          ? `${currency}${perKg.toFixed(2)} per kg → ${currency}${((grams / 1000) * perKg).toFixed(2)} for this week’s ${grams >= 1000 ? `${(grams / 1000).toFixed(2)} kg` : `${fmt(grams)} g`}`
+          ? `${currency}${pricePerMassUnit(perKg, units).toFixed(2)} per ${per} → ${currency}${((grams / 1000) * perKg).toFixed(2)} for this week’s ${formatBulkMass(grams, units)}`
           : 'Remembered for every plan from now on.'}
       </p>
       <NumberPad
@@ -250,7 +274,7 @@ function PriceForm({
           setPristine(false);
         }}
         onSubmit={() => perKg > 0 && void onSave(Math.round(perKg * 100) / 100)}
-        decimal={field === 'price'}
+        decimal={field === 'price' || units === 'us'}
         maxDigits={6}
       />
       <Button

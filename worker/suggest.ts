@@ -2,17 +2,16 @@
 // a cheap text model through OpenRouter. This week's publisher titles (worker/trends.ts) are
 // offered as themes so the batch follows what people are cooking now. The client grounds the
 // ingredients (§9.4) and treats every number as an estimate until the user replaces it.
+import { callJson, DEFAULT_MODEL, type OpenRouterEnv } from './openrouter';
 import type { TrendItem } from './trends';
 
-export interface SuggestEnv {
-  OPENROUTER_API_KEY?: string;
+export interface SuggestEnv extends OpenRouterEnv {
   /** Text model for suggestions; falls back to the vision model, then the default. */
   TEXT_MODEL?: string;
   VISION_MODEL?: string;
 }
 
-export const DEFAULT_TEXT_MODEL = 'google/gemini-3.1-flash-lite';
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+export const DEFAULT_TEXT_MODEL = DEFAULT_MODEL;
 
 /** Preference cards. The phrase is what the model is told; the id is what the client stores. */
 export const SUGGEST_TAGS: Record<string, string> = {
@@ -258,53 +257,18 @@ export async function runSuggest(
   if (!env.OPENROUTER_API_KEY) {
     return { ok: false, status: 503, error: 'Suggestions are not set up on the server yet.' };
   }
-  const model = env.TEXT_MODEL || env.VISION_MODEL || DEFAULT_TEXT_MODEL;
-  const body = {
-    model,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userPrompt(req, ctx) },
-    ],
-    temperature: 0.8,
-    max_tokens: 6000,
-    response_format: {
-      type: 'json_schema',
-      json_schema: { name: 'recipe_suggestions', strict: true, schema: SCHEMA },
+  return callJson(
+    {
+      model: env.TEXT_MODEL || env.VISION_MODEL || DEFAULT_TEXT_MODEL,
+      system: SYSTEM_PROMPT,
+      user: userPrompt(req, ctx),
+      temperature: 0.8,
+      max_tokens: 6000,
+      schemaName: 'recipe_suggestions',
+      schema: SCHEMA,
+      service: 'suggestion service',
     },
-  };
-  let res: Response;
-  try {
-    res = await fetchImpl(OPENROUTER_URL, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-        'content-type': 'application/json',
-        'http-referer': 'https://kalib.kalib.workers.dev',
-        'x-title': 'Kalib',
-      },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return { ok: false, status: 502, error: 'Could not reach the suggestion service.' };
-  }
-  if (!res.ok) {
-    const text = (await res.text()).slice(0, 300);
-    return { ok: false, status: 502, error: `Suggestion service error ${res.status}: ${text}` };
-  }
-  const data = (await res.json()) as {
-    choices?: { message?: { content?: string | { type: string; text?: string }[] } }[];
-  };
-  const raw = data.choices?.[0]?.message?.content;
-  const text =
-    typeof raw === 'string' ? raw : Array.isArray(raw) ? raw.map((c) => c.text ?? '').join('') : '';
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start < 0 || end <= start) {
-    return { ok: false, status: 502, error: 'The model returned no JSON.' };
-  }
-  try {
-    return { ok: true, result: JSON.parse(text.slice(start, end + 1)), model };
-  } catch {
-    return { ok: false, status: 502, error: 'The model returned malformed JSON.' };
-  }
+    env,
+    fetchImpl,
+  );
 }

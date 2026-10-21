@@ -15,8 +15,21 @@ import {
   WHTR_HEALTHY_MAX,
 } from '@/core/body';
 import { cyclePhaseLabel } from '@/core/cycle';
+import {
+  bodyUnit,
+  entryText,
+  fromBodyUnit,
+  fromLengthUnit,
+  isPlausibleBodyWeight,
+  lengthUnit,
+  parseDecimal,
+  toBodyUnit,
+  toLengthUnit,
+  type UnitSystem,
+} from '@/core/measure';
 import { clearWaist, deleteWeighIn, upsertWeighIn } from '@/db/repo/weighIns';
 import { useCycle, useProfile, useWeighIns } from '@/hooks/useData';
+import { useUnitSystem } from '@/hooks/useUnits';
 import { addCycleStart, removeCycleStart } from '@/services/cycle';
 import { NumberPad } from './NumberPad';
 import { Button, IconButton, Segmented, Sheet } from './ui';
@@ -36,6 +49,7 @@ export interface WeighInSheetProps {
  */
 export function WeighInSheet({ open, date, onClose }: WeighInSheetProps) {
   const weighIns = useWeighIns();
+  const units = useUnitSystem();
   const today = weighIns?.find((w) => w.date === date);
   const previous = weighIns?.filter((w) => w.date < date).at(-1);
   const previousWaist = weighIns?.filter((w) => w.date < date && w.waist_cm != null).at(-1);
@@ -51,8 +65,9 @@ export function WeighInSheet({ open, date, onClose }: WeighInSheetProps) {
           Waiting for the weigh-ins to load keeps it from starting on an empty pad. */}
       {open && weighIns !== undefined && (
         <WeighInForm
-          key={`${date}:${measured.current ?? ''}:${measured.currentWaist ?? ''}`}
+          key={`${date}:${units}:${measured.current ?? ''}:${measured.currentWaist ?? ''}`}
           date={date}
+          units={units}
           onClose={onClose}
           {...measured}
         />
@@ -74,13 +89,18 @@ function WeighInForm({
   currentWaist,
   previous,
   previousWaist,
+  units,
   onClose,
-}: Measured & { date: string; onClose: () => void }) {
+}: Measured & { date: string; units: UnitSystem; onClose: () => void }) {
   const profile = useProfile();
   const cycle = useCycle(date);
   const [field, setField] = useState<Field>('weight');
-  const [weight, setWeight] = useState(current != null ? String(current) : '');
-  const [waist, setWaist] = useState(currentWaist != null ? String(currentWaist) : '');
+  // The pad shows a stored reading in the units on screen (§22). Until it is typed over, saving
+  // writes back the stored figure itself: 81.6 kg shown as 179.9 lb is not resaved as 81.598.
+  const shownWeight = current != null ? entryText(toBodyUnit(current, units), 1) : '';
+  const shownWaist = currentWaist != null ? entryText(toLengthUnit(currentWaist, units), 1) : '';
+  const [weight, setWeight] = useState(shownWeight);
+  const [waist, setWaist] = useState(shownWaist);
   // "Pristine" means the shown value came from storage: the first keystroke replaces it rather
   // than appending to it, which is what a person expects from a pad.
   const [pristine, setPristine] = useState<Record<Field, boolean>>({
@@ -103,15 +123,24 @@ function WeighInForm({
     setPristine((p) => ({ ...p, [field]: false }));
   };
 
-  const kg = Number(weight);
-  const weightValid = weight !== '' && Number.isFinite(kg) && kg >= 20 && kg <= 400;
-  const cm = Number(waist);
+  const kg =
+    current != null && weight === shownWeight
+      ? current
+      : fromBodyUnit(parseDecimal(weight) ?? NaN, units);
+  const weightValid = weight !== '' && isPlausibleBodyWeight(kg);
+  const cm =
+    currentWaist != null && waist === shownWaist
+      ? currentWaist
+      : fromLengthUnit(parseDecimal(waist) ?? NaN, units);
   const waistFilled = waist !== '';
-  const waistValid = waistFilled && Number.isFinite(cm) && isPlausibleWaist(cm);
+  const waistValid = waistFilled && isPlausibleWaist(cm);
   const canSave = weightValid && (!waistFilled || waistValid);
 
+  // Everything the pad shows is in the units on screen; the arithmetic stays metric.
+  const shown = (metric: number) =>
+    field === 'weight' ? toBodyUnit(metric, units) : toLengthUnit(metric, units);
   const placeholder = field === 'weight' ? previous : previousWaist;
-  const unit = field === 'weight' ? 'kg' : 'cm';
+  const unit = field === 'weight' ? bodyUnit(units) : lengthUnit(units);
   const delta =
     field === 'weight'
       ? previous != null && weightValid
@@ -158,7 +187,11 @@ function WeighInForm({
         <div className="display">
           {value === '' ? (
             <span className="text-surface-3">
-              {placeholder != null ? placeholder.toFixed(1) : field === 'weight' ? '0.0' : '--'}
+              {placeholder != null
+                ? shown(placeholder).toFixed(1)
+                : field === 'weight'
+                  ? '0.0'
+                  : '--'}
             </span>
           ) : (
             value
@@ -168,7 +201,7 @@ function WeighInForm({
         {delta != null && value !== '' && (
           <div className={`tabular text-[15px] ${delta <= 0 ? 'text-fiber' : 'text-fat'}`}>
             {delta > 0 ? '+' : ''}
-            {delta.toFixed(1)} {unit} vs last
+            {shown(delta).toFixed(1)} {unit} vs last
           </div>
         )}
       </div>
@@ -183,7 +216,7 @@ function WeighInForm({
               <p className="text-ink-2">
                 <span className="font-semibold">{rfm.toFixed(0)}% body fat</span>{' '}
                 <span className="text-muted">
-                  {bodyFatBasis({ pct: rfm, source: 'waist', waist_cm: cm })}
+                  {bodyFatBasis({ pct: rfm, source: 'waist', waist_cm: cm }, units)}
                 </span>
               </p>
               <p className="text-muted">
@@ -195,7 +228,7 @@ function WeighInForm({
           ) : (
             <p className="text-muted">
               {waistFilled && !waistValid
-                ? `A waist reading belongs between ${WAIST_MIN_CM} and ${WAIST_MAX_CM} cm.`
+                ? `A waist reading belongs between ${Math.ceil(toLengthUnit(WAIST_MIN_CM, units))} and ${Math.floor(toLengthUnit(WAIST_MAX_CM, units))} ${lengthUnit(units)}.`
                 : 'Measure at the navel, relaxed, after breathing out. It moves when the scale will not.'}
             </p>
           )}

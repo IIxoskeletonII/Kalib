@@ -23,6 +23,8 @@ export interface DayState {
   supplements_total: number;
   /** Millilitres still to drink against the day's target (0 when there is no target). */
   water_left_ml: number;
+  /** The phone shows US units (SPEC §22): the water still to drink is said in fluid ounces. */
+  us_units?: boolean;
 }
 
 export interface StoredSubscription {
@@ -319,6 +321,8 @@ export function outstanding(
   log: boolean;
   supplements: number;
   water_ml: number;
+  /** Say the water in fluid ounces. */
+  us_units: boolean;
   any: boolean;
 } {
   const day = s.day?.date === date ? s.day : undefined;
@@ -327,7 +331,14 @@ export function outstanding(
   const log = day ? !day.logged : (s.lastLoggedDate ?? '') < date;
   const supplements = day?.supplements_left ?? 0;
   const water_ml = day?.water_left_ml ?? 0;
-  return { weigh, log, supplements, water_ml, any: log || supplements > 0 || water_ml > 0 };
+  return {
+    weigh,
+    log,
+    supplements,
+    water_ml,
+    us_units: day?.us_units === true,
+    any: log || supplements > 0 || water_ml > 0,
+  };
 }
 
 /**
@@ -389,7 +400,13 @@ export function addLocalDay(date: string): string {
   return dt.toISOString().slice(0, 10);
 }
 
-/** Plain English for what is left, longest-standing first: "2 vitamins and 1.4 L of water". */
+/** The US customary fluid ounce in millilitres (231 in³ / 128), as src/core/measure.ts has it. */
+const ML_PER_FL_OZ = (231 * 2.54 ** 3) / 128;
+
+/**
+ * Plain English for what is left, longest-standing first: "2 vitamins and 1.4 L of water", or
+ * "… and 47 fl oz of water" for a phone set to US units.
+ */
 export function outstandingText(left: ReturnType<typeof outstanding>): string {
   const parts: string[] = [];
   if (left.log) parts.push('nothing logged');
@@ -398,7 +415,12 @@ export function outstandingText(left: ReturnType<typeof outstanding>): string {
   }
   if (left.water_ml > 0) {
     const l = left.water_ml / 1000;
-    parts.push(`${l >= 1 ? `${l.toFixed(1)} L` : `${Math.round(left.water_ml)} ml`} of water`);
+    const amount = left.us_units
+      ? `${Math.max(1, Math.round(left.water_ml / ML_PER_FL_OZ))} fl oz`
+      : l >= 1
+        ? `${l.toFixed(1)} L`
+        : `${Math.round(left.water_ml)} ml`;
+    parts.push(`${amount} of water`);
   }
   if (parts.length === 0) return '';
   if (parts.length === 1) return parts[0]!;

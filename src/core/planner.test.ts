@@ -194,6 +194,10 @@ describe('shopping list', () => {
     const text = shoppingListText(list, '€');
     expect(text).toMatch(/Chicken, breast — 2\.60 kg \(€24\.70\)/);
     expect(text).toContain('3 items unpriced');
+    // §22: the same list for someone shopping in pounds. The cost does not move.
+    const us = shoppingListText(list, '$', 'us');
+    expect(us).toMatch(/Chicken, breast — 5\.7 lb \(\$24\.70\)/);
+    expect(shoppingListText(list, '€', 'metric')).toBe(text);
   });
 });
 

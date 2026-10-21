@@ -3,9 +3,29 @@
 import { AlertTriangle } from 'lucide-react';
 import { useId, useMemo, useState, type ReactNode } from 'react';
 import { ageOn, todayKey } from '@/core/dates';
+import {
+  bodyUnit,
+  cmToFeetInches,
+  entryText,
+  feetInchesToCm,
+  formatRate,
+  fromBodyUnit,
+  isPlausibleBodyWeight,
+  isPlausibleHeight,
+  isRateChoice,
+  parseDecimal,
+  RATE_CHOICES,
+  toBodyUnit,
+  waterTotalValue,
+  waterUnit,
+  type UnitSystem,
+} from '@/core/measure';
 import { computeTargets, type Targets } from '@/core/targets';
 import type { ActivityLevel, Mode, Profile, Sex } from '@/core/types';
 import type { ProfileInput } from '@/db/repo/profiles';
+import { useUnitSystem } from '@/hooks/useUnits';
+import { setUnitSystem } from '@/services/units';
+import { UNIT_SYSTEM_HINT, UNIT_SYSTEM_OPTIONS } from './UnitsCard';
 import { Button, Chip, Row, Segmented, fmt } from './ui';
 
 export interface ProfileFormValues extends ProfileInput {
@@ -32,12 +52,10 @@ const MODE_HINT: Record<Mode, string> = {
   RECOMP: 'Small deficit (≤ 10 %), protein at the upper bound.',
   BULK: 'Lean surplus sized to your gain rate, clamped to 5–15 %.',
 };
-const RATES = [0.25, 0.5, 0.75, 1.0];
 /** Shown only while the field is empty, in whatever order the phone writes dates. */
 const BIRTH_EXAMPLE = new Date(1994, 4, 12).toLocaleDateString();
 /** Nobody logging their macros was born today; this also blocks a stray future date. */
 const MAX_BIRTH = todayKey();
-const BULK_RATES = [0.125, 0.25, 0.375, 0.5];
 
 export function ProfileForm({
   initial,
@@ -58,31 +76,52 @@ export function ProfileForm({
   onSubmit: (values: ProfileFormValues) => Promise<void>;
   onCancel?: (() => void) | undefined;
 }) {
+  const units = useUnitSystem();
   const [name, setName] = useState(initialName ?? '');
   const [sex, setSex] = useState<Sex>(initial?.sex ?? 'male');
   const [birth, setBirth] = useState(initial?.birth_date ?? '');
-  const [height, setHeight] = useState(initial ? String(initial.height_cm) : '');
-  const [weight, setWeight] = useState('');
+  // Lengths and weights are held as typed, in the units on screen, and converted once on the
+  // way out (§22). Each also remembers the stored value it opened on: a field nobody touched
+  // saves exactly what was there, not its rounded conversion — 178 cm shown as 5 ft 10 in must
+  // not come back as 177.8.
+  const [height, setHeight] = useState<HeightFields>(() => heightFields(initial?.height_cm));
+  const [weight, setWeight] = useState<BodyField>({ text: '' });
   const [bodyfat, setBodyfat] = useState(
     initial?.bodyfat_pct != null ? String(initial.bodyfat_pct) : '',
   );
-  const [targetW, setTargetW] = useState(
-    initial?.target_weight_kg != null ? String(initial.target_weight_kg) : '',
+  const [targetW, setTargetW] = useState<BodyField>(() =>
+    bodyField(initial?.target_weight_kg, units),
   );
   const [activity, setActivity] = useState<ActivityLevel>(initial?.activity_level ?? 'light');
   const [mode, setMode] = useState<Mode>(initial?.mode ?? 'CUT');
-  const [rate, setRate] = useState(initial?.goal_rate_kg_per_week || 0.5);
+  // Untouched, a new profile's rate is the second chip of whichever units are showing: half a
+  // kilo, or a pound, a week. A stored rate is kept as stored until a chip is tapped.
+  const [chosenRate, setRate] = useState<number | undefined>(
+    initial?.goal_rate_kg_per_week || undefined,
+  );
+  const rate = chosenRate ?? fromBodyUnit(RATE_CHOICES[units].cut[1]!, units);
   const [busy, setBusy] = useState(false);
   const ids = useId();
 
-  const n = (s: string) => (s.trim() === '' ? undefined : Number(s.replace(',', '.')));
+  // The units can change under the form: in onboarding from the switch at its top, and on any
+  // screen when the first read of the setting lands after the form mounted. What was typed is
+  // converted, not cleared, and an untouched field re-renders its stored value.
+  const [shownIn, setShownIn] = useState<UnitSystem>(units);
+  if (shownIn !== units) {
+    setShownIn(units);
+    setHeight((h) => convertHeight(h, shownIn));
+    setWeight((w) => convertBody(w, shownIn, units));
+    setTargetW((t) => convertBody(t, shownIn, units));
+  }
+
+  const n = (s: string) => parseDecimal(s);
   const values: ProfileFormValues | undefined = useMemo(() => {
-    const h = n(height);
-    if (!birth || !h || h < 100 || h > 250) return undefined;
-    const w = n(weight);
-    if (askWeight && (!w || w < 20 || w > 400)) return undefined;
+    const h = heightCm(height, units);
+    if (!birth || h == null || !isPlausibleHeight(h)) return undefined;
+    const w = bodyKg(weight, units);
+    if (askWeight && (w == null || !isPlausibleBodyWeight(w))) return undefined;
     const bf = n(bodyfat);
-    const tw = n(targetW);
+    const tw = bodyKg(targetW, units);
     if (bf == null && tw == null) return undefined;
     const v: ProfileFormValues = {
       name: name.trim(),
@@ -97,7 +136,7 @@ export function ProfileForm({
     if (tw != null && tw > 0) v.target_weight_kg = tw;
     if (w != null) v.weight_kg = w;
     return v;
-  }, [name, sex, birth, height, weight, bodyfat, targetW, activity, mode, rate, askWeight]);
+  }, [name, sex, birth, height, weight, bodyfat, targetW, activity, mode, rate, askWeight, units]);
 
   const preview: Targets | undefined = useMemo(() => {
     const w = values?.weight_kg ?? latestWeight;
@@ -115,6 +154,8 @@ export function ProfileForm({
     });
   }, [values, latestWeight]);
 
+  const rateChips = mode === 'BULK' ? RATE_CHOICES[units].bulk : RATE_CHOICES[units].cut;
+
   return (
     <form
       className="space-y-6"
@@ -129,6 +170,17 @@ export function ProfileForm({
         }
       }}
     >
+      {/* Onboarding asks before the first number: every field below is typed in it. */}
+      {askWeight && (
+        <Field label="Units" hint={UNIT_SYSTEM_HINT[units]}>
+          <Segmented
+            value={units}
+            options={UNIT_SYSTEM_OPTIONS}
+            onChange={(u) => void setUnitSystem(u)}
+          />
+        </Field>
+      )}
+
       <Field label="Your name" htmlFor={`${ids}-name`}>
         <input
           id={`${ids}-name`}
@@ -173,29 +225,58 @@ export function ProfileForm({
           </div>
         </Field>
         <Field label="Height" htmlFor={`${ids}-height`}>
-          <Unit unit="cm">
-            <input
-              id={`${ids}-height`}
-              type="text"
-              inputMode="numeric"
-              value={height}
-              onChange={(e) => setHeight(e.target.value)}
-              className={INPUT}
-              placeholder="e.g. 175"
-            />
-          </Unit>
+          {units === 'us' ? (
+            // Feet and inches, the way a US height is said and written on a licence.
+            <div className="grid grid-cols-2 gap-2">
+              <Unit unit="ft">
+                <input
+                  id={`${ids}-height`}
+                  type="text"
+                  inputMode="numeric"
+                  aria-label="Height, feet"
+                  value={height.feet}
+                  onChange={(e) => setHeight(typed(height, { feet: e.target.value }))}
+                  className={INPUT}
+                  placeholder="5"
+                />
+              </Unit>
+              <Unit unit="in">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  aria-label="Height, inches"
+                  value={height.inches}
+                  onChange={(e) => setHeight(typed(height, { inches: e.target.value }))}
+                  className={INPUT}
+                  placeholder="9"
+                />
+              </Unit>
+            </div>
+          ) : (
+            <Unit unit="cm">
+              <input
+                id={`${ids}-height`}
+                type="text"
+                inputMode="numeric"
+                value={height.cm}
+                onChange={(e) => setHeight(typed(height, { cm: e.target.value }))}
+                className={INPUT}
+                placeholder="e.g. 175"
+              />
+            </Unit>
+          )}
         </Field>
         {askWeight && (
           <Field label="Weight today" htmlFor={`${ids}-weight`}>
-            <Unit unit="kg">
+            <Unit unit={bodyUnit(units)}>
               <input
                 id={`${ids}-weight`}
                 type="text"
                 inputMode="decimal"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
+                value={weight.text}
+                onChange={(e) => setWeight({ text: e.target.value })}
                 className={INPUT}
-                placeholder="e.g. 72.5"
+                placeholder={units === 'us' ? 'e.g. 160' : 'e.g. 72.5'}
               />
             </Unit>
           </Field>
@@ -217,23 +298,23 @@ export function ProfileForm({
           label={bodyfat.trim() ? 'Target weight (optional)' : 'Target weight'}
           htmlFor={`${ids}-tw`}
         >
-          <Unit unit="kg">
+          <Unit unit={bodyUnit(units)}>
             <input
               id={`${ids}-tw`}
               type="text"
               inputMode="decimal"
-              value={targetW}
-              onChange={(e) => setTargetW(e.target.value)}
+              value={targetW.text}
+              onChange={(e) => setTargetW({ text: e.target.value })}
               className={INPUT}
-              placeholder="e.g. 68"
+              placeholder={units === 'us' ? 'e.g. 150' : 'e.g. 68'}
             />
           </Unit>
         </Field>
       </div>
-      {!bodyfat.trim() && !targetW.trim() && (
+      {!bodyfat.trim() && !targetW.text.trim() && (
         <p className="-mt-3 text-[13px] text-muted">
-          Give either body fat or a target weight — protein is set from lean mass, or 1.8 g per kg
-          of target.
+          Give either body fat or a target weight — protein is set from lean mass, or{' '}
+          {units === 'us' ? '0.8 g per lb' : '1.8 g per kg'} of target.
         </p>
       )}
 
@@ -253,12 +334,27 @@ export function ProfileForm({
       </Field>
 
       {mode !== 'MAINTAIN' && (
-        <Field label={mode === 'BULK' ? 'Gain per week' : 'Goal rate'}>
+        <Field
+          label={mode === 'BULK' ? 'Gain per week' : 'Goal rate'}
+          hint={
+            rateChips.some((r) => isRateChoice(rate, r, units))
+              ? undefined
+              : `Now ${formatRate(rate, units)}.`
+          }
+        >
           <div className="grid grid-cols-4 gap-2">
-            {(mode === 'BULK' ? BULK_RATES : RATES).map((r) => (
-              <Chip key={r} active={rate === r} onClick={() => setRate(r)} wrap className="px-1">
-                <span className="font-medium">{r.toFixed((r * 1000) % 10 ? 3 : 2)}</span>
-                <span className="text-[12px] opacity-75">kg / wk</span>
+            {rateChips.map((r) => (
+              <Chip
+                key={r}
+                active={isRateChoice(rate, r, units)}
+                onClick={() => setRate(fromBodyUnit(r, units))}
+                wrap
+                className="px-1"
+              >
+                <span className="font-medium">
+                  {units === 'us' ? String(r) : r.toFixed((r * 1000) % 10 ? 3 : 2)}
+                </span>
+                <span className="text-[12px] opacity-75">{bodyUnit(units)} / wk</span>
               </Chip>
             ))}
           </div>
@@ -281,7 +377,11 @@ export function ProfileForm({
           <Row label="Fiber" value={fmt(preview.fiber_g)} sub="g" />
           <Row label="Carbs" value={fmt(preview.carb_g)} sub="g" />
           <Row label="Fat" value={fmt(preview.fat_g)} sub="g" />
-          <Row label="Water" value={fmt(preview.water_ml / 1000, 1)} sub="L" />
+          <Row
+            label="Water"
+            value={waterTotalValue(preview.water_ml, units)}
+            sub={waterUnit(units)}
+          />
           {preview.bmr_uncertain && (
             <p className="mt-2 flex items-start gap-1.5 text-[12px] text-kcal">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden />
@@ -356,4 +456,69 @@ function Unit({ unit, children }: { unit: string; children: ReactNode }) {
       </span>
     </div>
   );
+}
+
+// ---- §22: typed in the units on screen, stored metric ----------------------------------------
+
+/** A body weight field: the text on screen, and the stored kilos it opened on, if any. */
+interface BodyField {
+  text: string;
+  /** Set only while the text is the untouched rendering of a stored value. */
+  stored?: number;
+}
+
+function bodyField(kg: number | undefined, s: UnitSystem): BodyField {
+  return kg == null ? { text: '' } : { text: entryText(toBodyUnit(kg, s), 1), stored: kg };
+}
+
+function bodyKg(f: BodyField, s: UnitSystem): number | undefined {
+  if (f.stored != null) return f.stored;
+  const v = parseDecimal(f.text);
+  return v == null ? undefined : fromBodyUnit(v, s);
+}
+
+function convertBody(f: BodyField, from: UnitSystem, to: UnitSystem): BodyField {
+  if (f.stored != null) return bodyField(f.stored, to);
+  const kg = bodyKg(f, from);
+  return kg == null ? f : { text: entryText(toBodyUnit(kg, to), 1) };
+}
+
+/**
+ * Height in both renderings at once — centimetres, and feet and inches — so switching units
+ * shows the same height without a conversion step. `stored` is the value it opened on, kept
+ * until a key is pressed.
+ */
+interface HeightFields {
+  cm: string;
+  feet: string;
+  inches: string;
+  stored?: number;
+}
+
+function heightFields(cm: number | undefined): HeightFields {
+  if (cm == null) return { cm: '', feet: '', inches: '' };
+  const fi = cmToFeetInches(cm);
+  return { cm: entryText(cm, 1), feet: String(fi.feet), inches: String(fi.inches), stored: cm };
+}
+
+/** A keystroke: the field changes and the stored value no longer speaks for it. */
+function typed(h: HeightFields, patch: Partial<Omit<HeightFields, 'stored'>>): HeightFields {
+  return { cm: h.cm, feet: h.feet, inches: h.inches, ...patch };
+}
+
+function heightCm(h: HeightFields, s: UnitSystem): number | undefined {
+  if (h.stored != null) return h.stored;
+  if (s === 'metric') return parseDecimal(h.cm);
+  const feet = parseDecimal(h.feet);
+  const inches = parseDecimal(h.inches) ?? 0;
+  return feet == null ? undefined : feetInchesToCm(feet, inches);
+}
+
+/** Re-renders what was typed in `from` so the other rendering shows the same height. */
+function convertHeight(h: HeightFields, from: UnitSystem): HeightFields {
+  if (h.stored != null) return h;
+  const cm = heightCm(h, from);
+  if (cm == null) return h;
+  const fresh = heightFields(cm);
+  return { cm: fresh.cm, feet: fresh.feet, inches: fresh.inches };
 }

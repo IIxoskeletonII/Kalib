@@ -13,6 +13,9 @@ import { regroundItem, totalGrounded, type GroundedItem } from '@/core/estimate'
 import { MEAL_SLOTS, type MealSlot } from '@/core/types';
 import { pickImage } from '@/platform/camera';
 import { estimateMeal, logEstimate, type EstimateOutcome } from '@/services/estimate';
+import { formatFoodMass } from '@/core/measure';
+import { useUnitSystem } from '@/hooks/useUnits';
+import { useMassEntry } from '@/hooks/useMassEntry';
 
 const SLOT_OPTIONS = MEAL_SLOTS.map((s) => ({ value: s, label: SLOT_LABEL[s] }));
 
@@ -23,6 +26,7 @@ type Phase =
   | { state: 'result'; outcome: EstimateOutcome; items: GroundedItem[] };
 
 export default function Estimate() {
+  const units = useUnitSystem();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const back = useBack('/');
@@ -212,7 +216,8 @@ export default function Estimate() {
                     )}
                   </span>
                   <span className="mt-0.5 block truncate text-[13px] text-muted tabular">
-                    {fmt(g.grams)} g · {fmt(g.kcal_range[0])}–{fmt(g.kcal_range[1])} kcal
+                    {formatFoodMass(g.grams, units)} · {fmt(g.kcal_range[0])}–{fmt(g.kcal_range[1])}{' '}
+                    kcal
                     {g.food && ` · ${g.food.name.split(',').slice(0, 2).join(',')}`}
                   </span>
                 </button>
@@ -317,16 +322,17 @@ export default function Estimate() {
 }
 
 function GramsForm({ g, onSave }: { g: GroundedItem; onSave: (grams: number) => void }) {
-  const [value, setValue] = useState(String(Math.round(g.grams)));
-  const [pristine, setPristine] = useState(true);
-  const grams = Number(value) || 0;
+  const units = useUnitSystem();
+  const pad = useMassEntry(g.grams, units);
+  const value = pad.value;
+  const grams = pad.grams;
   const preview = grams > 0 ? regroundItem(g, grams) : undefined;
   return (
     <div className="space-y-4">
       <div className="flex items-end justify-between">
         <div className="display">
           {value === '' ? <span className="text-surface-3">0</span> : value}
-          <span className="ml-1.5 text-[22px] font-medium text-muted">g</span>
+          <span className="ml-1.5 text-[22px] font-medium text-muted">{pad.unit}</span>
         </div>
         {preview && (
           <div className="pb-2 text-right text-[15px] tabular">
@@ -339,14 +345,13 @@ function GramsForm({ g, onSave }: { g: GroundedItem; onSave: (grams: number) => 
         )}
       </div>
       <p className="text-[13px] text-muted">
-        The model guessed {fmt(g.item.grams_range[0])}–{fmt(g.item.grams_range[1])} g.
+        The model guessed {formatFoodMass(g.item.grams_range[0], units)}–
+        {formatFoodMass(g.item.grams_range[1], units)}.
       </p>
       <NumberPad
-        onChange={(u) => {
-          setValue((prev) => u(pristine ? '' : prev));
-          setPristine(false);
-        }}
+        onChange={pad.type}
         onSubmit={() => grams > 0 && onSave(grams)}
+        decimal={pad.decimal}
         maxDigits={4}
       />
       <Button
@@ -356,7 +361,7 @@ function GramsForm({ g, onSave }: { g: GroundedItem; onSave: (grams: number) => 
         disabled={grams <= 0}
         onClick={() => onSave(grams)}
       >
-        Use {fmt(grams)} g
+        Use {formatFoodMass(grams, units)}
       </Button>
     </div>
   );

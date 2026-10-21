@@ -29,7 +29,8 @@ import {
 import { getEasyWeeks } from '@/services/block';
 import { currentBlock, prescriptionsFor, weeklyLoad } from '@/services/training';
 import { flatTargetFor } from '@/services/targets';
-import { recentSessions, REST_TIMER_KEY, WEIGHT_UNIT_KEY } from '@/services/workouts';
+import { recentSessions, REST_TIMER_KEY } from '@/services/workouts';
+import { useUnits } from './useUnits';
 
 /** The session being performed right now, or null when there is none. */
 export function useActiveSession(): WorkoutSession | null | undefined {
@@ -69,9 +70,9 @@ export function useStrengthExercises(): Exercise[] | undefined {
   return useLiveQuery(listStrengthExercises, []);
 }
 
+/** What the bar is loaded in: the app's units (§22), unless the gym has its own. */
 export function useWeightUnit(): WeightUnit {
-  const v = useLiveQuery(() => getSetting<WeightUnit>(WEIGHT_UNIT_KEY), []);
-  return v === 'lb' ? 'lb' : 'kg';
+  return useUnits()?.gymUnit ?? 'kg';
 }
 
 /**

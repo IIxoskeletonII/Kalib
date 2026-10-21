@@ -2,13 +2,14 @@
 // OpenRouter. The key never leaves the Worker; the model id is a Worker variable so it can be
 // swapped in one place (§9.3). The client validates and grounds the result.
 
-export interface EstimateEnv {
-  OPENROUTER_API_KEY?: string;
+import { callJson, DEFAULT_MODEL, type ContentPart, type OpenRouterEnv } from './openrouter';
+
+export { DEFAULT_MODEL, extractJson } from './openrouter';
+
+export interface EstimateEnv extends OpenRouterEnv {
   VISION_MODEL?: string;
 }
 
-export const DEFAULT_MODEL = 'google/gemini-3.1-flash-lite';
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 /** A 1024 px JPEG is ~150–300 KB; anything far above is not from our client. */
 const MAX_IMAGE_BYTES = 1_500_000;
 const MAX_DESCRIPTION = 600;
@@ -85,10 +86,6 @@ export interface EstimateRequest {
   image?: string;
 }
 
-type Content =
-  | { type: 'text'; text: string }
-  | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } };
-
 /** Runs the estimate; returns the raw JSON object the model produced (client validates). */
 export async function runEstimate(
   req: EstimateRequest,
@@ -115,7 +112,7 @@ export async function runEstimate(
     return { ok: false, status: 400, error: 'Photo must be a JPEG under 1.5 MB.' };
   }
 
-  const content: Content[] = [];
+  const content: ContentPart[] = [];
   content.push({
     type: 'text',
     text: description
@@ -124,63 +121,18 @@ export async function runEstimate(
   });
   if (image) content.push({ type: 'image_url', image_url: { url: image, detail: 'low' } });
 
-  const model = env.VISION_MODEL || DEFAULT_MODEL;
-  const body = {
-    model,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content },
-    ],
-    temperature: 0.2,
-    max_tokens: 900,
-    response_format: {
-      type: 'json_schema',
-      json_schema: { name: 'meal_estimate', strict: true, schema: SCHEMA },
+  return callJson(
+    {
+      model: env.VISION_MODEL || DEFAULT_MODEL,
+      system: SYSTEM_PROMPT,
+      user: content,
+      temperature: 0.2,
+      max_tokens: 900,
+      schemaName: 'meal_estimate',
+      schema: SCHEMA,
+      service: 'estimation service',
     },
-  };
-
-  let res: Response;
-  try {
-    res = await fetchImpl(OPENROUTER_URL, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-        'content-type': 'application/json',
-        'http-referer': 'https://kalib.kalib.workers.dev',
-        'x-title': 'Kalib',
-      },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return { ok: false, status: 502, error: 'Could not reach the estimation service.' };
-  }
-  if (!res.ok) {
-    const text = (await res.text()).slice(0, 300);
-    return { ok: false, status: 502, error: `Estimation service error ${res.status}: ${text}` };
-  }
-  const data = (await res.json()) as {
-    choices?: { message?: { content?: string | Content[] } }[];
-  };
-  const raw = data.choices?.[0]?.message?.content;
-  const text =
-    typeof raw === 'string'
-      ? raw
-      : Array.isArray(raw)
-        ? raw.map((c) => ('text' in c ? c.text : '')).join('')
-        : '';
-  const jsonText = extractJson(text);
-  if (!jsonText) return { ok: false, status: 502, error: 'The model returned no JSON.' };
-  try {
-    return { ok: true, result: JSON.parse(jsonText), model };
-  } catch {
-    return { ok: false, status: 502, error: 'The model returned malformed JSON.' };
-  }
-}
-
-/** Models occasionally wrap JSON in prose or a code fence; take the outermost object. */
-export function extractJson(text: string): string | null {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start < 0 || end <= start) return null;
-  return text.slice(start, end + 1);
+    env,
+    fetchImpl,
+  );
 }

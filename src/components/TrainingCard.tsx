@@ -1,5 +1,5 @@
-// SPEC §20.4 / §20.7 — the two training settings: what unit the pad asks for, and whether the
-// week's calories lean toward the days you lift.
+// SPEC §20.4 / §20.7 / §20.14 / §22 — the training settings: what unit the bar is loaded in,
+// whether a rest ends with a sound, and whether the week's calories lean toward the days you lift.
 //
 // The copy here is deliberately unexcited. The evidence is that calorie cycling and flat intake
 // produce the same weight change at an equal weekly deficit, that carbohydrate has no
@@ -9,9 +9,9 @@
 import { useEffect, useState } from 'react';
 import { Card, SectionHeading, Segmented, fmt } from '@/components/ui';
 import type { DayBudget } from '@/core/trainingDays';
-import type { WeightUnit } from '@/core/types';
-import { setSetting } from '@/db/repo/settings';
-import { useWeightUnit } from '@/hooks/useWorkouts';
+import type { GymUnitChoice } from '@/core/measure';
+import { useRestAlertEnabled } from '@/hooks/useSessionAids';
+import { useUnits } from '@/hooks/useUnits';
 import { weekTargets } from '@/services/targets';
 import {
   getEnergyBridge,
@@ -19,11 +19,14 @@ import {
   weekShape,
   type EnergyBridge,
 } from '@/services/trainingDays';
-import { WEIGHT_UNIT_KEY } from '@/services/workouts';
+import { setRestAlert } from '@/services/sessionAids';
+import { setGymChoice } from '@/services/units';
 
-const UNITS: { value: WeightUnit; label: string }[] = [
-  { value: 'kg', label: 'Kilograms' },
-  { value: 'lb', label: 'Pounds' },
+/** The gym's own unit (§22): the app's units by default, or plates of the other kind. */
+const GYM_UNITS: { value: GymUnitChoice; label: string }[] = [
+  { value: 'follow', label: 'As the app' },
+  { value: 'kg', label: 'kg' },
+  { value: 'lb', label: 'lb' },
 ];
 
 /** Four options is what Segmented is for, and Appearance directly below uses one. */
@@ -38,7 +41,8 @@ const DIFFERENCES: { value: string; label: string }[] = [
 const WEEKDAY_LABEL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function TrainingCard() {
-  const unit = useWeightUnit();
+  const units = useUnits();
+  const restAlert = useRestAlertEnabled();
   const [bridge, setBridge] = useState<EnergyBridge | null>(null);
   const [pattern, setPattern] = useState<number[] | null>(null);
   const [week, setWeek] = useState<DayBudget[] | null>(null);
@@ -75,17 +79,49 @@ export function TrainingCard() {
       <SectionHeading>Training</SectionHeading>
       <Card className="space-y-5 p-5">
         <div>
-          <p className="mb-2 text-[15px] font-semibold">Weight unit</p>
+          <p className="mb-2 text-[15px] font-semibold">Gym weights</p>
           <Segmented
-            value={unit}
-            options={UNITS}
-            onChange={(u) => void setSetting(WEIGHT_UNIT_KEY, u)}
+            value={units?.gym ?? 'follow'}
+            options={GYM_UNITS}
+            onChange={(c) => void setGymChoice(c)}
           />
           <p className="mt-2 text-[13px] leading-snug text-muted">
-            Everything is stored in kilograms whichever you pick, so switching never rewrites your
-            history — it changes what the pad asks for and what is shown.
+            {units?.gym === 'follow' || units == null
+              ? `In ${units?.gymUnit === 'lb' ? 'pounds' : 'kilograms'}, like the rest of the app. Pick one here if your gym's plates are the other kind.`
+              : 'Kept apart from the rest of the app, because plates are what they are.'}{' '}
+            Stored in kilograms either way, so switching never rewrites your history.
           </p>
         </div>
+
+        {/* §20.14. The screen staying on has no switch: nobody propping a phone on a bench
+            wants it to lock, and it lets go the moment the workout ends. */}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={restAlert}
+          onClick={() => void setRestAlert(!restAlert)}
+          className="flex w-full items-start gap-4 border-t border-line pt-5 text-left"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-semibold">Sound when rest ends</span>
+            <span className="mt-1 block text-[13px] leading-snug text-muted">
+              A short chime, and a buzz on phones that can. It plays alongside your music rather
+              than pausing it, and on an iPhone set to silent it stays silent.
+            </span>
+          </span>
+          {/* The same switch as Reminders on this page, so the two read as one control. */}
+          <span
+            className={`relative mt-0.5 inline-block h-7 w-12 shrink-0 rounded-full transition-colors duration-200 ${
+              restAlert ? 'bg-accent' : 'bg-surface-3'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform duration-200 ease-[var(--ease-out-soft)] ${
+                restAlert ? 'translate-x-5' : ''
+              }`}
+            />
+          </span>
+        </button>
 
         <div className="border-t border-line pt-5">
           <p className="text-[15px] font-semibold">Eat more on training days</p>

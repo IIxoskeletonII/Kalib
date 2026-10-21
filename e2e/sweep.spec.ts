@@ -46,6 +46,11 @@ const VISITS: Record<string, Visit> = {
   '/train/routine/:id': { url: `/train/routine/${ID.routine}` },
   '/train/build': { url: '/train/build?days=4&kit=dumbbells' },
   '/train/summary/:id': { url: `/train/summary/${ID.done}` },
+  '/train/achievements': { url: '/train/achievements' },
+  // Signed out here, as the sweep always is; the signed-in circle is walked against a stand-in
+  // server in circle.spec.ts.
+  '/train/circle': { url: '/train/circle' },
+  '/train/injury': { url: `/train/injury?exercise=${ID.exercise}` },
   '/coach': { url: '/coach' },
   '/settings': { url: '/settings' },
   '/settings/how': { url: '/settings/how' },
@@ -174,6 +179,722 @@ test('an easier week halves the sets and keeps the weight', async ({ page }) => 
   // Three sets in the routine, two this week; last time's 60 kg, at the bottom of the range.
   await expect(page.getByText('Easier week — same weight, fewer reps')).toBeVisible();
   await expect(page.getByRole('button', { name: /^Complete set \d/ })).toHaveCount(2);
+});
+
+// ---- §20.14: what a session asks of the phone, and sharing what it came to -----------------
+//
+// None of this is visible on the page — a lock on the screen, a sound, a share sheet — so each
+// browser API is replaced before the app loads by a stand-in that records what it was asked to
+// do, and the tests read the record. The app's own code runs unmodified against them.
+
+/** Screen Wake Lock and page visibility, recorded. Visibility is driven by the test. */
+const WAKE_LOCK_STUB = () => {
+  const w = window as unknown as {
+    __wake: { requests: number; releases: number; sentinels: { released: boolean }[] };
+    __vis: DocumentVisibilityState;
+  };
+  w.__wake = { requests: 0, releases: 0, sentinels: [] };
+  w.__vis = 'visible';
+  Object.defineProperty(Document.prototype, 'visibilityState', {
+    configurable: true,
+    get: () => w.__vis,
+  });
+  Object.defineProperty(Navigator.prototype, 'wakeLock', {
+    configurable: true,
+    get: () => ({
+      request: async () => {
+        w.__wake.requests++;
+        const s = {
+          released: false,
+          type: 'screen',
+          release: async () => {
+            if (s.released) return;
+            s.released = true;
+            w.__wake.releases++;
+          },
+          addEventListener() {},
+          removeEventListener() {},
+        };
+        w.__wake.sentinels.push(s);
+        return s;
+      },
+    }),
+  });
+};
+
+/** Web Audio and vibration, recorded: how many notes were scheduled, what buzzed. */
+const AUDIO_STUB = () => {
+  const w = window as unknown as {
+    __audio: { contexts: number; resumes: number; notes: number };
+    __buzz: unknown[];
+    AudioContext: unknown;
+    webkitAudioContext: unknown;
+  };
+  w.__audio = { contexts: 0, resumes: 0, notes: 0 };
+  w.__buzz = [];
+  class FakeContext {
+    state = 'suspended';
+    currentTime = 0;
+    destination = {};
+    constructor() {
+      w.__audio.contexts++;
+    }
+    resume() {
+      w.__audio.resumes++;
+      this.state = 'running';
+      return Promise.resolve();
+    }
+    createOscillator() {
+      w.__audio.notes++;
+      return {
+        type: '',
+        frequency: { setValueAtTime() {} },
+        connect() {},
+        start() {},
+        stop() {},
+      };
+    }
+    createGain() {
+      return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} };
+    }
+    createBuffer() {
+      return {};
+    }
+    createBufferSource() {
+      return { buffer: null, connect() {}, start() {} };
+    }
+  }
+  w.AudioContext = FakeContext;
+  w.webkitAudioContext = FakeContext;
+  Object.defineProperty(Navigator.prototype, 'vibrate', {
+    configurable: true,
+    writable: true,
+    value: (p: unknown) => {
+      w.__buzz.push(p);
+      return true;
+    },
+  });
+};
+
+/** Writes settings rows directly, as a synced phone would have them. */
+async function putSettings(page: Page, rows: Record<string, unknown>): Promise<void> {
+  await page.evaluate(async (entries) => {
+    const req = indexedDB.open('kalib');
+    const db = await new Promise<IDBDatabase>((res, rej) => {
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+    const tx = db.transaction('settings', 'readwrite');
+    for (const [key, value] of entries) {
+      tx.objectStore('settings').put({
+        key,
+        user_id: 'local',
+        value,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    await new Promise<void>((res, rej) => {
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+    db.close();
+  }, Object.entries(rows));
+}
+
+const notes = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __audio: { notes: number } }).__audio.notes);
+const restBuzzes = (page: Page) =>
+  page.evaluate(
+    () =>
+      (window as unknown as { __buzz: unknown[] }).__buzz.filter(
+        (p) => JSON.stringify(p) === '[120,80,220]',
+      ).length,
+  );
+
+/** Ends the running rest with "−15" presses, the way someone cutting it short would. */
+async function cutRestShort(page: Page): Promise<void> {
+  const less = page.getByRole('button', { name: 'Fifteen seconds less rest' });
+  await expect(less).toBeVisible();
+  // The bar leaves on its next repaint after the rest is over, so the last press can race its
+  // own disappearance; a press that finds nothing to press has done its job.
+  for (let i = 0; i < 20 && (await less.isVisible()); i++) {
+    await less.click({ timeout: 2000 }).catch(() => {});
+  }
+  await expect(less).toBeHidden();
+}
+
+/** Waits until a stored rest end is this far in the past — a condition, not a stopwatch. */
+async function pastRestEnd(page: Page, byMs: number): Promise<void> {
+  await page.waitForFunction(async (ms) => {
+    const req = indexedDB.open('kalib');
+    const db = await new Promise<IDBDatabase>((res) => (req.onsuccess = () => res(req.result)));
+    const row = await new Promise<{ value?: { ends_at?: string } } | undefined>((res) => {
+      const g = db.transaction('settings').objectStore('settings').get('rest_timer');
+      g.onsuccess = () => res(g.result as { value?: { ends_at?: string } } | undefined);
+    });
+    db.close();
+    const end = row?.value?.ends_at;
+    return end != null && Date.now() > new Date(end).getTime() + ms;
+  }, byMs);
+}
+
+test.describe('the session keeps the screen on', () => {
+  test('from the first moment, across screens, until the workout ends', async ({ page }) => {
+    await page.addInitScript(WAKE_LOCK_STUB);
+    await page.goto('/');
+    await seed(page);
+    await startLiveSession(page);
+    await open(page, '/train/session');
+
+    const wake = () =>
+      page.evaluate(() => {
+        const w = (window as unknown as { __wake: { requests: number; releases: number } }).__wake;
+        return { requests: w.requests, releases: w.releases };
+      });
+    await expect.poll(wake).toEqual({ requests: 1, releases: 0 });
+
+    // Out of the session screen: the workout is still running, so the lock is still held.
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page.getByRole('button', { name: /^Back to Sweep day/ })).toBeVisible();
+    expect(await wake()).toEqual({ requests: 1, releases: 0 });
+
+    // The phone is locked and unlocked mid-rest. The browser drops the lock on hiding and never
+    // returns it, so the app must ask again.
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __wake: { sentinels: { released: boolean }[] };
+        __vis: DocumentVisibilityState;
+      };
+      for (const s of w.__wake.sentinels) s.released = true;
+      w.__vis = 'hidden';
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect((await wake()).requests).toBe(1); // nothing asked for while hidden
+    await page.evaluate(() => {
+      (window as unknown as { __vis: DocumentVisibilityState }).__vis = 'visible';
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect.poll(async () => (await wake()).requests).toBe(2);
+
+    // Finishing lets it go.
+    await page.getByRole('button', { name: /^Back to Sweep day/ }).click();
+    await page.getByRole('button', { name: 'Finish workout' }).click();
+    await expect(page).toHaveURL(/\/train\/summary\//);
+    await expect.poll(async () => (await wake()).releases).toBe(1);
+    const live = await page.evaluate(
+      () =>
+        (
+          window as unknown as { __wake: { sentinels: { released: boolean }[] } }
+        ).__wake.sentinels.filter((s) => !s.released).length,
+    );
+    expect(live).toBe(0);
+  });
+
+  test('does nothing where the browser has no wake lock', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    await page.addInitScript(() => {
+      Object.defineProperty(Navigator.prototype, 'wakeLock', {
+        configurable: true,
+        get: () => undefined,
+      });
+    });
+    await page.goto('/');
+    await seed(page);
+    await startLiveSession(page);
+    await open(page, '/train/session');
+    await expect(page.getByRole('button', { name: 'Complete set 2' })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe('the end of a rest', () => {
+  test('sounds once and buzzes when the rest runs out', async ({ page }) => {
+    await page.addInitScript(AUDIO_STUB);
+    await page.goto('/');
+    await seed(page);
+    await startLiveSession(page);
+    // A three-second rest, so it can run out by itself inside a test.
+    await putSettings(page, { rest_default_sec: 3 });
+    await open(page, '/train/session');
+
+    await page.getByRole('button', { name: 'Complete set 2' }).click();
+    // The tap that started the rest is the one that unlocked audio for its end.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as unknown as { __audio: { resumes: number } }).__audio.resumes,
+        ),
+      )
+      .toBeGreaterThan(0);
+    expect(await notes(page)).toBe(0);
+
+    await expect.poll(() => notes(page)).toBe(2); // two notes, one chime
+    await expect.poll(() => restBuzzes(page)).toBe(1);
+
+    // Once per end: nothing more however long it sits.
+    await pastRestEnd(page, 1500);
+    expect(await notes(page)).toBe(2);
+    expect(await restBuzzes(page)).toBe(1);
+  });
+
+  test('sounds from wherever you are in the app, with no tap at the end', async ({ page }) => {
+    await page.addInitScript(AUDIO_STUB);
+    await page.goto('/');
+    await seed(page);
+    await startLiveSession(page);
+    // A rest ending two seconds from now, while the person is reading Trend.
+    await putSettings(page, {
+      rest_timer: { ends_at: new Date(Date.now() + 2000).toISOString(), duration_sec: 90 },
+    });
+    await open(page, '/trend');
+    await expect(page.getByRole('button', { name: /^Back to Sweep day/ })).toBeVisible();
+    await expect.poll(() => notes(page), { timeout: 10_000 }).toBe(2);
+  });
+
+  test('stays quiet for a rest that ended long before the app was opened', async ({ page }) => {
+    await page.addInitScript(AUDIO_STUB);
+    await page.goto('/');
+    await seed(page);
+    await startLiveSession(page);
+    await putSettings(page, {
+      rest_timer: { ends_at: new Date(Date.now() - 60_000).toISOString(), duration_sec: 90 },
+    });
+    await open(page, '/train/session');
+    await expect(page.getByRole('button', { name: 'Complete set 2' })).toBeVisible();
+    await pastRestEnd(page, 61_000);
+    expect(await notes(page)).toBe(0);
+    expect(await restBuzzes(page)).toBe(0);
+  });
+
+  test('stays quiet when switched off in Settings', async ({ page }) => {
+    await page.addInitScript(AUDIO_STUB);
+    await page.goto('/');
+    await seed(page);
+    await open(page, '/settings');
+    const toggle = page.getByRole('switch', { name: /Sound when rest ends/ });
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+
+    await startLiveSession(page);
+    await putSettings(page, { rest_default_sec: 3 });
+    await open(page, '/train/session');
+    await page.getByRole('button', { name: 'Complete set 2' }).click();
+    await pastRestEnd(page, 1000);
+    expect(await notes(page)).toBe(0);
+    expect(await restBuzzes(page)).toBe(0);
+  });
+
+  test('stays quiet for a rest you cut short yourself', async ({ page }) => {
+    // Pressing "−15" to the end means looking at the screen; the chime is for someone who is not.
+    await page.addInitScript(AUDIO_STUB);
+    await page.goto('/');
+    await seed(page);
+    await startLiveSession(page);
+    await open(page, '/train/session');
+    await page.getByRole('button', { name: 'Complete set 2' }).click();
+    await cutRestShort(page);
+    await pastRestEnd(page, 1000);
+    expect(await notes(page)).toBe(0);
+    expect(await restBuzzes(page)).toBe(0);
+  });
+});
+
+test.describe('sharing a workout', () => {
+  test('sends the workout as text through the share sheet', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(Navigator.prototype, 'share', {
+        configurable: true,
+        writable: true,
+        value: async (d: ShareData) => {
+          (window as unknown as { __shared: ShareData }).__shared = d;
+        },
+      });
+    });
+    await page.goto('/');
+    await seed(page);
+    await open(page, `/train/summary/${ID.done}`);
+    await page.getByRole('button', { name: 'Share this workout' }).click();
+
+    const read = () =>
+      page.evaluate(() => (window as unknown as { __shared?: ShareData }).__shared ?? null);
+    await expect.poll(read).not.toBeNull();
+    const shared = (await read())!;
+    expect(shared.title).toBe('Sweep day');
+    const lines = (shared.text ?? '').split('\n');
+    expect(lines[0]).toMatch(/^Sweep day — \w+/);
+    expect(lines[1]).toBe('1h · 3 sets · 1,440 kg lifted');
+    expect(lines).toContain('Sweep press — 3 sets, best 60 kg × 8');
+    // 60 kg beat the earlier 57.5 kg × 8 on three counts; the reps at 60 kg are new, not a record.
+    expect(lines).toContain('3 records');
+    expect(lines).toContain('★ Sweep press: heaviest ever, best estimated 1RM, best set');
+    expect(lines.at(-1)).toBe('Logged with Kalib');
+  });
+
+  test('copies it, in pounds, where there is no share sheet', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(Navigator.prototype, 'share', {
+        configurable: true,
+        writable: true,
+        value: undefined,
+      });
+      Object.defineProperty(Navigator.prototype, 'clipboard', {
+        configurable: true,
+        get: () => ({
+          writeText: async (t: string) => {
+            (window as unknown as { __copied: string }).__copied = t;
+          },
+        }),
+      });
+    });
+    await page.goto('/');
+    await seed(page);
+    await putSettings(page, { weight_unit: 'lb' });
+    await open(page, `/train/summary/${ID.done}`);
+    await page.getByRole('button', { name: 'Share this workout' }).click();
+    await expect(page.getByText('Copied — paste it wherever you like')).toBeVisible();
+    const copied = await page.evaluate(() => (window as unknown as { __copied: string }).__copied);
+    expect(copied).toContain('Sweep press — 3 sets, best 132.3 lb × 8');
+    expect(copied).toContain('3,175 lb lifted');
+  });
+});
+
+test.describe('a routine made available offline', () => {
+  // With the service worker out of the way, nothing can be cached on the app's behalf: what
+  // ends up in the caches is what the button itself put there. That is the case the button
+  // exists for — a page the worker is not yet controlling.
+  test.use({ serviceWorkers: 'block' });
+
+  /** Two library exercises with demonstrations, and the seed's own one without. */
+  async function plantRoutine(page: Page): Promise<void> {
+    await page.evaluate(async () => {
+      const req = indexedDB.open('kalib');
+      const db = await new Promise<IDBDatabase>((res, rej) => {
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => rej(req.error);
+      });
+      const now = new Date().toISOString();
+      const tx = db.transaction('routines', 'readwrite');
+      tx.objectStore('routines').put({
+        id: 'sweep-offline',
+        user_id: 'local',
+        created_at: now,
+        updated_at: now,
+        name: 'Away day',
+        sort_order: 1,
+        source: 'own',
+        items: [
+          {
+            exercise_id: 'library:0001',
+            name: '3/4 Sit-Up',
+            load_type: 'bodyweight_reps',
+            sets: 3,
+          },
+          {
+            exercise_id: 'library:0002',
+            name: '45° Side Bend',
+            load_type: 'bodyweight_reps',
+            sets: 3,
+          },
+          { exercise_id: 'sweep-exercise', name: 'Sweep press', load_type: 'weight_reps', sets: 3 },
+        ],
+      });
+      await new Promise<void>((res, rej) => {
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+      });
+      db.close();
+    });
+  }
+
+  const cached = (page: Page, cache: string, url: string) =>
+    page.evaluate(async ([c, u]) => (await (await caches.open(c!)).match(u!)) != null, [
+      cache,
+      url,
+    ] as const);
+
+  test('saves every demonstration, shows its progress, and says when it is done', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await seed(page);
+    await plantRoutine(page);
+    // Slow enough to see the progress, as on a hotel connection.
+    await page.route('**/exercises/**', async (route) => {
+      await new Promise((r) => setTimeout(r, 300));
+      await route.continue();
+    });
+    await open(page, '/train/routine/sweep-offline');
+
+    const card = page.getByRole('region', { name: 'Offline' });
+    // The library seeds on first run; the card appears once it knows what the routine needs.
+    await expect(card).toContainText('0 of 2 demonstrations are on this phone', {
+      timeout: 30_000,
+    });
+    await card.getByRole('button', { name: 'Make available offline' }).click();
+    await expect(card).toContainText(/Saving \d of 2 demonstrations/);
+    await expect(card).toContainText('Ready offline');
+    await expect(card).toContainText('All 2 demonstrations are on this phone');
+    await expect(card.getByRole('button')).toHaveCount(0);
+
+    for (const id of ['0001', '0002']) {
+      expect(await cached(page, 'kalib-exercise-media', `/exercises/${id}.webp`)).toBe(true);
+      expect(await cached(page, 'kalib-exercise-posters', `/exercises/posters/${id}.webp`)).toBe(
+        true,
+      );
+    }
+
+    // It is a fact about the phone, not about the visit: still true after a reload.
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await open(page, '/train/routine/sweep-offline');
+    await expect(page.getByRole('region', { name: 'Offline' })).toContainText('Ready offline', {
+      timeout: 30_000,
+    });
+  });
+
+  test('says exactly what it could not get, and offers to try again', async ({ page }) => {
+    await page.goto('/');
+    await seed(page);
+    await plantRoutine(page);
+    await page.route('**/exercises/0002.webp', (route) => route.fulfill({ status: 404 }));
+    await open(page, '/train/routine/sweep-offline');
+
+    const card = page.getByRole('region', { name: 'Offline' });
+    await expect(card).toContainText('0 of 2', { timeout: 30_000 });
+    await card.getByRole('button', { name: 'Make available offline' }).click();
+    await expect(card).toContainText('1 could not be saved');
+    await expect(card).toContainText('1 of 2 are on this phone');
+    // The failure is never stored: a cached 404 would be served back as the clip.
+    expect(await cached(page, 'kalib-exercise-media', '/exercises/0002.webp')).toBe(false);
+
+    // The connection comes back.
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await card.getByRole('button', { name: 'Try again' }).click();
+    await expect(card).toContainText('Ready offline');
+  });
+});
+
+// ---- §20.15: the run, and the milestones on the way ----------------------------------------
+// §20.15 on the same seed: two finished workouts a week apart, 2,820 kg between them. That is a
+// two-week run at the default aim of one day, and two milestones the seed has never been shown.
+test('the run and the milestones read from the sessions logged', async ({ page }) => {
+  await page.goto('/');
+  await seed(page);
+  await open(page, '/train');
+
+  const fresh = page.getByRole('region', { name: 'New achievement' });
+  await expect(fresh).toContainText('Concert grand');
+  await expect(fresh).toContainText('480 kg lifted in all — a concert grand piano');
+  await expect(fresh).toContainText('Plus 1 more.');
+
+  const run = page.getByRole('region', { name: 'Weeks running' });
+  await expect(run).toContainText('2 weeks');
+  await expect(run).toContainText(/skips? left in |Skips back on /);
+
+  // Shown once: "Got it" retires it, and it stays retired across a reload.
+  await fresh.getByRole('button', { name: 'Got it' }).click();
+  await expect(fresh).toHaveCount(0);
+  await open(page, '/train');
+  await expect(page.getByRole('region', { name: 'Weeks running' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'New achievement' })).toHaveCount(0);
+
+  await page.getByRole('region', { name: 'Weeks running' }).getByRole('button').click();
+  await expect(page).toHaveURL(/\/train\/achievements$/);
+  const lifted = page.getByRole('region', { name: 'Lifted in all' }).first();
+  await expect(lifted).toContainText('2,820 kg');
+  await expect(lifted).toContainText('About 5.9 concert grand pianos.');
+  const elephant = page.getByRole('progressbar', { name: 'Elephant progress' });
+  await expect(elephant).toHaveAttribute('aria-valuenow', '47');
+  await expect(page.getByRole('heading', { name: '2 weeks running' })).toBeVisible();
+  // One mark per week since the first workout: two or three, by the day of the week the test
+  // runs on. The first counted; the last is this week, counted already or still to come.
+  const marks = page.getByRole('list', { name: 'Recent weeks' }).getByRole('listitem');
+  expect([2, 3]).toContain(await marks.count());
+  await expect(marks.first()).toHaveAccessibleName(/: 1 of 1 day, counted$/);
+  await expect(marks.last()).toHaveAccessibleName(/, (counted|this week)$/);
+});
+
+test('the weekly aim can be set and handed back', async ({ page }) => {
+  await page.goto('/');
+  await seed(page);
+  await open(page, '/train/achievements');
+  const aim = page.getByRole('group', { name: 'Days a week' });
+  await expect(aim.getByRole('radio', { name: 'Auto' })).toHaveAttribute('aria-checked', 'true');
+  await expect(
+    page.getByText(/^Auto (follows your last four weeks|asks for one day)/),
+  ).toBeVisible();
+
+  await aim.getByRole('radio', { name: '6' }).click();
+  await expect(aim.getByRole('radio', { name: '6' })).toHaveAttribute('aria-checked', 'true');
+  await expect(
+    page.getByText('From this week on. Weeks already over keep the aim they had.'),
+  ).toBeVisible();
+  // Six days is more than anyone has done this week, so the week now asks for more.
+  await expect(page.getByText(/more days? this week to make it count/)).toBeVisible();
+  // The weeks already over keep the run they made.
+  await expect(
+    page.getByRole('heading', { name: /weeks? running$|^A run starts this week$/ }),
+  ).toBeVisible();
+
+  // It is a setting: it survives a reload.
+  await open(page, '/train/achievements');
+  await expect(
+    page.getByRole('group', { name: 'Days a week' }).getByRole('radio', { name: '6' }),
+  ).toHaveAttribute('aria-checked', 'true');
+
+  await page
+    .getByRole('group', { name: 'Days a week' })
+    .getByRole('radio', { name: 'Auto' })
+    .click();
+  await expect(
+    page.getByText(/^Auto (follows your last four weeks|asks for one day)/),
+  ).toBeVisible();
+});
+
+test('opening the list counts as seeing what is new on it', async ({ page }) => {
+  await page.goto('/');
+  await seed(page);
+  await open(page, '/train/achievements');
+  await expect(page.getByRole('region', { name: 'Workouts' })).toContainText('First session');
+  await open(page, '/train');
+  await expect(page.getByRole('region', { name: 'Weeks running' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'New achievement' })).toHaveCount(0);
+});
+
+// §20.16, with the Worker stood in for. The order is the feature: nothing is sent before the
+// agreement, a red flag is answered on the phone without sending anything, and only an ordinary
+// ache reaches the server — whose swap then lands in the routine and comes back out with Undo.
+test('injury help asks first, stops at a red flag, and swaps with undo', async ({ page }) => {
+  await page.goto('/');
+  await seed(page);
+  // A second chest exercise, so the swap has somewhere real to land.
+  await page.evaluate(async () => {
+    const req = indexedDB.open('kalib');
+    const db = await new Promise<IDBDatabase>((res, rej) => {
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+    const now = new Date().toISOString();
+    const tx = db.transaction(['exercises'], 'readwrite');
+    tx.objectStore('exercises').put({
+      id: 'sweep-floor-press',
+      user_id: 'local',
+      created_at: now,
+      updated_at: now,
+      source: 'custom',
+      name: 'Sweep floor press',
+      category: 'strength',
+      primary_muscle: 'chest',
+      secondary_muscles: ['triceps'],
+      equipment: 'dumbbell',
+      load_type: 'weight_reps',
+    });
+    await new Promise<void>((res, rej) => {
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+    db.close();
+  });
+
+  const sent: { body: Record<string, unknown>; consent: string | undefined }[] = [];
+  await page.route('**/api/coach/injury', async (route) => {
+    const req = route.request();
+    sent.push({
+      body: req.postDataJSON() as Record<string, unknown>,
+      consent: (await req.allHeaders())['x-kalib-consent'],
+    });
+    await route.fulfill({
+      json: {
+        result: {
+          needs_doctor: false,
+          summary: 'Ease the pressing angle and keep the load moderate.',
+          advice: [
+            {
+              ref: '1',
+              action: 'swap',
+              reason: 'A floor press stops before the shoulder is stretched.',
+              change: '',
+              swap_to: 'Sweep floor press',
+            },
+          ],
+        },
+        model: 'test',
+        used: 1,
+        cap: 5,
+      },
+    });
+  });
+
+  const routineItem = () =>
+    page.evaluate(async () => {
+      const req = indexedDB.open('kalib');
+      const db = await new Promise<IDBDatabase>((res, rej) => {
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => rej(req.error);
+      });
+      const row = await new Promise<{ items: { exercise_id: string; sets: number }[] }>(
+        (res, rej) => {
+          const get = db.transaction('routines').objectStore('routines').get('sweep-routine');
+          get.onsuccess = () => res(get.result);
+          get.onerror = () => rej(get.error);
+        },
+      );
+      db.close();
+      return row.items[0];
+    });
+
+  await open(page, `/train/exercise/${ID.exercise}`);
+  await page.getByRole('button', { name: 'Something hurts?' }).click();
+  await expect(page).toHaveURL(/\/train\/injury\?exercise=/);
+
+  // Agreement first; nothing to type into until then.
+  await expect(page.getByRole('region', { name: 'Before you describe it' })).toBeVisible();
+  await expect(page.getByLabel('What hurts, and when?')).toHaveCount(0);
+  await page.getByRole('button', { name: 'I agree' }).click();
+  await expect(page.getByRole('button', { name: 'Sweep day' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+
+  // A red flag: answered here, and nothing leaves the phone.
+  const box = page.getByLabel('What hurts, and when?');
+  await box.fill('My shoulder aches on bench and my fingers go numb');
+  await page.getByRole('button', { name: 'Send to injury help' }).click();
+  await expect(page.getByRole('alert')).toContainText('See a doctor today');
+  await expect(page.getByRole('alert')).toContainText('numbness, tingling or weakness');
+  expect(sent).toHaveLength(0);
+
+  // An ordinary ache is sent, with the agreement, as words and names only.
+  await page.getByRole('button', { name: 'Change the description' }).click();
+  await box.fill('Left shoulder aches at the bottom of the bench press');
+  await page.getByRole('button', { name: 'Send to injury help' }).click();
+  const answer = page.getByRole('region', { name: 'What to do' });
+  await expect(answer).toContainText('Ease the pressing angle');
+  await expect(answer).toContainText('1 of 5 today');
+  expect(sent).toHaveLength(1);
+  expect(sent[0]!.consent).toBe('injury-v1');
+  expect(sent[0]!.body.description).toBe('Left shoulder aches at the bottom of the bench press');
+  const wire = JSON.stringify(sent[0]!.body);
+  expect(wire).toContain('Sweep press');
+  for (const id of [ID.exercise, ID.routine, 'sweep-floor-press']) expect(wire).not.toContain(id);
+
+  // The swap lands in the routine, keeping its sets, and Undo takes it back out.
+  await answer.getByRole('button', { name: 'Swap in Sweep floor press' }).click();
+  await expect(page.getByText('Sweep floor press is in the routine')).toBeVisible();
+  await expect.poll(routineItem).toMatchObject({ exercise_id: 'sweep-floor-press', sets: 3 });
+  await expect(answer.getByRole('button', { name: 'Swapped in Sweep floor press' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(routineItem).toMatchObject({ exercise_id: ID.exercise, sets: 3 });
+  await expect(answer.getByRole('button', { name: 'Swap in Sweep floor press' })).toBeEnabled();
+
+  // Offline, it says so and will not send.
+  await page.getByRole('button', { name: 'Ask again' }).click();
+  await page.context().setOffline(true);
+  await expect(page.getByText('Injury help needs a connection.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send to injury help' })).toBeDisabled();
+  await page.context().setOffline(false);
+  expect(sent).toHaveLength(1);
 });
 
 test.describe('the sweep itself', () => {

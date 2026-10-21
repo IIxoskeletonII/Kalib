@@ -4,12 +4,15 @@ import { ChevronLeft, ChevronRight, Flame, Minus, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { NumberPad } from '@/components/NumberPad';
-import { Button, Card, IconButton, Sheet, fmt } from '@/components/ui';
+import { Button, Card, IconButton, Sheet } from '@/components/ui';
 import { rawWeight } from '@/core/recipes';
 import type { Recipe } from '@/core/types';
 import { useBack } from '@/hooks/useBack';
 import { useRecipe } from '@/hooks/useData';
 import { cookBatch } from '@/services/recipes';
+import { formatFoodMass } from '@/core/measure';
+import { useUnitSystem } from '@/hooks/useUnits';
+import { useMassEntry } from '@/hooks/useMassEntry';
 
 export default function Cook() {
   const { id } = useParams();
@@ -24,6 +27,7 @@ export default function Cook() {
 }
 
 function CookView({ recipe }: { recipe: Recipe }) {
+  const units = useUnitSystem();
   const back = useBack(`/recipes/${recipe.id}`);
   const navigate = useNavigate();
   const [mult, setMult] = useState(1);
@@ -76,12 +80,14 @@ function CookView({ recipe }: { recipe: Recipe }) {
                 className="flex items-baseline justify-between gap-3 px-4 py-3 text-[16px]"
               >
                 <span className="min-w-0 truncate">{it.name.split(',').slice(0, 2).join(',')}</span>
-                <span className="shrink-0 font-semibold tabular">{fmt(it.grams * mult)} g</span>
+                <span className="shrink-0 font-semibold tabular">
+                  {formatFoodMass(it.grams * mult, units)}
+                </span>
               </div>
             ))}
             <div className="flex items-baseline justify-between px-4 py-3 text-[13px] text-muted tabular">
               <span>Raw weight</span>
-              <span>{fmt(raw * mult)} g</span>
+              <span>{formatFoodMass(raw * mult, units)}</span>
             </div>
           </Card>
         ) : (
@@ -164,16 +170,17 @@ function BatchForm({
   portions: number;
   onDone: (grams: number, portions: number) => Promise<void>;
 }) {
-  const [value, setValue] = useState(initialGrams > 0 ? String(Math.round(initialGrams)) : '');
-  const [pristine, setPristine] = useState(initialGrams > 0);
+  const units = useUnitSystem();
+  const pad = useMassEntry(initialGrams, units);
+  const value = pad.value;
   const [portions, setPortions] = useState(Math.max(1, initialPortions));
-  const g = Number(value) || 0;
+  const g = pad.grams;
   return (
     <div className="space-y-4">
       <div className="flex items-end justify-between">
         <div className="display">
           {value === '' ? <span className="text-surface-3">0</span> : value}
-          <span className="ml-1.5 text-[22px] font-medium text-muted">g</span>
+          <span className="ml-1.5 text-[22px] font-medium text-muted">{pad.unit}</span>
         </div>
         <div className="flex items-center gap-1 pb-2">
           <IconButton
@@ -197,13 +204,15 @@ function BatchForm({
           />
         </div>
       </div>
-      {g > 0 && <p className="text-[13px] text-muted tabular">{fmt(g / portions)} g per portion</p>}
+      {g > 0 && (
+        <p className="text-[13px] text-muted tabular">
+          {formatFoodMass(g / portions, units)} per portion
+        </p>
+      )}
       <NumberPad
-        onChange={(u) => {
-          setValue((prev) => u(pristine ? '' : prev));
-          setPristine(false);
-        }}
+        onChange={pad.type}
         onSubmit={() => g > 0 && void onDone(g, portions)}
+        decimal={pad.decimal}
         maxDigits={5}
       />
       <Button

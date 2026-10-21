@@ -4,7 +4,7 @@ import { Check, ChefHat, ChevronLeft, Copy, Link as LinkIcon } from 'lucide-reac
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useBack } from '@/hooks/useBack';
-import { Badge, Button, Card, IconButton, ListRow, Spinner, fmt } from '@/components/ui';
+import { Badge, Button, Card, IconButton, ListRow, Spinner } from '@/components/ui';
 import { decodeShare, extractShareCode, type SharedRecipe } from '@/core/recipeShare';
 import { useProfile } from '@/hooks/useData';
 import { importRecipe, previewImport, type ImportPreview } from '@/services/recipes';
@@ -15,8 +15,11 @@ import {
   readyCount,
   type UrlRecipe,
 } from '@/services/recipeUrl';
+import { formatFoodMass } from '@/core/measure';
+import { useUnitSystem } from '@/hooks/useUnits';
 
 export default function RecipeImport() {
+  const units = useUnitSystem();
   const navigate = useNavigate();
   const back = useBack('/recipes');
   const location = useLocation();
@@ -200,7 +203,7 @@ export default function RecipeImport() {
                       <Badge tone="accent">in</Badge>
                     )
                   }
-                  value={l.grams != null ? `${fmt(l.grams)} g` : undefined}
+                  value={l.grams != null ? formatFoodMass(l.grams, units) : undefined}
                 />
               </div>
             ))}
@@ -243,7 +246,9 @@ export default function RecipeImport() {
             </div>
             <p className="mt-1 text-[13px] text-muted tabular">
               {preview.shared.items.length} ingredients · {preview.shared.portions} portions
-              {preview.shared.yield_g ? ` · ${fmt(preview.shared.yield_g)} g cooked` : ''}
+              {preview.shared.yield_g
+                ? ` · ${formatFoodMass(preview.shared.yield_g, units)} cooked`
+                : ''}
             </p>
           </Card>
           <Card className="mt-3 divide-y divide-line">
@@ -261,7 +266,7 @@ export default function RecipeImport() {
                     <Badge tone="kcal">not available</Badge>
                   )
                 }
-                value={`${fmt(it.g)} g`}
+                value={formatFoodMass(it.g, units)}
               />
             ))}
           </Card>

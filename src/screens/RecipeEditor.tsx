@@ -52,6 +52,9 @@ import {
   setRecipeYield,
   shareCodeFor,
 } from '@/services/recipes';
+import { formatFoodMass } from '@/core/measure';
+import { useUnitSystem } from '@/hooks/useUnits';
+import { useMassEntry } from '@/hooks/useMassEntry';
 
 const NEWLINE = String.fromCharCode(10);
 const STEPS_PLACEHOLDER = [
@@ -73,6 +76,7 @@ export default function RecipeEditor() {
 }
 
 function Editor({ recipe }: { recipe: Recipe }) {
+  const units = useUnitSystem();
   const navigate = useNavigate();
   const back = useBack('/recipes');
   const foods = useRecipeFoods(recipe.items);
@@ -153,7 +157,7 @@ function Editor({ recipe }: { recipe: Recipe }) {
         <div className="flex items-baseline justify-between">
           <span className="text-[14px] font-semibold text-ink-2">Per portion</span>
           <span className="text-[13px] text-muted tabular">
-            {fmt(portion)} g · {recipe.portions} portions
+            {formatFoodMass(portion, units)} · {recipe.portions} portions
           </span>
         </div>
         <div className="mt-2 flex items-end justify-between gap-4">
@@ -173,7 +177,7 @@ function Editor({ recipe }: { recipe: Recipe }) {
       </Card>
 
       <section className="mt-6">
-        <SectionHeading trailing={raw > 0 ? `${fmt(raw)} g raw` : undefined}>
+        <SectionHeading trailing={raw > 0 ? `${formatFoodMass(raw, units)} raw` : undefined}>
           Ingredients
         </SectionHeading>
         <Card className="divide-y divide-line">
@@ -200,7 +204,7 @@ function Editor({ recipe }: { recipe: Recipe }) {
                   wrapTitle
                   title={it.name}
                   subtitle={f ? undefined : 'Food no longer available'}
-                  value={`${fmt(it.grams)} g`}
+                  value={formatFoodMass(it.grams, units)}
                   valueSub={kcal != null ? `${fmt(kcal)} kcal` : undefined}
                 />
               </SwipeRow>
@@ -224,7 +228,7 @@ function Editor({ recipe }: { recipe: Recipe }) {
             icon={Scale}
             title="Cooked weight"
             subtitle={recipe.yield_g ? 'Weighed after cooking' : 'Not weighed yet (raw weight)'}
-            value={`${fmt(yieldG)} g`}
+            value={formatFoodMass(yieldG, units)}
             chevron
           />
           <div className="flex min-h-16 items-center gap-3.5 px-4 py-3">
@@ -360,7 +364,7 @@ function Editor({ recipe }: { recipe: Recipe }) {
                     day: 'numeric',
                     month: 'short',
                   })}`}
-                  subtitle={`${fmt(b.total_g)} g · ${b.portions_total} portions`}
+                  subtitle={`${formatFoodMass(b.total_g, units)} · ${b.portions_total} portions`}
                   value={
                     b.portions_remaining > 0
                       ? `${formatPortions(b.portions_remaining)} left`
@@ -483,20 +487,21 @@ function GramsForm({
   onSave: (grams: number) => Promise<void>;
   onRemove?: () => Promise<void>;
 }) {
-  const [value, setValue] = useState(initial > 0 ? String(Math.round(initial)) : '');
-  const [pristine, setPristine] = useState(initial > 0);
-  const g = Number(value) || 0;
-  const type = (u: (prev: string) => string) => {
-    setValue((prev) => u(pristine ? '' : prev));
-    setPristine(false);
-  };
+  const pad = useMassEntry(initial, useUnitSystem());
+  const { value, type } = pad;
+  const g = pad.grams;
   return (
     <div className="space-y-4">
       <div className="display">
         {value === '' ? <span className="text-surface-3">0</span> : value}
-        <span className="ml-1.5 text-[22px] font-medium text-muted">g</span>
+        <span className="ml-1.5 text-[22px] font-medium text-muted">{pad.unit}</span>
       </div>
-      <NumberPad onChange={type} onSubmit={() => g > 0 && void onSave(g)} maxDigits={5} />
+      <NumberPad
+        onChange={type}
+        onSubmit={() => g > 0 && void onSave(g)}
+        decimal={pad.decimal}
+        maxDigits={5}
+      />
       <div className="flex gap-2">
         {onRemove && (
           <IconButton
@@ -529,15 +534,12 @@ function CookForm({
   initialGrams: number;
   onDone: () => void;
 }) {
-  const [value, setValue] = useState(initialGrams > 0 ? String(Math.round(initialGrams)) : '');
-  const [pristine, setPristine] = useState(initialGrams > 0);
+  const units = useUnitSystem();
+  const pad = useMassEntry(initialGrams, units);
+  const { value, type } = pad;
   const [portions, setPortions] = useState(recipe.portions);
   const [busy, setBusy] = useState(false);
-  const g = Number(value) || 0;
-  const type = (u: (prev: string) => string) => {
-    setValue((prev) => u(pristine ? '' : prev));
-    setPristine(false);
-  };
+  const g = pad.grams;
   const cook = async () => {
     if (g <= 0 || busy) return;
     setBusy(true);
@@ -553,7 +555,7 @@ function CookForm({
       <div className="flex items-end justify-between">
         <div className="display">
           {value === '' ? <span className="text-surface-3">0</span> : value}
-          <span className="ml-1.5 text-[22px] font-medium text-muted">g</span>
+          <span className="ml-1.5 text-[22px] font-medium text-muted">{pad.unit}</span>
         </div>
         <div className="flex items-center gap-1 pb-2">
           <IconButton
@@ -577,8 +579,12 @@ function CookForm({
           />
         </div>
       </div>
-      {g > 0 && <p className="text-[13px] text-muted tabular">{fmt(g / portions)} g per portion</p>}
-      <NumberPad onChange={type} onSubmit={cook} maxDigits={5} />
+      {g > 0 && (
+        <p className="text-[13px] text-muted tabular">
+          {formatFoodMass(g / portions, units)} per portion
+        </p>
+      )}
+      <NumberPad onChange={type} onSubmit={cook} decimal={pad.decimal} maxDigits={5} />
       <Button
         variant="primary"
         size="lg"

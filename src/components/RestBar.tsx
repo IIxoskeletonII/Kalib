@@ -23,7 +23,9 @@ export function RestBar() {
         <button
           type="button"
           aria-label="Fifteen seconds less rest"
-          onClick={() => void setRestTimer(adjustRest(timer, -15, now))}
+          // The instant of the press, not the last repaint's: a stale clock up to half a second
+          // old could leave a rest ended by hand looking like one that ran out (§20.14).
+          onClick={() => void setRestTimer(adjustRest(timer, -15, new Date()))}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-2 text-ink-2 active:scale-95"
         >
           <Minus size={17} strokeWidth={2.6} aria-hidden />
@@ -39,7 +41,7 @@ export function RestBar() {
         <button
           type="button"
           aria-label="Fifteen seconds more rest"
-          onClick={() => void setRestTimer(adjustRest(timer, 15, now))}
+          onClick={() => void setRestTimer(adjustRest(timer, 15, new Date()))}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-2 text-ink-2 active:scale-95"
         >
           <Plus size={17} strokeWidth={2.6} aria-hidden />

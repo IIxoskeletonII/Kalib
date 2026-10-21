@@ -24,11 +24,20 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ProfileForm } from '@/components/ProfileForm';
 import { RemindersCard } from '@/components/RemindersCard';
+import { InjuryConsentCard } from '@/components/InjuryConsentCard';
 import { TrainingCard } from '@/components/TrainingCard';
+import { UnitsCard } from '@/components/UnitsCard';
 import { CycleCard } from '@/components/CycleCard';
 import { AuthForm } from '@/components/AuthForm';
 import { Button, Card, ListRow, Row, SectionHeading, Segmented, Sheet, fmt } from '@/components/ui';
 import { fromDateKey, todayKey } from '@/core/dates';
+import {
+  formatBodyGoal,
+  formatHeight,
+  formatRate,
+  waterTotalValue,
+  waterUnit,
+} from '@/core/measure';
 import { nextSwitch, resolveMode, type ModeSwitch } from '@/core/targets';
 import type { Mode } from '@/core/types';
 import { saveProfileSnapshot } from '@/db/repo/profiles';
@@ -36,6 +45,7 @@ import { setSetting } from '@/db/repo/settings';
 import { useDailyTarget, useProfile, useSetting, useWeighIns } from '@/hooks/useData';
 import { useSync } from '@/hooks/useSync';
 import { useTheme, type ThemePref } from '@/hooks/useTheme';
+import { useUnitSystem } from '@/hooks/useUnits';
 import {
   exportBackup,
   parseBackup,
@@ -102,6 +112,7 @@ export default function Settings() {
   const [eraseWord, setEraseWord] = useState('');
   const [eraseBusy, setEraseBusy] = useState(false);
   const name = useSetting<string>('name', '');
+  const units = useUnitSystem();
 
   const latestWeight = weighIns?.at(-1)?.weight_kg;
 
@@ -277,6 +288,8 @@ export default function Settings() {
         </Card>
       </section>
 
+      <UnitsCard />
+
       {target && (
         <section>
           <SectionHeading trailing={target.provisional ? 'provisional' : 'measured'}>
@@ -288,7 +301,11 @@ export default function Settings() {
             <Row label="Fiber" value={fmt(target.fiber_g)} sub="g" />
             <Row label="Carbs" value={fmt(target.carb_g)} sub="g" />
             <Row label="Fat" value={fmt(target.fat_g)} sub="g" />
-            <Row label="Water" value={fmt(target.water_ml / 1000, 1)} sub="L" />
+            <Row
+              label="Water"
+              value={waterTotalValue(target.water_ml, units)}
+              sub={waterUnit(units)}
+            />
             <Row label="Weekly budget" value={fmt(target.kcal * 7)} sub="kcal" />
           </Card>
         </section>
@@ -302,11 +319,15 @@ export default function Settings() {
               icon={UserRound}
               onClick={() => setEditing(true)}
               wrapTitle
-              title={`${profile.sex === 'male' ? 'Male' : 'Female'}, ${profile.height_cm} cm, born ${profile.birth_date.slice(0, 4)}`}
+              title={`${profile.sex === 'male' ? 'Male' : 'Female'}, ${formatHeight(profile.height_cm, units)}, born ${profile.birth_date.slice(0, 4)}`}
               subtitle={`${cap(profile.activity_level)} activity, ${profile.mode.toLowerCase()}${
-                profile.mode !== 'MAINTAIN' ? ` at ${profile.goal_rate_kg_per_week} kg a week` : ''
+                profile.mode !== 'MAINTAIN'
+                  ? ` at ${formatRate(profile.goal_rate_kg_per_week, units)}`
+                  : ''
               }${profile.bodyfat_pct != null ? `, ${profile.bodyfat_pct}% body fat` : ''}${
-                profile.target_weight_kg != null ? `, target ${profile.target_weight_kg} kg` : ''
+                profile.target_weight_kg != null
+                  ? `, target ${formatBodyGoal(profile.target_weight_kg, units)}`
+                  : ''
               }`}
               chevron
             />
@@ -383,6 +404,8 @@ export default function Settings() {
       </section>
 
       <TrainingCard />
+
+      <InjuryConsentCard />
 
       <section>
         <SectionHeading>Appearance</SectionHeading>

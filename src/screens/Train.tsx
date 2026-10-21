@@ -3,20 +3,23 @@
 // Structured the way the rest of the app is: the week's figures sit directly on the background,
 // and the cards below are things you tap. Starting a routine is the common act, so the routines
 // carry the weight; an empty workout is the exception and reads like one.
-import { Dumbbell, Feather, ListPlus, Play, Plus } from 'lucide-react';
+import { Dumbbell, Feather, ListPlus, Play, Plus, Trophy, Users } from 'lucide-react';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
+import { FreshAchievement } from '@/components/FreshAchievement';
 import { toast } from '@/components/Toast';
 import { Button, Card, EmptyState, ListRow, SectionHeading, Skeleton, fmt } from '@/components/ui';
 import type { BlockState } from '@/core/block';
 import { fromDateKey, toDateKey } from '@/core/dates';
 import { formatDuration } from '@/core/restTimer';
 import { nextRoutine, type NextRoutine } from '@/core/rotation';
+import { describeRun, skipsLine, weekLine, type TrainingStreak } from '@/core/streak';
 import { MAX_SETS, MIN_SETS, type LoadReport } from '@/core/trainingLoad';
 import { trainingWeek, weekStart } from '@/core/trainingWeek';
 import type { Routine } from '@/core/types';
 import { toDisplay, UNIT_LABEL } from '@/core/weightUnit';
 import { useWeighIns } from '@/hooks/useData';
+import { useMomentum } from '@/hooks/useMomentum';
 import {
   useActiveSession,
   useBlock,
@@ -80,6 +83,7 @@ export default function Train() {
   const coverage = useWeeklyLoad();
   const weighIns = useWeighIns();
   const block = useBlock();
+  const momentum = useMomentum();
 
   const next = useMemo(
     () => (routines && recent ? nextRoutine(routines, recent) : undefined),
@@ -147,6 +151,27 @@ export default function Train() {
       )}
 
       {!active && block && <BlockCard block={block} />}
+
+      {/* Earned on another device, or by a week that closed: the summary is the first place. */}
+      {!active && <FreshAchievement className="mt-6" />}
+
+      {/* Nothing to keep going until something has been done. */}
+      {momentum && momentum.report.lifetime.sessions > 0 && (
+        <MomentumCard streak={momentum.streak} onOpen={() => navigate('/train/achievements')} />
+      )}
+
+      {/* §21 — a quiet way in: the circle is invited into, never pushed. */}
+      {!active && (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={Users}
+          className="mt-2 w-full"
+          onClick={() => navigate('/train/circle')}
+        >
+          Your circle
+        </Button>
+      )}
 
       {active && (
         <Card className="mt-6 p-5" onClick={() => navigate('/train/session')}>
@@ -344,18 +369,47 @@ function BlockCard({ block }: { block: BlockState }) {
           muscle, so skipping one is fine if you feel good.
         </p>
         <div className="mt-3 flex gap-2">
-          {/* No icon: with one, the label wraps to two lines at this width. */}
+          {/* No icon, and the width goes to the answer that matters: split evenly, or with an
+              icon, the label wrapped to two lines at 390 px. */}
           <Button
             variant="primary"
             size="sm"
-            className="flex-1"
+            className="flex-1 whitespace-nowrap"
             onClick={() => void takeEasyWeek()}
           >
             Start easier week
           </Button>
-          <Button variant="secondary" size="sm" className="flex-1" onClick={() => void decline()}>
+          <Button variant="secondary" size="sm" className="shrink-0" onClick={() => void decline()}>
             Not now
           </Button>
+        </div>
+      </Card>
+    </section>
+  );
+}
+
+/**
+ * The run (§20.15). Two lines and nothing to press but the card: how many weeks, what this week
+ * still needs, and how much slack the month has left. It never says a run ended — a new one
+ * simply starts — because the evidence is that a broken streak is what makes people stop.
+ */
+function MomentumCard({ streak, onOpen }: { streak: TrainingStreak; onOpen: () => void }) {
+  const weeks = streak.current.weeks;
+  return (
+    <section className="mt-6" aria-label="Weeks running">
+      <Card className="p-5" onClick={onOpen}>
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-semibold text-muted">Weeks running</div>
+            <div className="mt-1 text-[20px] leading-tight font-bold">
+              {weeks > 0 ? describeRun(weeks) : 'A run starts this week'}
+            </div>
+            <div className="mt-1 text-[13px] leading-snug text-muted">
+              {weekLine(streak.this_week)}
+            </div>
+            <div className="text-[13px] leading-snug text-muted">{skipsLine(streak.skips)}</div>
+          </div>
+          <Trophy size={20} strokeWidth={2.2} className="shrink-0 text-muted" aria-hidden />
         </div>
       </Card>
     </section>

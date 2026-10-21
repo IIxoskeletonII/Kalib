@@ -68,6 +68,9 @@ export async function syncNow(): Promise<SyncReport | null> {
     if (!owner) await setSetting(OWNER, { id: session.user.id, email: session.user.email ?? null });
     await setSetting(LAST_AT, now);
     await setStatus({ state: 'idle', lastAt: now });
+    // Keeps a circle's board current without anyone opening it (§21.4). It does nothing
+    // outside a circle, at most every six hours, and never fails a sync.
+    void import('@/services/circle').then((m) => m.publishInBackground()).catch(() => {});
     return report;
   } catch (err) {
     await setStatus({ state: 'error', lastAt, message: (err as Error).message });

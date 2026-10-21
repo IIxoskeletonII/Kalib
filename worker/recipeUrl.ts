@@ -10,8 +10,9 @@
 // internal names, no unusual ports, redirects re-checked by hand rather than followed blindly,
 // a byte cap and a timeout. Nothing from the caller's session is ever forwarded.
 
-export interface RecipeUrlEnv {
-  OPENROUTER_API_KEY?: string;
+import { callJson, DEFAULT_MODEL, type OpenRouterEnv } from './openrouter';
+
+export interface RecipeUrlEnv extends OpenRouterEnv {
   TEXT_MODEL?: string;
 }
 
@@ -290,8 +291,6 @@ not a recipe, return an empty name and empty lists.
 - blurb: one short sentence describing the dish.
 Return only the JSON object.`;
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-
 export async function readRecipeWithModel(
   text: string,
   sourceUrl: string,
@@ -299,56 +298,32 @@ export async function readRecipeWithModel(
   fetchImpl: typeof fetch = fetch,
 ): Promise<ParsedRecipe | undefined> {
   if (!env.OPENROUTER_API_KEY) return undefined;
-  const model = env.TEXT_MODEL || 'google/gemini-3.1-flash-lite';
-  let res: Response;
-  try {
-    res = await fetchImpl(OPENROUTER_URL, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-        'content-type': 'application/json',
-        'http-referer': 'https://kalib.kalib.workers.dev',
-        'x-title': 'Kalib',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: text },
-        ],
-        temperature: 0,
-        max_tokens: 1400,
-        response_format: {
-          type: 'json_schema',
-          json_schema: { name: 'page_recipe', strict: true, schema: SCHEMA },
-        },
-      }),
-    });
-  } catch {
-    return undefined;
-  }
-  if (!res.ok) return undefined;
-  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const raw = data.choices?.[0]?.message?.content ?? '';
-  const start = raw.indexOf('{');
-  const end = raw.lastIndexOf('}');
-  if (start < 0 || end <= start) return undefined;
-  let parsed: Partial<ParsedRecipe>;
-  try {
-    parsed = JSON.parse(raw.slice(start, end + 1)) as Partial<ParsedRecipe>;
-  } catch {
-    return undefined;
-  }
-  const ingredients = (parsed.ingredients ?? [])
+  const out = await callJson(
+    {
+      model: env.TEXT_MODEL || DEFAULT_MODEL,
+      system: SYSTEM_PROMPT,
+      user: text,
+      temperature: 0,
+      max_tokens: 1400,
+      schemaName: 'page_recipe',
+      schema: SCHEMA,
+      service: 'recipe reader',
+    },
+    env,
+    fetchImpl,
+  );
+  if (!out.ok || !out.result || typeof out.result !== 'object') return undefined;
+  const parsed = out.result as Partial<ParsedRecipe>;
+  const ingredients = (Array.isArray(parsed.ingredients) ? parsed.ingredients : [])
     .filter((x): x is string => typeof x === 'string' && x.trim() !== '')
     .slice(0, MAX_INGREDIENTS);
-  const name = (parsed.name ?? '').trim();
+  const name = typeof parsed.name === 'string' ? parsed.name.trim() : '';
   if (!name || ingredients.length === 0) return undefined;
   return {
     name: name.slice(0, 120),
-    blurb: (parsed.blurb ?? '').trim().slice(0, 240),
+    blurb: typeof parsed.blurb === 'string' ? parsed.blurb.trim().slice(0, 240) : '',
     ingredients,
-    steps: (parsed.steps ?? [])
+    steps: (Array.isArray(parsed.steps) ? parsed.steps : [])
       .filter((x): x is string => typeof x === 'string' && x.trim() !== '')
       .slice(0, MAX_STEPS),
     servings: Number(parsed.servings) >= 1 ? Math.min(50, Math.round(Number(parsed.servings))) : 0,

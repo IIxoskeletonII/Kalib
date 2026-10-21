@@ -2,6 +2,7 @@
 // list out. The UI owns the deck; this owns the numbers.
 import { effectiveYield, portionGrams, recipeTotals } from './recipes';
 import type { Food, Recipe } from './types';
+import { formatBulkMass, type UnitSystem } from './measure';
 
 export interface PlanItem {
   recipe_id: string;
@@ -448,13 +449,17 @@ export function shoppingList(
   return { aisles, total_cost: total, unpriced, estimated };
 }
 
-/** Plain text for sharing. */
-export function shoppingListText(list: ShoppingList, currency: string): string {
+/** Plain text for sharing, quantities in the units the person shops in (§22). */
+export function shoppingListText(
+  list: ShoppingList,
+  currency: string,
+  units: UnitSystem = 'metric',
+): string {
   const out: string[] = ['Kalib — shopping list'];
   for (const g of list.aisles) {
     out.push('', g.aisle);
     for (const l of g.lines) {
-      const qty = l.grams >= 1000 ? `${(l.grams / 1000).toFixed(2)} kg` : `${l.grams} g`;
+      const qty = formatBulkMass(l.grams, units);
       out.push(
         `- ${l.name.split(',').slice(0, 2).join(',')} — ${qty}${l.cost != null ? ` (${currency}${l.cost.toFixed(2)})` : ''}`,
       );

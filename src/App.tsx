@@ -23,6 +23,9 @@ const ExerciseDetail = lazyScreen(() => import('@/screens/ExerciseDetail'));
 const RoutineEditor = lazyScreen(() => import('@/screens/RoutineEditor'));
 const BuildWeek = lazyScreen(() => import('@/screens/BuildWeek'));
 const SessionSummary = lazyScreen(() => import('@/screens/SessionSummary'));
+const Achievements = lazyScreen(() => import('@/screens/Achievements'));
+const Circle = lazyScreen(() => import('@/screens/Circle'));
+const Injury = lazyScreen(() => import('@/screens/Injury'));
 const HowItWorks = lazyScreen(() => import('@/screens/HowItWorks'));
 const Coach = lazyScreen(() => import('@/screens/Coach'));
 const Settings = lazyScreen(() => import('@/screens/Settings'));
@@ -136,6 +139,9 @@ export default function App() {
               <Route path="/train/routine/:id" element={<RoutineEditor />} />
               <Route path="/train/build" element={<BuildWeek />} />
               <Route path="/train/summary/:id" element={<SessionSummary />} />
+              <Route path="/train/achievements" element={<Achievements />} />
+              <Route path="/train/circle" element={<Circle />} />
+              <Route path="/train/injury" element={<Injury />} />
               <Route path="/coach" element={<Coach />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/settings/how" element={<HowItWorks />} />

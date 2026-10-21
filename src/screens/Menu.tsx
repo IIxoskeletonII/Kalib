@@ -25,6 +25,8 @@ import { MEAL_SLOTS, type MealSlot } from '@/core/types';
 import { pickImage } from '@/platform/camera';
 import { logEstimate } from '@/services/estimate';
 import { dishRange, MENU_UNCERTAINTY, readMenu, type MenuOutcome } from '@/services/menu';
+import { formatFoodMass } from '@/core/measure';
+import { useUnitSystem } from '@/hooks/useUnits';
 
 type Phase =
   | { state: 'input' }
@@ -38,6 +40,7 @@ const SLOT_OPTIONS = MEAL_SLOTS.map((s) => ({
 }));
 
 export default function Menu() {
+  const units = useUnitSystem();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const back = useBack('/log');
@@ -235,7 +238,7 @@ export default function Menu() {
                           that decides an order; fiber is detail, and detail that clips is worse
                           than detail left for the log. */}
                       <span className="truncate tabular">
-                        {fmt(g.grams)} g · {fmt(g.protein_g)} g protein
+                        {formatFoodMass(g.grams, units)} · {fmt(g.protein_g)} g protein
                       </span>
                     </span>
                   </span>

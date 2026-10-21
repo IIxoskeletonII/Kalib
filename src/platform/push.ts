@@ -58,6 +58,8 @@ export interface DayReport {
   supplements_left: number;
   supplements_total: number;
   water_left_ml: number;
+  /** The phone shows US units (§22), so the nudge says fluid ounces. Absent means metric. */
+  us_units?: boolean;
 }
 
 export interface SubscribeState {

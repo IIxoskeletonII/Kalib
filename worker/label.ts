@@ -3,12 +3,12 @@
 // per-serving form (or both); reading them is exactly what a vision model is good at, and
 // unlike estimating a plate from a photo the answer is printed on the packet.
 
-export interface LabelEnv {
-  OPENROUTER_API_KEY?: string;
+import { callJson, DEFAULT_MODEL, type OpenRouterEnv } from './openrouter';
+
+export interface LabelEnv extends OpenRouterEnv {
   VISION_MODEL?: string;
 }
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MAX_IMAGE_BYTES = 1_500_000;
 
 const SCHEMA = {
@@ -84,58 +84,22 @@ export async function runLabel(
   if (!image.startsWith('data:image/jpeg;base64,') || image.length > MAX_IMAGE_BYTES * 1.4) {
     return { ok: false, status: 400, error: 'Photo must be a JPEG under 1.5 MB.' };
   }
-  const model = env.VISION_MODEL || 'google/gemini-3.1-flash-lite';
-  const body = {
-    model,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: 'Read this nutrition label.' },
-          // Labels are small print: the detailed path is worth the extra tokens here.
-          { type: 'image_url', image_url: { url: image, detail: 'high' } },
-        ],
-      },
-    ],
-    temperature: 0,
-    max_tokens: 700,
-    response_format: {
-      type: 'json_schema',
-      json_schema: { name: 'nutrition_label', strict: true, schema: SCHEMA },
+  return callJson(
+    {
+      model: env.VISION_MODEL || DEFAULT_MODEL,
+      system: SYSTEM_PROMPT,
+      user: [
+        { type: 'text', text: 'Read this nutrition label.' },
+        // Labels are small print: the detailed path is worth the extra tokens here.
+        { type: 'image_url', image_url: { url: image, detail: 'high' } },
+      ],
+      temperature: 0,
+      max_tokens: 700,
+      schemaName: 'nutrition_label',
+      schema: SCHEMA,
+      service: 'label reader',
     },
-  };
-  let res: Response;
-  try {
-    res = await fetchImpl(OPENROUTER_URL, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-        'content-type': 'application/json',
-        'http-referer': 'https://kalib.kalib.workers.dev',
-        'x-title': 'Kalib',
-      },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return { ok: false, status: 502, error: 'Could not reach the label reader.' };
-  }
-  if (!res.ok) {
-    const text = (await res.text()).slice(0, 300);
-    return { ok: false, status: 502, error: `Label reader error ${res.status}: ${text}` };
-  }
-  const data = (await res.json()) as {
-    choices?: { message?: { content?: string | { type: string; text?: string }[] } }[];
-  };
-  const raw = data.choices?.[0]?.message?.content;
-  const text =
-    typeof raw === 'string' ? raw : Array.isArray(raw) ? raw.map((c) => c.text ?? '').join('') : '';
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start < 0 || end <= start) return { ok: false, status: 502, error: 'No JSON came back.' };
-  try {
-    return { ok: true, result: JSON.parse(text.slice(start, end + 1)), model };
-  } catch {
-    return { ok: false, status: 502, error: 'The reader returned malformed JSON.' };
-  }
+    env,
+    fetchImpl,
+  );
 }

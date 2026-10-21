@@ -14,12 +14,12 @@
 // The response is deliberately the same shape as /api/estimate, so the whole of `core/estimate`
 // applies unchanged: same validation, same grounding, same +10% bias on what stays an estimate.
 
-export interface MenuEnv {
-  OPENROUTER_API_KEY?: string;
+import { callJson, DEFAULT_MODEL, type ContentPart, type OpenRouterEnv } from './openrouter';
+
+export interface MenuEnv extends OpenRouterEnv {
   VISION_MODEL?: string;
 }
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MAX_IMAGE_BYTES = 1_500_000;
 const MAX_NOTE = 200;
 /** More than this and the list stops being a shortlist. */
@@ -100,10 +100,6 @@ export interface MenuRequest {
   place?: string;
 }
 
-type Content =
-  | { type: 'text'; text: string }
-  | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } };
-
 export async function runMenu(
   req: MenuRequest,
   env: MenuEnv,
@@ -120,7 +116,7 @@ export async function runMenu(
   }
   const place = (typeof req.place === 'string' ? req.place : '').trim().slice(0, MAX_NOTE);
 
-  const content: Content[] = [
+  const content: ContentPart[] = [
     {
       type: 'text',
       text: place
@@ -131,61 +127,25 @@ export async function runMenu(
     { type: 'image_url', image_url: { url: image, detail: 'high' } },
   ];
 
-  const model = env.VISION_MODEL || 'google/gemini-3.1-flash-lite';
-  const body = {
-    model,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content },
-    ],
-    temperature: 0.2,
-    max_tokens: 1600,
-    response_format: {
-      type: 'json_schema',
-      json_schema: { name: 'menu_estimate', strict: true, schema: SCHEMA },
+  const out = await callJson(
+    {
+      model: env.VISION_MODEL || DEFAULT_MODEL,
+      system: SYSTEM_PROMPT,
+      user: content,
+      temperature: 0.2,
+      max_tokens: 1600,
+      schemaName: 'menu_estimate',
+      schema: SCHEMA,
+      service: 'menu reader',
     },
-  };
-
-  let res: Response;
-  try {
-    res = await fetchImpl(OPENROUTER_URL, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-        'content-type': 'application/json',
-        'http-referer': 'https://kalib.kalib.workers.dev',
-        'x-title': 'Kalib',
-      },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return { ok: false, status: 502, error: 'Could not reach the menu reader.' };
+    env,
+    fetchImpl,
+  );
+  if (!out.ok) return out;
+  const parsed = out.result as { items?: unknown[] } | null;
+  // The schema cannot express a maximum length, so the cap is enforced here.
+  if (parsed && Array.isArray(parsed.items) && parsed.items.length > MAX_DISHES) {
+    parsed.items = parsed.items.slice(0, MAX_DISHES);
   }
-  if (!res.ok) {
-    const text = (await res.text()).slice(0, 300);
-    return { ok: false, status: 502, error: `Menu reader error ${res.status}: ${text}` };
-  }
-  const data = (await res.json()) as {
-    choices?: { message?: { content?: string | Content[] } }[];
-  };
-  const raw = data.choices?.[0]?.message?.content;
-  const text =
-    typeof raw === 'string'
-      ? raw
-      : Array.isArray(raw)
-        ? raw.map((c) => ('text' in c ? c.text : '')).join('')
-        : '';
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start < 0 || end <= start) return { ok: false, status: 502, error: 'No JSON came back.' };
-  try {
-    const parsed = JSON.parse(text.slice(start, end + 1)) as { items?: unknown[] };
-    // The schema cannot express a maximum length, so the cap is enforced here.
-    if (Array.isArray(parsed.items) && parsed.items.length > MAX_DISHES) {
-      parsed.items = parsed.items.slice(0, MAX_DISHES);
-    }
-    return { ok: true, result: parsed, model };
-  } catch {
-    return { ok: false, status: 502, error: 'The menu reader returned malformed JSON.' };
-  }
+  return out;
 }

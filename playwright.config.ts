@@ -7,7 +7,9 @@
 // offline test until it timed out: a gate that flakes is worse than no gate.
 import { defineConfig } from '@playwright/test';
 
-const port = 4173;
+// Overridable so two checkouts can run their suites side by side: with `reuseExistingServer`,
+// a second run on the same port would quietly test the first one's build.
+const port = Number(process.env.E2E_PORT ?? 4173);
 
 export default defineConfig({
   testDir: 'e2e',
@@ -16,8 +18,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   projects: [
-    { name: 'flows', testMatch: /(day-one|offline|build-week)\.spec\.ts/, workers: 2 },
-    { name: 'sweep', testMatch: /sweep\.spec\.ts/, dependencies: ['flows'] },
+    { name: 'flows', testMatch: /(day-one|offline|build-week|circle)\.spec\.ts/, workers: 2 },
+    { name: 'sweep', testMatch: /(sweep|units)\.spec\.ts/, dependencies: ['flows'] },
   ],
   use: {
     baseURL: `http://localhost:${port}`,

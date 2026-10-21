@@ -27,6 +27,8 @@ import {
   type Recipe,
 } from '@/core/types';
 import { borrowedPortions } from '@/db/repo/foods';
+import { G_PER_OZ, formatFoodMass, type UnitSystem } from '@/core/measure';
+import { useUnits } from '@/hooks/useUnits';
 import { logFood, logFoodItems, rescaleEntry } from '@/services/logging';
 import { addRecipeItem, logBatchPortion, removeEntry } from '@/services/recipes';
 import { NumberPad } from './NumberPad';
@@ -103,15 +105,24 @@ const NOTHING_SCALED = {
 };
 
 export function AmountSheet(p: AmountSheetProps) {
+  // The form waits for the units (§22): it opens on a number in a unit, and "150" typed while
+  // the setting was still loading must not turn from grams into ounces when it lands.
+  const units = useUnits()?.system;
   return (
     <Sheet open={p.open} onClose={p.onClose}>
       {/* Mounted fresh per food/entry so the form state starts from props. */}
-      {p.open && p.food && (
-        <AmountForm key={`${p.food.id}:${p.entryId ?? ''}`} {...p} food={p.food} />
+      {p.open && p.food && units && (
+        <AmountForm key={`${p.food.id}:${p.entryId ?? ''}`} {...p} food={p.food} units={units} />
       )}
     </Sheet>
   );
 }
+
+/** The weight and volume units, the ones the person's own system uses first (§22). */
+const UNIT_ORDER: Record<UnitSystem, AmountUnit[]> = {
+  metric: ['g', 'ml', 'oz', 'floz'],
+  us: ['oz', 'floz', 'g', 'ml'],
+};
 
 /**
  * What the number on screen counts. Beyond the weight units, a food's own portions are
@@ -125,7 +136,8 @@ type Measure =
 const measureKey = (m: Measure) => (m.kind === 'unit' ? m.unit : `p:${m.label}`);
 const measureLabel = (m: Measure) => (m.kind === 'unit' ? UNIT_LABEL[m.unit] : m.label);
 
-function AmountForm(p: AmountSheetProps & { food: Food }) {
+function AmountForm(p: AmountSheetProps & { food: Food; units: UnitSystem }) {
+  const units = p.units;
   // Amounts are typed in the chosen measure and stored in grams (SPEC §6). Liquids open in ml.
   const density = useMemo(() => densityFor(p.food), [p.food]);
   const batchPortion = p.batch ? p.batch.batch.total_g / p.batch.batch.portions_total : undefined;
@@ -170,8 +182,8 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
     () =>
       byItem
         ? [{ kind: 'portion', label: itemLabel, grams: 1, full: itemLabel }]
-        : (['g', 'ml', 'oz', 'floz'] as AmountUnit[]).map((u) => ({ kind: 'unit', unit: u })),
-    [byItem, itemLabel],
+        : UNIT_ORDER[units].map((u) => ({ kind: 'unit', unit: u })),
+    [byItem, itemLabel, units],
   );
   const measures = useMemo(
     () => [...portionMeasures, ...unitMeasures],
@@ -183,7 +195,17 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
   // so a portion that arrives late (borrowed from a neighbouring food) still opens on it.
   const unitMeasure: Measure = byItem
     ? { kind: 'portion', label: itemLabel, grams: 1, full: itemLabel }
-    : { kind: 'unit', unit: !p.batch && !p.recipe && isLiquid(p.food) ? 'ml' : 'g' };
+    : {
+        kind: 'unit',
+        unit:
+          !p.batch && !p.recipe && isLiquid(p.food)
+            ? units === 'us'
+              ? 'floz'
+              : 'ml'
+            : units === 'us'
+              ? 'oz'
+              : 'g',
+      };
   const [chosen, setChosen] = useState<Measure | null>(null);
   const startMeasure: Measure =
     p.initialGrams == null && portionMeasures[0] ? portionMeasures[0] : unitMeasure;
@@ -209,17 +231,22 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
   const [pristine, setPristine] = useState(
     p.initialGrams != null || startMeasure.kind === 'portion',
   );
+  // Nothing typed, no chip and no measure tapped since the sheet opened on a stored amount.
+  const [untouched, setUntouched] = useState(true);
   const [slot, setSlot] = useState<MealSlot>(p.initialSlot);
   const type = (u: (prev: string) => string) => {
     setAmount((prev) => u(pristine ? '' : prev));
     setPristine(false);
+    setUntouched(false);
   };
   const preset = (gramsValue: number) => {
     setAmount(String(fromGramsIn(gramsValue, measure)));
     setPristine(true);
+    setUntouched(false);
   };
   const switchMeasure = (next: Measure) => {
     if (measureKey(next) === measureKey(measure)) return;
+    setUntouched(false);
     const current = Number(shown) || 0;
     setAmount(current > 0 ? String(fromGramsIn(toGramsIn(current, measure), next)) : '');
     setPristine(true);
@@ -227,7 +254,13 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
   };
   const [busy, setBusy] = useState(false);
 
-  const g = Math.round(toGramsIn(Number(shown) || 0, measure) * 10) / 10;
+  // In ounces, an entry opened and saved as it was keeps its grams (§22): 250 g shows as 8.8 oz,
+  // and 8.8 oz is 249.5 g — moving a meal to dinner must not quietly shave half a gram off it.
+  // In grams the pad always meant what it showed, and still does.
+  const g =
+    units === 'us' && untouched && p.initialGrams != null && measure.kind === 'unit'
+      ? p.initialGrams
+      : Math.round(toGramsIn(Number(shown) || 0, measure) * 10) / 10;
   const preview = useMemo(() => {
     if (byItem) return scaleItems({ per_item: byItem, micros: p.food.micros }, g);
     return weighable ? scaleFood(weighable, g) : NOTHING_SCALED;
@@ -280,14 +313,17 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
         }))
       : portion
         ? [
-            { label: `1 portion · ${fmt(portion)} g`, grams: Math.round(portion) },
+            { label: `1 portion · ${formatFoodMass(portion, units)}`, grams: Math.round(portion) },
             { label: '½ portion', grams: Math.round(portion / 2) },
             { label: '2 portions', grams: Math.round(portion * 2) },
           ]
         : [
-            { label: '100 g', grams: 100 },
+            // A round amount in the units on screen: 100 g, or a quarter-pound written as 4 oz.
+            units === 'us'
+              ? { label: '4 oz', grams: 4 * G_PER_OZ }
+              : { label: '100 g', grams: 100 },
             ...p.food.portions.map((po) => ({
-              label: `${po.label} · ${fmt(po.grams)} g`,
+              label: `${po.label} · ${formatFoodMass(po.grams, units)}`,
               grams: po.grams,
             })),
           ];
@@ -379,7 +415,7 @@ function AmountForm(p: AmountSheetProps & { food: Food }) {
 
       <p className="-mt-3 text-[12px] text-muted tabular">
         {measure.kind === 'portion'
-          ? `${measure.full ?? `1 ${measure.label}`} = ${fmt(measure.grams)} g${g > 0 ? ` · ${fmt(g)} g in total` : ''}${measure.approx && borrowed ? ` · from ${borrowed.from.split(',').slice(0, 2).join(',')}` : ''}`
+          ? `${measure.full ?? `1 ${measure.label}`} = ${formatFoodMass(measure.grams, units)}${g > 0 ? ` · ${formatFoodMass(g, units)} in total` : ''}${measure.approx && borrowed ? ` · from ${borrowed.from.split(',').slice(0, 2).join(',')}` : ''}`
           : measure.unit === 'ml' || measure.unit === 'floz'
             ? `${g > 0 ? `= ${fmt(g)} g` : ''}${density.basis === 'assumed' ? ' · 1 ml ≈ 1 g assumed' : ''}`
             : measure.unit === 'oz' && g > 0

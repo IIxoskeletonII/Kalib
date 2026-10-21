@@ -59,6 +59,8 @@ import {
   unpin,
   type PlanContext,
 } from '@/services/planner';
+import { cookedWeightValue, formatFoodMass } from '@/core/measure';
+import { useUnitSystem } from '@/hooks/useUnits';
 
 export default function Plan() {
   const back = useBack('/coach');
@@ -629,6 +631,7 @@ function PlanRow({
   onChange: (n: number) => void;
   onUnpin: () => void;
 }) {
+  const units = useUnitSystem();
   const kcal = (facts.portion_kcal * portion_g) / Math.max(1, facts.portion_g);
   return (
     <div className="flex items-center gap-3 px-4 py-3">
@@ -668,7 +671,7 @@ function PlanRow({
             )}
           </span>
           <span className="block text-[13px] text-muted tabular">
-            {fmt(portion_g)} g · {fmt(kcal)} kcal a portion
+            {formatFoodMass(portion_g, units)} · {fmt(kcal)} kcal a portion
             {cost != null && ` · ${currency}${((cost * portions) / 1).toFixed(2)}`}
           </span>
         </span>
@@ -708,6 +711,7 @@ function RecipeDetail({
   onCook: () => void;
   onOpen: () => void;
 }) {
+  const units = useUnitSystem();
   const recipe = facts.recipe;
   // Grams to buy for the week: the recipe's own amounts at the scaled portions (§18.3).
   const scale = facts.yield_g > 0 ? (portion_g * portions) / facts.yield_g : 0;
@@ -737,7 +741,8 @@ function RecipeDetail({
           <li key={i} className="flex items-baseline justify-between gap-3 text-[14px]">
             <span className="min-w-0 truncate">{it.name.split(',').slice(0, 2).join(',')}</span>
             <span className="shrink-0 text-muted tabular">
-              {fmt(it.grams * scale)} g<span className="ml-1 text-[11px]">for the week</span>
+              {formatFoodMass(it.grams * scale, units)}
+              <span className="ml-1 text-[11px]">for the week</span>
             </span>
           </li>
         ))}
@@ -782,7 +787,9 @@ function FitDetail({
   onAllowance: () => void;
   onBudget: () => void;
 }) {
+  const units = useUnitSystem();
   const s = planSummary(ctx.scaled, ctx.facts, ctx.inputs, ctx.list.total_cost);
+  const cooked = cookedWeightValue(s.grams, units);
   const money = (n: number) => `${ctx.currency}${n.toFixed(2)}`;
   const GAP: Record<string, string> = {
     calories: 'kcal',
@@ -827,7 +834,7 @@ function FitDetail({
 
       <div className="grid grid-cols-2 gap-2">
         <Stat label="Portions a day" value={s.portions_per_day.toFixed(1)} unit="cooked" />
-        <Stat label="Cooked weight" value={fmt(s.grams / 1000)} unit="kg" />
+        <Stat label="Cooked weight" value={cooked.value} unit={cooked.unit} />
         <Stat
           label="Cost a day"
           value={s.cost_per_day > 0 ? money(s.cost_per_day) : '—'}

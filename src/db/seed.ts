@@ -59,18 +59,19 @@ export async function ensureSeeded(onProgress?: (p: SeedProgress) => void): Prom
     // The version is part of the URL: the service worker caches these files first-hand, so a
     // new SEED_VERSION has to be a new address or the old contents would be served forever.
     const res = await fetch(`${f.url}?v=${SEED_VERSION}`);
-    if (!res.ok) {
-      // An optional file that is not there is not an error: the chain compilation is built
-      // from a private source, so a public clone has none and eating out is simply absent.
-      // It is marked seeded so the fetch is not retried on every launch.
-      if (f.optional && res.status === 404) {
-        await setSetting(seedKey(f.source), SEED_VERSION);
-        onProgress?.({ source: f.source, done: true });
-        continue;
-      }
-      throw new Error(`Seed fetch failed: ${f.url} (${res.status})`);
+    const isJson = (res.headers.get('content-type') ?? '').includes('json');
+    // An optional file that is not there is not an error: the chain compilation is built
+    // from a private source, so a public clone has none and eating out is simply absent.
+    // "Not there" has two spellings: a 404, or a server with an SPA fallback (vite preview,
+    // Workers assets) answering 200 with index.html. It is marked seeded so the fetch is not
+    // retried on every launch.
+    if (f.optional && (res.status === 404 || (res.ok && !isJson))) {
+      await setSetting(seedKey(f.source), SEED_VERSION);
+      onProgress?.({ source: f.source, done: true });
+      continue;
     }
-    if (!(res.headers.get('content-type') ?? '').includes('json')) {
+    if (!res.ok) throw new Error(`Seed fetch failed: ${f.url} (${res.status})`);
+    if (!isJson) {
       // The SPA fallback answering with index.html would parse as JSON garbage; say so.
       throw new Error(`Seed file ${f.url} came back as ${res.headers.get('content-type')}`);
     }

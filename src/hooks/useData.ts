@@ -38,6 +38,7 @@ import { sumWater } from '@/core/water';
 import { pingIfEnabled } from '@/services/reminders';
 import type { DayReport } from '@/platform/push';
 import { tdeeState, type TdeeState } from '@/services/tdee';
+import { useUnitSystem } from './useUnits';
 
 /** undefined = still loading; null = onboarded state unknown → no profile. */
 export function useProfile() {
@@ -284,6 +285,7 @@ export function useDayReport(): DayReport | undefined {
   const supplements = useSupplements();
   const taken = useTakenSupplements(today);
   const target = useDailyTarget(today);
+  const units = useUnitSystem();
 
   const ready =
     entries !== undefined &&
@@ -300,6 +302,7 @@ export function useDayReport(): DayReport | undefined {
     supplements_left: supplements.filter((s) => !taken.has(s.id)).length,
     supplements_total: supplements.length,
     water_left_ml: Math.round(Math.max(0, waterTarget - sumWater(waterLogs))),
+    ...(units === 'us' ? { us_units: true } : {}),
   };
 }
 

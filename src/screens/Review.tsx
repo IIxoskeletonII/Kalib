@@ -5,10 +5,12 @@ import { useBack } from '@/hooks/useBack';
 import { Button, Card, IconButton, SectionHeading, fmt } from '@/components/ui';
 import { consistencyLine } from '@/core/adherence';
 import { addDays, fromDateKey, todayKey } from '@/core/dates';
+import { bodyWeightValue, formatBodyWeight, signedBodyChange, bodyUnit } from '@/core/measure';
 import { dayProteinDensity } from '@/core/quality';
 import type { MicroStat, MineralBalance, WeekReview } from '@/core/review';
 import { acceptDietBreak, dismissDietBreak } from '@/services/dietBreak';
 import { useCoach, useDietBreak, useTdee, useWeekOverview, useWeighIns } from '@/hooks/useData';
+import { useUnitSystem } from '@/hooks/useUnits';
 import { computeTrend } from '@/core/trend';
 import { shareText } from '@/platform/share';
 
@@ -20,6 +22,7 @@ export default function Review() {
   const tdee = useTdee();
   const coach = useCoach(today);
   const weighIns = useWeighIns();
+  const units = useUnitSystem();
   const dietBreak = useDietBreak(today);
   const [shared, setShared] = useState<'copied' | null>(null);
 
@@ -44,7 +47,7 @@ export default function Review() {
     }
     if (first && last && r && r.weighedDays >= 2) {
       lines.push(
-        `Weight trend: ${first.trend.toFixed(1)} → ${last.trend.toFixed(1)} kg (${last.trend - first.trend > 0 ? '+' : ''}${(last.trend - first.trend).toFixed(1)}), ${r.weighedDays} weigh-ins`,
+        `Weight trend: ${bodyWeightValue(first.trend, units)} → ${formatBodyWeight(last.trend, units)} (${signedBodyChange(last.trend - first.trend, units)}), ${r.weighedDays} weigh-ins`,
       );
     }
     if (measured) {
@@ -136,8 +139,8 @@ export default function Review() {
             {first && last && r.weighedDays >= 2 && (
               <Stat
                 label="Trend weight"
-                value={`${last.trend.toFixed(1)} kg`}
-                sub={`${last.trend - first.trend > 0 ? '+' : ''}${(last.trend - first.trend).toFixed(1)} kg this week`}
+                value={formatBodyWeight(last.trend, units)}
+                sub={`${signedBodyChange(last.trend - first.trend, units)} ${bodyUnit(units)} this week`}
                 good={last.trend - first.trend <= 0}
               />
             )}

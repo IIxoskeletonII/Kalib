@@ -60,7 +60,8 @@ round-trip to log food. This also delivers offline for free.
 
 ### 2.4 Never show a number more precise than the underlying data
 If 60% of today's calories came from photo estimates, the day's vitamin D figure is
-fiction. The UI must surface data provenance (§7.4), not hide it.
+fiction. The UI must surface data provenance (§7.4), not hide it. A change of unit is not
+new data either: §22 sets how many decimals each measure keeps in pounds, inches and ounces.
 
 ### 2.5 Show trends, not instants
 Raw daily weight is noise (±1–2 kg from water, sodium, glycogen, gut contents). The
@@ -810,6 +811,24 @@ list grouped by aisle, step-by-step recipe instructions.
   decision, not a feature flag. *Erasure exists since 21 Sep 2026 (Settings → Sign out →
   Delete my account; `0005_erasure.sql`). The server-side trust model — what is public, what
   needs a session, daily spending caps — is in `SECURITY.md`.*
+- **The circle: the one cross-user exception** (added 21 Oct 2026). Until §21 every row was
+  readable by its owner only. A circle lets people who invited each other see a few integers a
+  week about each other — sessions planned and done, three scores, a count of left-out jumps,
+  a hard-mode rating — and nothing else: no food, body, set, note or date. It is opt-in (nothing
+  is published before joining a circle), invite-only, deleted on leaving the last circle, and
+  served only through `security definer` functions over tables no client can touch. Under
+  Article 9 these scores are derived from health data, so joining a circle is the explicit act
+  of consent and the screen states what is shared before anything is. Details in §21.2 and
+  §21.5; threat model in `SECURITY.md`.
+- **Health data sent to a model** (added 21 Oct 2026): injury help (§20.16) is the first
+  feature that sends health data — a description of an injury — to a third party, the
+  OpenRouter model behind the Worker. It therefore has its own explicit, versioned, revocable
+  consent (asked before the first request, shown and withdrawn in Settings), sends only the
+  description and exercise names, keeps nothing (no storage, no logging, upstream errors
+  reported by status only), and screens for red flags on the phone before anything is sent,
+  so the most serious descriptions never leave the device at all. Meal estimates (§9.4) send a
+  description or photo of food, which is not treated as special-category data; the injury flow
+  is, and is held to the stricter rule. `SECURITY.md` has the server side.
 - **Data export:** CSV export of all log entries and weigh-ins from v0. Non-negotiable —
   the user must never be locked into their own app.
 - **Testing:** unit tests on every formula in §3, §4 and §5. These are the product. Seed
@@ -1741,7 +1760,357 @@ cannot be changed mid-way (the easier week here is always optional and can be en
 workout screen that traps you until you finish; and counting workout calories on top of a
 TDEE that already contains them, which §20.6 already refuses.
 
+### 20.14 What a session asks of the phone, and sharing it (added 21 Oct 2026)
+
+The last pieces of the R1 plan. Each is small; each is the difference between a logger that
+works on a desk and one that works on a bench.
+
+**The screen stays on** (`platform/wakeLock.ts`) from the moment a session starts until it is
+finished or discarded, on every screen — logging a shake mid-session keeps it too. The browser
+drops the lock whenever the page is hidden and never returns it, so it is asked for again each
+time the page becomes visible. Refusal (battery saver, policy) and absence are silent: the
+screen simply sleeps as it did before. On iPhone it works in an installed app from iOS 18.4,
+when WebKit fixed the home-screen bug; earlier versions sleep as before. There is no switch:
+nobody propping a phone on a bench wants it to lock, and it lets go the moment the workout ends.
+
+**The end of a rest sounds and buzzes** (`platform/chime.ts`), at most once per end instant:
+
+- *When.* `core/restTimer.ts`'s `restAlertDue` decides, from the absolute end instant alone. It
+  sounds if the rest has ended no more than **10 s** ago (`REST_ALERT_GRACE_SEC`) — enough for a
+  throttled tick or a screen woken just after the end. A rest that ended minutes ago, while the
+  phone was locked, is news about the past and stays quiet. A rest the person ended with "−15"
+  is recorded as a rest of nothing and stays quiet too: they were looking at the screen. "+15"
+  after a chime makes a new end, and earns a new one.
+- *How.* One timeout aimed at the end instant, re-checked when the page becomes visible — not a
+  ticking interval. Mounted from the workout bar, the one component present for the whole of a
+  session on every screen, so a rest ends audibly while reading the trend too.
+- *Sound.* Synthesised (two short sine notes a fifth apart, soft attack and decay), so there is
+  no file to cache. Browsers only let audio start from a gesture, so the context is unlocked on
+  the session's own taps (`pointerup`/`touchend`/`keydown`; `pointerdown` does not count for a
+  finger). Web Audio on iPhone mixes with music rather than pausing it and follows the silent
+  switch — both right for a gym. `navigator.audioSession` is left alone: its `transient` types
+  are silent on iOS 17–18, and changing it would reach the microphone used for voice sets.
+- *Buzz.* `navigator.vibrate` (120-80-220 ms), distinct from the 8 ms tick a set gives. Android
+  only; no iPhone exposes vibration to the web.
+- *Off switch.* "Sound when rest ends" in Settings → Training, key `rest_alert`, on by default,
+  synced (a preference about the person, like the weight unit).
+- *Not covered:* a locked phone. No web page can sound while the phone sleeps; the visible
+  countdown and the chime on waking within the grace window are what a PWA can honestly do.
+  Web Push from the Worker (§20.13 #8) would be the route, at ten-minute cron granularity — too
+  coarse for a rest — so it is not attempted.
+
+**A routine made available offline** (`services/exerciseMedia.ts`, the routine editor). Saving
+a routine already warms its demonstrations quietly, but that only works when the service
+worker controls the page, and it says nothing. The card under a routine's exercises says how
+many of its demonstrations are actually on the phone (an exercise counts only when both its
+still and its clip are), and "Make available offline" fetches the rest straight into the same
+caches the worker reads (`kalib-exercise-posters`, `kalib-exercise-media` — a unit test reads
+`vite.config.ts` to keep the names in step), with progress per exercise, four at a time.
+Anything already cached is not fetched again; a 404 is never stored (the worker would serve it
+back as the clip); and a partial result says exactly how many could not be saved and offers to
+try again. Where a page can see no caches the card is not shown.
+
+**Sharing a workout** (`core/workoutShare.ts`, the session summary) — plain text through the
+phone's own share sheet, or the clipboard where there is none. Nothing is uploaded, no image
+is drawn, no link needs a server:
+
+```
+Push A — Tuesday 21 October
+52m · 18 sets · 6,240 kg lifted
+
+Bench press — 3 sets, best 82.5 kg × 8
+Pull-up — 3 sets, best 12 reps
+Dip — 3 sets, best bodyweight + 15 kg × 6
+Plank — 2 sets, best 1:30
+
+A record
+★ Bench press: heaviest ever
+
+Logged with Kalib
+```
+
+One line per exercise: its working sets and the one set that says most — the heaviest for a
+lift (reps break a tie), the most reps for bodyweight work, the belt for weighted bodyweight,
+the longest hold, the furthest distance with its time. Warm-ups and unticked sets are not
+work and are not counted. Weights follow the kg/lb setting; tonnage is left out when there is
+none (a session of holds). Records are counted as the summary counts them but listed one line
+per exercise, since one heavy set usually breaks two or three at once.
+### 20.15 Keeping it going (added 21 Oct 2026)
+
+**Weeks, not days.** A rest day is part of the program, so a daily streak would either punish
+recovery or count it as success and mean nothing. And Kalib's week is a rotation, not a
+calendar (§20.10): missing Wednesday leaves Wednesday's routine next. So the streak is not "did
+you train on Wednesday" but **"did you train on as many days as you mean to this week"**
+(`core/streak.ts`). Weeks run Monday to Sunday, as §5 and §20.5 do. Two sessions on one day are
+one day, and a session with no working set in it is not a training day, so an empty workout
+started and finished by accident counts for nothing.
+
+**Why it forgives.** A broken streak costs more than an intact one earns: breaking one makes
+people less likely to do the thing again at all, not just to rebuild the run (Silverman &
+Barasch, *J. Consumer Research*, 2023), and missing a single occasion does not measurably slow
+habit formation (Lally et al., 2010). `core/adherence.ts` already forgives a missed day of
+logging; training gets the same courtesy, sized to a week:
+
+- **Three skips a month.** Each training day short of the aim spends one; a week short by more
+  than what is left ends the run. A week is charged to the month holding its Thursday, which is
+  the ISO rule for which year a week is in, applied to months.
+- **An easier week never breaks a run** (§20.12) — taking one is following the plan — and owes
+  no skips. A week or more off with no easier week declared is still a shortfall and spends
+  skips like any other: the way to take a break without spending them is to say so.
+- **The week you are in is never judged.** It joins the run once it is met; until Sunday is
+  over it is open, not missed.
+- A run counts every week it survived, forgiven ones included, but never begins with a week
+  you did not train in.
+
+**The aim.** You can set it (1–6 days, from this week on; weeks already over keep the aim they
+had, so changing your mind never rewrites a run). Left on *Auto*, it is the **lower median of
+your last four closed weeks** — one holiday week does not lower the bar and one double week
+does not raise it, and of the two middles the lower is taken, so the bar follows you down a
+little sooner than it follows you up, which is the kinder error. Fewer than two weeks of
+history asks for one day a week, Hevy's rule. The aim is stored as a list of
+`{from: Monday, sessions | null}` in the setting `training:weekly_aim`.
+
+**Milestones** (`core/achievements.ts`) are derived from history like records (§20.5), never
+stored; only which have been shown is kept (`achievements:seen`). Three kinds, because each
+answers something people actually wonder:
+
+| Kind | Steps |
+| --- | --- |
+| Lifted in all | a concert grand piano (480 kg, Steinway Model D), a bull African elephant (6 t, National Geographic's 2.5–7 tons), a blue whale (330,000 lb, NOAA), a fully loaded 747-8 (987,000 lb MTOW, Boeing), a fuelled Saturn V (2.8 million kg, NASA), the Eiffel Tower's iron (7,300 t, SETE) |
+| Workouts | 1, 10, 25, 50, 100, 250, 500, 1,000 |
+| Weeks running | 4, 12, 26, 52, 104 |
+
+None rewards a single heroic session, which is the behaviour that gets people hurt. Lifetime
+volume counts working sets only; bodyweight work is priced at the weigh-in nearest before its
+session, as the progress line is (§20.11), and a set nothing can price is left out and said
+so, never guessed. A run milestone is earned in a week you trained: a forgiven gap keeps a run
+alive, but nobody gets a milestone for a week they did nothing in.
+
+**On screen.** Train carries one card — the run in weeks, what this week still needs, and the
+month's skips — and never says a run ended; a new one simply starts. A milestone is celebrated
+**once**: the newest unseen one, with "Plus N more" rather than a queue, so someone arriving with
+a year of history gets one moment, not nineteen. *Got it*, *See all* or opening the list retires
+them all. The list (`/train/achievements`) puts lifetime volume on the page with the biggest
+thing it beats ("About 2.3 blue whales"), the last twelve weeks as marks (counted, forgiven or
+easier, short), the aim, and the milestones with dates — only the next of each kind shows how
+far there is to go. No locks, no confetti.
+
+**The circle reads this too (§21):** `trainingStreak()` returns the full weekly history with
+each week's days, aim and shortfall; the circle's planned sessions are these aims, and
+`skipsCovered(history)` says how much of each short week the month's skips covered, which is what
+hard mode charges by. One aim and one allowance for the whole app.
+### 20.16 Something hurts: injury help (added 21 Oct 2026)
+
+The last piece of the training coach (R4). An ache is the commonest reason a routine stops,
+and the honest help is narrow: which of *these* exercises can stay, which need a change, which
+should be swapped for something in your own library, and which left out until it settles. It
+is not a diagnosis, a treatment, or a substitute for a doctor, and every part of it is built
+so it cannot become one.
+
+**Where it lives.** `/train/injury`, reached from "Something hurts?" on an exercise's screen
+and from Settings. It asks about one routine (the one the exercise came from, or any other) or
+about the single exercise when no routine has it.
+
+**Red flags first, on the phone** (`core/redFlags.ts`). Before anything is sent — before
+consent is even asked — the description is screened, deterministically, for the symptoms the
+NHS and NICE say need a clinician: chest pain or pressure, trouble breathing, numbness around
+the groin or changes in bladder or bowel control, symptoms in both legs, a blow to the head or
+fainting, a sudden severe headache, skin turning blue, grey or cold, a joint out of shape, a
+crack at the moment of injury (emergency); numbness, tingling or weakness, a possible break,
+not being able to bear weight, a fall or accident, fever or a hot swollen joint, severe or
+fast-worsening pain, heavy swelling, a pop or tear, a swollen hot calf, a racing heartbeat,
+chest ache (today); pain at night or at rest, unexplained weight loss, a history of cancer,
+osteoporosis (soon). English and Italian, accent- and typo-tolerant. Negation is honoured only
+close to the symptom and inside the same clause ("no fever, but my foot is numb" is a numb
+foot), and anything ambiguous counts: a false alarm costs a doctor's visit, a miss could cost
+far more. A hit replaces the advice with what to do and how urgently, with emergency numbers
+for Italy and the EU (112), the US (911) and Oman (9999). Nothing is sent.
+
+**Consent, explicitly** (`services/injuryConsent.ts`). A description of an injury is health
+data (GDPR Art. 9), and sending it to a model is a new flow, so it waits for an "I agree" that
+says what goes where: the description and the names of the exercises asked about, to Kalib's
+Worker and on to OpenRouter's model; nothing kept; history, weight and other data stay on the
+phone. The agreement is versioned (`injury-v1`) — if what is sent ever changes, the person is
+asked again — and withdrawn from Settings → Injury help. The Worker refuses a request without
+the current version in an `x-kalib-consent` header.
+
+**What is sent** (`core/injury.ts`). The description (≤ 400 characters) and, per exercise
+(≤ 16): a short ref ("1", "2"), its name, its muscles, its equipment, and up to eight
+alternatives from the person's own library — same main muscle, strength only, not already in
+the routine, spread across equipment because the useful swap around a sore joint is usually
+the same movement with a different implement. No ids, no history, no body data, no routine
+name.
+
+**What comes back, and what of it is believed.** A strict JSON schema: `needs_doctor`, a
+one-line summary, and per ref one of keep / modify (with the change) / swap (with a name) /
+skip. The answer is copied field by field; unknown refs, repeats and unknown actions are
+dropped. A swap is believed only when it names an exercise in the library — exactly, or
+near-exactly among the offered alternatives — and never the same lift or one already in the
+routine ("Barbell Bench Press" may not quietly become the incline). An ungrounded swap becomes
+"leave it out", still showing what was suggested. The whole answer is screened for red flags
+again, plus the language of a diagnosis ("could be a tear", "seek urgent care", "call 112"),
+with conditionals read as cautions ("if you feel numbness, stop" is fine). Any hit, or
+`needs_doctor`, and the advice is withheld.
+
+**Applying it.** "Swap" puts the new exercise where the old one was, keeping its sets, rest,
+superset and note (a rep range is dropped for a timed exercise), with Undo. It refuses if the
+routine changed since the advice was given.
+
+**The Worker** (`worker/injury.ts`, `POST /api/coach/injury`). Order matters: method, origin,
+session (401), the household allow-list, the consent header — all before the body is read —
+then a per-user rate limit, a 20 KB cap, field-by-field validation, and the red-flag screen
+again (an old client or a hand-made request still cannot get advice for an emergency, and a
+red-flag answer is free: no quota, no model). Then its **own daily pool, 5 per person and 20
+in total** (`INJURY_DAILY_USER`, `INJURY_DAILY_TOTAL`), apart from the estimate pool, and the
+text model with `max_tokens` 1000 and temperature 0.2. The description is JSON-quoted in the
+prompt so it cannot speak for itself, and the prompt forbids diagnosing, naming conditions,
+medication, and training through sharp pain. Nothing is logged, nothing is stored (KV holds
+two counters keyed by date and user id), and an upstream error is reported by status only,
+because an error page may quote what it was sent. Worst case at the caps: about 600 calls a
+month at roughly 2 k tokens in and 0.7 k out — a few tens of cents, inside the €1 ceiling.
+
+**One helper for every paid call** (`worker/openrouter.ts`). The OpenRouter request was
+written out five times (estimate, label, menu, suggestions, recipe links) and had begun to
+drift — one copy parsed the reply unguarded, so a non-JSON body threw instead of answering
+502. Each endpoint now owns its prompt, schema, budget and name; the call, the parsing and the
+failures are one function.
+
+*Not built, on purpose:* exercise prescription for rehabilitation, pain scores tracked over
+time, and anything that would make the app the place an injury is managed rather than worked
+around.
+
 ---
+
+## 21. The circle (added 21 Oct 2026)
+
+R6 of the training plan: friends, a board, and hard mode. It is the first feature in which
+anything of one person's reaches another, so most of this section is about what does not.
+
+### 21.1 Shape
+
+A **circle** is a private group of up to twelve people. There is no public board, no search,
+no follower graph and no open sign-up to a circle: the only way in is a code from its owner.
+A person may be in up to five circles and chooses a display name in each; the email is never
+shown to anyone. Reached from Train → Circle (`/train/circle`).
+
+### 21.2 What crosses between people
+
+Per person per week, and nothing else:
+
+| Field | What it is |
+| --- | --- |
+| `planned` | That week's aim in training days (1–7): the run's aim (§20.15), as it was then |
+| `done` | Days that week with a finished session holding a working set (0–7) |
+| `consistency` | `done` against `planned`, 0–100, capped at the plan |
+| `progress` | Relative strength against their own month before, 0–100; absent without history |
+| `score` | The week's score, 0–100 |
+| `flagged` | How many session bests the honesty check left out |
+| `hard`, `rating` | Whether hard mode was on, and the rating if so |
+
+These are computed on the phone (`core/circle.ts`) and published as integers. No set, lift,
+weight, food, note, session date or bodyweight leaves the phone, and the server functions have
+no field to put one in: `circle_publish` refuses any key outside this list and every value is
+range-checked by the table. Twelve weeks are kept; older ones are deleted on the next publish.
+
+**Opt-in by construction.** Nothing is published until you are in a circle — the client does
+not try and the server refuses. Leaving your last circle, being removed from it, or deleting
+the account deletes everything you published.
+
+### 21.3 The score, and why it cannot be won by being big or by lying
+
+Every number in a training log is self-reported, so a board ranked on weight lifted rewards the
+heaviest person and the least honest one. This one ranks on two things anyone can do well at
+any size or level:
+
+- **Showing up — 60%.** Days trained against your aim for the week. The aim is the run's
+  (§20.15) — one number in the app, set or read by Auto on the run's screen, and never rewritten
+  for a week already over — and days are counted exactly as the run counts them: two sessions on
+  a day are one day, a session with no working set does not count at all, and going over the aim
+  earns nothing extra. A rotation is not a calendar (§20.10), so the aim is a number per week,
+  not named days. **An easier week (§20.12) short of the aim scores 100**: taking one is
+  following the plan, which is why it never breaks a run either. The week in progress is shown
+  against the whole week's aim.
+- **Getting stronger than you were — 40%.** For each loaded lift trained in both windows, the
+  best estimated 1RM of the last 28 days against the best of the 28 before; summed; each sum
+  weighted by the **DOTS** coefficient for the bodyweight at the end of its window
+  (`core/dots.ts`, constants from OpenPowerlifting, tested against its published results).
+  Holding steady scores 50; +2.5% a month scores 100; −2.5% scores 0. DOTS is what makes a cut
+  that holds strength count as the gain it is. Without a profile or weigh-ins the comparison is
+  in raw kilograms, still against yourself. Easier-week sessions (§20.12) are left out.
+
+A week with no progress figure scores on consistency alone, not consistency halved. The board
+ranks the mean of the last four whole weeks; the week in progress is shown but not ranked (on a
+Tuesday it would rank whoever trains on Mondays). **Weeks before your first session are not
+published**, so someone who joins on day one is ranked from the week they started rather than on
+a month of zeros before it. From then on every week is published each time, so a whole week with
+nothing published counts as nothing done; ties share a rank.
+
+**Honesty without accusation.** A session best more than 15% + 7.5 kg above the best accepted
+before it, or above 500 kg, is left out of the score — not reported, not shown to anyone. If a
+later session lands within 5% of it, both count: a real step up repeats, and a typo almost
+never does. Only upward jumps are screened; a number too low hurts nobody's rank but its
+owner's. The person sees "one session best is left out until a second session matches".
+
+### 21.4 Hard mode
+
+Off by default, per person. Each whole week from the first Monday on or after switching on is a
+match against that week's aim, scored by the share of it you met, on an Elo curve:
+`R ← R + 32·(outcome − 1/(1 + 10^((1000 − R)/400)))` from 1000. The better the record, the
+less a full week adds and the more a miss costs — which is the whole of hard mode — and no week
+moves the rating by more than 32. Switching off forgets the rating.
+
+**The skips are the run's.** There is one allowance — three training days short a month, the
+month being the one the week's Thursday falls in (the ISO rule, so a week is never split), not
+rolling over — and it is charged in date order to every short week, hard mode or not. So
+"2 of 3 skips left in October" on Train is exactly what hard mode has left, and days short
+before hard mode came on that month were already spent. A week's outcome is
+`min(1, (days + days covered) / aim)`, so a week short by more than what is left loses only the
+uncovered part (`skipsCovered` in `core/streak.ts`).
+
+**An easier week short of the aim is not judged**: it costs nothing, and since it was not a test
+of keeping the aim it earns nothing either; the rating carries over it unchanged. One that met
+the aim anyway counts like any met week. The week in progress is never judged. Hard mode starts
+judging from the first week there is a session in; a week before anyone has trained at all has
+no aim to be measured against.
+
+**Settings.** The circle keeps one setting of its own, `hard_since`. The aim lives with the run
+(`training:weekly_aim`); a `commitment` stored by the first build of the circle is ignored and
+dropped on the next write.
+
+### 21.5 Server
+
+`supabase/migrations/0009_circle.sql`: five tables (`circles`, `circle_members`,
+`circle_invites`, `circle_scores`, `circle_join_attempts`), none in `SYNC_TABLES`. Row-level
+security is on with **no policies**, and every privilege is revoked from `anon` and
+`authenticated`, so no client can read or write a table directly. The client surface is ten
+`security definer` functions with `search_path` pinned, executable by signed-in users only:
+`circle_mine`, `circle_create`, `circle_invite`, `circle_revoke_invites`, `circle_join`,
+`circle_leave`, `circle_remove`, `circle_rename_me`, `circle_publish`, `circle_board`. Board
+rows carry a per-circle member id, never an account id.
+
+**Invites.** Ten characters from 31 that cannot be misread (no 0/O, 1/I/L), drawn by rejection
+sampling from `gen_random_bytes`, ~50 bits; stored only as a SHA-256; seven days; one live code
+per circle (making one retires the last); revocable; twenty joins at most. A failed join
+returns null rather than raising, so the attempt is recorded — an exception would roll the
+record back — and ten failures in an hour lock that account out of joining for the hour. The
+error does not say whether a code expired, was revoked or never existed.
+
+**Ownership** passes to the longest-standing member when the owner leaves or deletes their
+account; an empty circle is deleted with its invites.
+
+**Publishing** happens on opening the circle, after creating or joining one, and after a sync
+at most every six hours (`publishInBackground`), never outside a circle.
+
+**Tested** in `scripts/circle-sql.test.ts` against a private PostgreSQL started for the run
+(`scripts/pg.ts`, with Supabase's `auth.uid()` and default grants shimmed): the migration runs
+after 0001–0008 and twice over; catalogue checks for RLS, privileges and `search_path`; and the
+attacks — direct table reads, anon calls, outsiders on the board, guessed, expired, revoked and
+used-up codes, the throttle, smuggled fields, out-of-range values, partial batches, removal,
+ownership hand-over and account deletion. The live part skips where PostgreSQL is not installed;
+the static part runs everywhere.
+
+**To turn it on:** run `0009_circle.sql` in the Supabase SQL editor. Nothing else is needed;
+there is no new secret and no Worker change.
 
 ---
 
@@ -1749,3 +2118,67 @@ TDEE that already contains them, which §20.6 already refuses.
 or medication applies, they should be reviewed by a clinician.*
 
 ---
+
+## 22. Units: metric or US (added 21 Oct 2026)
+
+One switch, **Settings → Units: Metric / US**, changes every measurement the app shows or
+accepts. Onboarding asks it first, above the first number it asks for.
+
+**Storage never changes.** Weigh-ins stay kilograms, waists and heights centimetres, water
+millilitres and food grams, in Dexie and in Supabase alike. Only the display and the number pad
+convert (`core/measure.ts`, the one module that knows both systems). The Kalman filter, the
+TDEE, every target and every sync row are computed on numbers that have never changed unit.
+The definitions are the exact legal ones: the international pound (0.45359237 kg), the inch
+(2.54 cm), the avoirdupois ounce (a sixteenth of the pound) and the US customary fluid ounce
+(231 in³ ÷ 128 = 29.5735… ml).
+
+**What converts, and to what precision (§2.4):**
+
+| Measure | Metric | US | Notes |
+|---|---|---|---|
+| Body weight, trend, goal | kg, 0.1 | lb, 0.1 | Stored unrounded: 180 lb is 81.6466266 kg, so it reads back as 180, not 179.9. |
+| Weekly rate | kg/week chips | lb/week chips | US chips are ½, 1, 1½, 2 lb (bulk ¼–1 lb), not 0.25 kg shown as 0.55 lb. A stored rate that matches no chip says "Now 1.1 lb a week". |
+| Waist | cm, whole | in, 0.1 | A centimetre tape is good to ±0.2 in; one decimal is the most it supports. |
+| Height | cm | ft + in, whole inches | Typed as two fields; 71.9 in reads 6 ft 0 in, never 5 ft 12 in. |
+| Water | ml / L to 0.1 | fl oz, whole | Presets 8/12/16/20/24 fl oz; the default glass is an 8 oz cup (237 ml). Logged in whole ml, so 8 oz reads back as 8. |
+| Food amounts | g | oz, 0.1 below 100 | Diary, favourites, amount sheet (opens in oz / fl oz), recipes, cooking, batches, estimates, menus, the plan. |
+| Shopping | g / kg, price per kg | oz / lb, price per lb | Pack weights typed in ounces. Prices stay stored per kilo to the cent; every per-pound price to the cent survives the round trip. |
+| Gym loads | kg | lb | Follows the switch, with an override (below). |
+
+**What stays metric in both:** energy (kcal) and macros and micros (grams) — US labels print
+grams and so does every US macro tracker, because targets are written that way; the nutrition
+label pages ("per 100 g", the per-serving column); supplement doses; the CSV export, whose
+headers already name the unit (`weight_kg`, `ml`).
+
+**Round trips.** Everything that opens on a stored value keeps that value until it is typed
+over: the weigh-in pad, the profile's height and target, an entry reopened in ounces (250 g
+shows as 8.8 oz, and saving it untouched writes 250 g, not 249.5 g), the recipe and cooking
+pads. Moving a meal to dinner must not shave half a gram off it; resaving a profile must not turn
+178 cm into 177.8. In grams the pads always meant what they showed, rounding included, and
+still do.
+
+**The default, and why it is written down.** Until it is chosen, the units follow the market
+(§19's `chain_market`): the US market guesses US, every other market metric. The guess is
+written to the setting on first run, because the market follows the phone abroad — a week in New
+York must not quietly turn a metric person's weigh-ins into pounds.
+
+**The gym's override.** Plates are physical: plenty of US gyms load kilo plates and plenty of
+European ones have pound dumbbells. So Settings → Training keeps one control, *Gym weights: As
+the app / kg / lb*. Before §22 the gym had its own kg/lb switch; someone who had set it to pounds
+keeps pounds at the bar on update (the old `weight_unit: 'lb'` reads as the override), and their
+body weight stays in kilos, so nothing they see changes. An old `kg` was the default anyone
+could have tapped back to, so it follows the app.
+
+**Reminders.** The phone's day report carries `us_units: true` when it shows US units, and
+the Worker's evening nudge then says "47 fl oz of water" rather than "1.4 L". Only a literal
+`true` is kept; an older phone that never sends it gets litres, as before.
+
+**How others do it (surveyed 21 Oct 2026).** Hevy sets weight, distance and body measurements
+separately under Settings → Units, and lets a single exercise override the weight unit — the
+precedent for the gym override here. MacroFactor lets you favourite up to two weight and two
+volume measurements for food logging. Cronometer remembers the last unit used for each
+biometric and carries ounce servings on its foods. Kalib takes one switch for everything
+(what a person actually wants: "I'm American"), plus the one exception the gym genuinely needs.
+Per-measure overrides beyond that were left out: each one is a setting most people never
+touch and a combination nobody tests.
+

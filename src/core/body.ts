@@ -9,6 +9,7 @@
 //
 // Pure, like everything in core/: no clamping surprises, no I/O, every branch tested.
 import type { Sex } from './types';
+import { formatLength, type UnitSystem } from './measure';
 
 /** Plausible tape readings. Outside this the input is a typo, not a body. */
 export const WAIST_MIN_CM = 40;
@@ -101,8 +102,8 @@ export function resolveBodyFat(i: BodyFatInputs): BodyFatEstimate | undefined {
 }
 
 /** How the number is described wherever it is shown, so the UI never implies a DXA scan. */
-export function bodyFatBasis(e: BodyFatEstimate): string {
+export function bodyFatBasis(e: BodyFatEstimate, units: UnitSystem = 'metric'): string {
   if (e.source === 'measured') return 'as entered';
-  if (e.source === 'waist') return `from a ${Math.round(e.waist_cm ?? 0)} cm waist (RFM)`;
+  if (e.source === 'waist') return `from a ${formatLength(e.waist_cm ?? 0, units)} waist (RFM)`;
   return 'your starting estimate';
 }

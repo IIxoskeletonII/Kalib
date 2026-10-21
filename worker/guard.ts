@@ -4,7 +4,8 @@
 // endpoint that costs money (estimate) or writes durable state (push subscriptions) requires a
 // Supabase session: the Worker asks Supabase's auth service who the bearer token belongs to.
 // On top of that sit daily quotas (per user and global, in KV) that bound the worst case even
-// if an account is compromised, and a short per-minute rate limit against bursts.
+// if an account is compromised, and a short per-minute rate limit against bursts. Injury help
+// (SPEC §20.16) has a pool of its own, smaller, so neither feature can starve the other.
 
 export interface GuardEnv {
   /**
@@ -18,6 +19,9 @@ export interface GuardEnv {
   /** Daily caps for estimation; defaults below. */
   ESTIMATE_DAILY_USER?: string;
   ESTIMATE_DAILY_TOTAL?: string;
+  /** Daily caps for injury help, its own smaller pool; defaults below. */
+  INJURY_DAILY_USER?: string;
+  INJURY_DAILY_TOTAL?: string;
   /**
    * Optional comma-separated emails. When set, only these accounts may estimate (sign-ups can
    * stay open without strangers spending the OpenRouter credit). Unset = any signed-in user.
@@ -110,6 +114,9 @@ function positiveInt(v: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
+export type Admission =
+  { ok: true; usedToday: number; capUser: number } | { ok: false; reason: 'user' | 'total' };
+
 /**
  * Admits one estimate for `userId` if neither the user's nor the global daily count is at its
  * cap, counting it on admission. Returns what stopped it otherwise.
@@ -119,14 +126,52 @@ export async function admitEstimate(
   userId: string,
   env: GuardEnv,
   now = new Date(),
-): Promise<
-  { ok: true; usedToday: number; capUser: number } | { ok: false; reason: 'user' | 'total' }
-> {
-  const capUser = positiveInt(env.ESTIMATE_DAILY_USER, DEFAULT_DAILY_USER);
-  const capTotal = positiveInt(env.ESTIMATE_DAILY_TOTAL, DEFAULT_DAILY_TOTAL);
+): Promise<Admission> {
+  return admitDaily(
+    store,
+    'estimate',
+    userId,
+    positiveInt(env.ESTIMATE_DAILY_USER, DEFAULT_DAILY_USER),
+    positiveInt(env.ESTIMATE_DAILY_TOTAL, DEFAULT_DAILY_TOTAL),
+    now,
+  );
+}
+
+/**
+ * Injury help has its own pool, smaller than the estimate one. It is a rarer need — nobody
+ * should be asking about a new ache five times a day — and counting it apart means a bad week
+ * for someone's shoulder never eats the household's meal estimates, or the reverse.
+ */
+export const DEFAULT_INJURY_DAILY_USER = 5;
+export const DEFAULT_INJURY_DAILY_TOTAL = 20;
+
+export async function admitInjury(
+  store: QuotaStore,
+  userId: string,
+  env: GuardEnv,
+  now = new Date(),
+): Promise<Admission> {
+  return admitDaily(
+    store,
+    'injury',
+    userId,
+    positiveInt(env.INJURY_DAILY_USER, DEFAULT_INJURY_DAILY_USER),
+    positiveInt(env.INJURY_DAILY_TOTAL, DEFAULT_INJURY_DAILY_TOTAL),
+    now,
+  );
+}
+
+async function admitDaily(
+  store: QuotaStore,
+  pool: 'estimate' | 'injury',
+  userId: string,
+  capUser: number,
+  capTotal: number,
+  now: Date,
+): Promise<Admission> {
   const day = utcDate(now);
-  const userKey = `quota:estimate:${day}:${userId}`;
-  const totalKey = `quota:estimate:${day}:all`;
+  const userKey = `quota:${pool}:${day}:${userId}`;
+  const totalKey = `quota:${pool}:${day}:all`;
   const [u, t] = await Promise.all([store.get(userKey), store.get(totalKey)]);
   const used = Number(u) || 0;
   const total = Number(t) || 0;

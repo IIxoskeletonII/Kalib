@@ -10,10 +10,19 @@ import { deleteWeighIn, upsertWeighIn } from '@/db/repo/weighIns';
 import { relativeFatMass, waistToHeight, WHTR_HEALTHY_MAX } from '@/core/body';
 import { retentionWindows } from '@/core/cycle';
 import { fromDateKey, todayKey } from '@/core/dates';
+import {
+  bodyUnit,
+  formatBodyWeight,
+  lengthDecimals,
+  lengthUnit,
+  toBodyUnit,
+  toLengthUnit,
+} from '@/core/measure';
 import { computeTrend, trendDelta, windowSeries } from '@/core/trend';
 import { fmt } from '@/components/ui';
 import { setSetting } from '@/db/repo/settings';
 import { useCycle, useProfile, useSetting, useTdee, useWeighIns } from '@/hooks/useData';
+import { useUnitSystem } from '@/hooks/useUnits';
 
 /** Which measurement the chart is showing. Both live in the same card, one tap apart. */
 type Series = 'weight' | 'waist';
@@ -31,6 +40,7 @@ const RANGES: { value: Range; label: string }[] = [
 
 export default function Trend() {
   const weighIns = useWeighIns();
+  const units = useUnitSystem();
   const profile = useProfile();
   const showRaw = useSetting<boolean>('show_raw_weight', false);
   const tdee = useTdee();
@@ -62,11 +72,26 @@ export default function Trend() {
     return retentionWindows(points[0]!.date, points[points.length - 1]!.date, cycle.starts);
   }, [cycle.enabled, cycle.starts, points]);
 
+  // The series is metric throughout (the filter runs on it); only what is drawn and printed is
+  // converted (§22). Both conversions are a scale factor, so a converted trend is the trend of
+  // the converted readings and the deltas convert the same way.
+  const shown = (v: number) =>
+    series === 'weight' ? toBodyUnit(v, units) : toLengthUnit(v, units);
+  const shownPoints = useMemo(() => {
+    const f = (v: number) => (series === 'weight' ? toBodyUnit(v, units) : toLengthUnit(v, units));
+    return points.map((p) => ({
+      ...p,
+      trend: f(p.trend),
+      ...(p.raw != null ? { raw: f(p.raw) } : {}),
+    }));
+  }, [points, series, units]);
+
   const latest = source.at(-1);
-  const unit = series === 'weight' ? 'kg' : 'cm';
-  const dp = series === 'weight' ? 2 : 0;
-  // The hero shows what the instrument reads: the scale to 0.1 kg, the tape to the centimetre.
-  const heroDp = series === 'weight' ? 1 : 0;
+  const unit = series === 'weight' ? bodyUnit(units) : lengthUnit(units);
+  const dp = series === 'weight' ? 2 : lengthDecimals(units);
+  // The hero shows what the instrument reads: the scale to a tenth, the tape to the centimetre
+  // (or the tenth of an inch, which is the closest an inch tape gets to it).
+  const heroDp = series === 'weight' ? 1 : lengthDecimals(units);
   const d7 = trendDelta(source, 7);
   const d28 = trendDelta(source, 28);
   const sinceStart = source.length > 1 ? latest!.trend - source[0]!.trend : undefined;
@@ -113,7 +138,7 @@ export default function Trend() {
                   {series === 'weight' ? 'Trend weight' : 'Waist'}
                 </div>
                 <div className="display mt-1">
-                  {latest.trend.toFixed(heroDp)}
+                  {shown(latest.trend).toFixed(heroDp)}
                   <span className="ml-1.5 text-[20px] font-medium text-muted">{unit}</span>
                 </div>
               </div>
@@ -127,7 +152,7 @@ export default function Trend() {
                     <TrendingUp size={16} aria-hidden />
                   )}
                   {d7 > 0 ? '+' : ''}
-                  {d7.toFixed(series === 'weight' ? 2 : 0)} {unit} in 7 days
+                  {shown(d7).toFixed(dp)} {unit} in 7 days
                 </div>
               )}
             </div>
@@ -144,10 +169,10 @@ export default function Trend() {
             <div className="mt-4">
               {hasChart ? (
                 <TrendChart
-                  points={points}
+                  points={shownPoints}
                   showRaw={showRaw}
                   bands={bands}
-                  decimals={series === 'weight' ? 1 : 0}
+                  decimals={series === 'weight' ? 1 : lengthDecimals(units)}
                 />
               ) : (
                 <p className="py-10 text-center text-[14px] text-muted">
@@ -198,9 +223,9 @@ export default function Trend() {
 
       {latest && (
         <Card className="mt-3 divide-y divide-line">
-          {d28 != null && <Row label="Last 28 days" value={signed(d28, dp)} sub={unit} />}
+          {d28 != null && <Row label="Last 28 days" value={signed(shown(d28), dp)} sub={unit} />}
           {sinceStart != null && (
-            <Row label="Since start" value={signed(sinceStart, dp)} sub={unit} />
+            <Row label="Since start" value={signed(shown(sinceStart), dp)} sub={unit} />
           )}
           {series === 'weight' ? (
             <Row label="Days weighed" value={String(weighedDays)} sub={`of ${all.length}`} />
@@ -349,7 +374,7 @@ export default function Trend() {
                       day: 'numeric',
                       month: 'short',
                     })}
-                    value={`${w.weight_kg.toFixed(1)} kg`}
+                    value={formatBodyWeight(w.weight_kg, units)}
                   />
                 </SwipeRow>
               ))}

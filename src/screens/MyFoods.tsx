@@ -11,8 +11,11 @@ import { mealSlotForTime, todayKey } from '@/core/dates';
 import type { Food } from '@/core/types';
 import { useUserFoods } from '@/hooks/useData';
 import { useState } from 'react';
+import { formatFoodMass } from '@/core/measure';
+import { useUnitSystem } from '@/hooks/useUnits';
 
 export default function MyFoods() {
+  const units = useUnitSystem();
   const navigate = useNavigate();
   const back = useBack('/settings');
   const foods = useUserFoods();
@@ -73,7 +76,7 @@ export default function MyFoods() {
                 subtitle={[
                   f.brand,
                   f.portions[0]
-                    ? `${f.portions[0].label} ${fmt(f.portions[0].grams)} g`
+                    ? `${f.portions[0].label} ${formatFoodMass(f.portions[0].grams, units)}`
                     : undefined,
                 ]
                   .filter(Boolean)

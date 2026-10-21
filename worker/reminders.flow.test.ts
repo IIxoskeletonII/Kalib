@@ -135,6 +135,52 @@ describe('the day report survives the round trip', () => {
     vi.restoreAllMocks();
   });
 
+  it('keeps a US-units flag only when it is literally true (SPEC §22)', async () => {
+    mockAuth();
+    const store = kv();
+    const e = env(store);
+    const { keys } = await realKeys();
+    await worker.fetch(
+      post('/api/push/subscribe', {
+        subscription: { endpoint: ENDPOINT, keys },
+        prefs: { weighAt: '07:30', logAt: '20:00' },
+        tz: 'America/New_York',
+        app: '0.40.0',
+      }),
+      e,
+      ctx,
+    );
+    const day = {
+      date: '2026-09-28',
+      weighed: true,
+      logged: true,
+      supplements_left: 0,
+      supplements_total: 0,
+      water_left_ml: 1400,
+    };
+    const status = async () =>
+      (await (
+        await worker.fetch(post('/api/push/status', { endpoint: ENDPOINT }), e, ctx)
+      ).json()) as {
+        day: Record<string, unknown>;
+      };
+    for (const junk of ['true', 1, 'yes', null]) {
+      await worker.fetch(
+        post('/api/push/ping', { endpoint: ENDPOINT, day: { ...day, us_units: junk } }),
+        e,
+        ctx,
+      );
+      expect((await status()).day).toEqual(day);
+    }
+    await worker.fetch(
+      post('/api/push/ping', { endpoint: ENDPOINT, day: { ...day, us_units: true } }),
+      e,
+      ctx,
+    );
+    expect((await status()).day).toEqual({ ...day, us_units: true });
+    vi.restoreAllMocks();
+  });
+
   it('the cron then nudges about the untaken supplement, naming it', async () => {
     mockAuth();
     const store = kv();

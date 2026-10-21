@@ -3,5 +3,7 @@ dev-dist
 node_modules
 public/data
 .cache
+# Agent worktrees: whole other checkouts, each with its own gate.
+.claude
 # Prose keeps its own style (italics, tables, spacing).
 *.md

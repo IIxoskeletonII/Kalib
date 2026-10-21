@@ -11,6 +11,7 @@ import { ChevronUp } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { formatClock, isRestDone, restRemaining } from '@/core/restTimer';
 import { isWorkingSet } from '@/core/sets';
+import { useKeepScreenOn, useRestAlert } from '@/hooks/useSessionAids';
 import { elapsedSince, useActiveSession, useNow, useRestTimer } from '@/hooks/useWorkouts';
 
 /** What the bar occupies, in px, for the surfaces that stack above it. Measured, not guessed. */
@@ -31,6 +32,12 @@ export function ActiveWorkoutBar({ liftedBy = 0 }: { liftedBy?: number }) {
   const { pathname } = useLocation();
 
   const now = useNow(session != null);
+
+  // This bar is mounted on every screen for as long as a session runs, so it carries the two
+  // things the session needs from the phone wherever you are in the app (§20.14). Before the
+  // early return: they must run on the session screen too, where the bar itself is hidden.
+  useKeepScreenOn(session != null);
+  useRestAlert(rest, session != null);
 
   // Not on the session screen itself, where all of this is already on the page.
   if (!session || !workoutBarShown(true, pathname)) return null;

@@ -1,4 +1,4 @@
-// SPEC §20.5 / §20.6 — what the session came to, shown once, right after it ends.
+// SPEC §20.5 / §20.6 / §20.14 — what the session came to, shown once, right after it ends.
 //
 // This is where celebration belongs. The convention across the good trackers is that a record
 // is a quiet badge during the set and the fuss happens here; a history screen opened weeks
@@ -7,21 +7,25 @@
 // It is also the only place the energy figure appears, and it appears with the sentence that
 // makes it safe: the measured burn already contains it, so the food budget has not moved. A
 // number like that shown without its caveat is the one thing that would undo §20.7.
-import { Check, ChevronLeft, Flame, Trophy } from 'lucide-react';
+import { Check, ChevronLeft, Flame, Share, Trophy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { Explainer } from '@/components/Explainer';
+import { FreshAchievement } from '@/components/FreshAchievement';
+import { toast } from '@/components/Toast';
 import { Button, Card, IconButton, SectionHeading } from '@/components/ui';
 import { MUSCLE_LABEL } from '@/core/muscles';
 import { describePR } from '@/core/pr';
 import { formatDuration } from '@/core/restTimer';
 import { describeEnergy } from '@/core/workoutEnergy';
+import { describeWorkout } from '@/core/workoutShare';
 import type { Muscle } from '@/core/types';
 import { formatWeight, toDisplay, UNIT_LABEL } from '@/core/weightUnit';
 import { fmt } from '@/components/ui';
 import { getExercises } from '@/db/repo/exercises';
 import { useBack } from '@/hooks/useBack';
 import { useWeightUnit } from '@/hooks/useWorkouts';
+import { shareText } from '@/platform/share';
 import { summaryFor, type SessionSummary as Summary } from '@/services/workouts';
 
 export default function SessionSummary() {
@@ -64,15 +68,33 @@ export default function SessionSummary() {
   if (!summary) return null;
   const { session, records, volume, energy } = summary;
   const done = new Date(session.ended_at ?? session.started_at);
+  const dateLabel = done.toLocaleDateString(undefined, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+
+  // §20.14 — the workout as text, through the phone's own share sheet. Nothing is uploaded:
+  // where the sheet sends it is the person's choice, and without one it lands on the clipboard.
+  const share = async () => {
+    const text = describeWorkout({
+      session,
+      records,
+      unit,
+      date: dateLabel,
+      volume_kg: volume.kg,
+    });
+    const outcome = await shareText(session.name, text);
+    if (outcome === 'copied') toast('Copied — paste it wherever you like');
+    else if (outcome === 'failed') toast('This browser would not share or copy it');
+  };
 
   return (
     <div className="flex h-full flex-col pb-6">
       <header className={justFinished ? 'pt-6' : 'flex items-start gap-1 pt-1'}>
         {!justFinished && <IconButton icon={ChevronLeft} label="Back" onClick={back} />}
         <div className={justFinished ? '' : 'min-w-0 flex-1 pt-1'}>
-          <p className="text-[14px] font-medium text-muted">
-            {done.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
+          <p className="text-[14px] font-medium text-muted">{dateLabel}</p>
           <h1
             className={`mt-0.5 leading-none font-extrabold tracking-[-0.03em] ${
               justFinished ? 'text-[34px]' : 'text-[24px]'
@@ -115,6 +137,9 @@ export default function SessionSummary() {
           {muscles.map((m) => MUSCLE_LABEL[m]).join(' · ')}
         </p>
       )}
+
+      {/* A milestone this session crossed, once (§20.15); Train shows it otherwise. */}
+      {justFinished && <FreshAchievement className="mt-7" />}
 
       {records.length > 0 && (
         <section className="mt-7">
@@ -199,9 +224,13 @@ export default function SessionSummary() {
       )}
 
       {/* Only the end of a workout gets a button to close it off. Reading an old session back
-          is a detail screen like any other, and the back arrow is how you leave one. */}
-      {justFinished && (
-        <div className="mt-auto pt-7">
+          is a detail screen like any other, and the back arrow is how you leave one. Sharing
+          belongs to both: the moment it ends, and the week after when someone asks. */}
+      <div className="mt-auto space-y-2 pt-7">
+        <Button size="lg" icon={Share} className="w-full" onClick={() => void share()}>
+          Share this workout
+        </Button>
+        {justFinished && (
           <Button
             variant="primary"
             size="lg"
@@ -211,8 +240,8 @@ export default function SessionSummary() {
           >
             Done
           </Button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

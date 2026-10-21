@@ -9,6 +9,7 @@
 import { runEstimate, type EstimateEnv, type EstimateRequest } from './estimate';
 import {
   admitEstimate,
+  admitInjury,
   authConfigured,
   isPushEndpoint,
   isStaticFileRequest,
@@ -19,6 +20,14 @@ import {
   type Limiter,
 } from './guard';
 import { normalizeOffProduct, rankOffProducts, type OffProduct, type OffHit } from './off';
+import {
+  cleanInjuryRequest,
+  INJURY_CONSENT_HEADER,
+  INJURY_CONSENT_VALUE,
+  runInjury,
+  screenInjury,
+  type InjuryEnv,
+} from './injury';
 import { runLabel, type LabelEnv, type LabelRequest } from './label';
 import { runMenu, type MenuEnv, type MenuRequest } from './menu';
 import { offSubmitEnabled, submitToOff, type OffSubmission, type OffSubmitEnv } from './offSubmit';
@@ -51,6 +60,7 @@ import {
 export interface Env
   extends
     EstimateEnv,
+    InjuryEnv,
     SuggestEnv,
     LabelEnv,
     MenuEnv,
@@ -96,6 +106,8 @@ function cleanDay(raw: unknown): DayState | undefined {
     supplements_left: Math.min(50, Math.round(n(d.supplements_left))),
     supplements_total: Math.min(50, Math.round(n(d.supplements_total))),
     water_left_ml: Math.min(10000, Math.round(n(d.water_left_ml))),
+    // Only a literal true counts; anything else is the metric default (SPEC §22).
+    ...(d.us_units === true ? { us_units: true } : {}),
   };
 }
 
@@ -259,6 +271,74 @@ async function handlePush(request: Request, url: URL, env: Env): Promise<Respons
     return json({ ok: true });
   }
   return json({ error: 'not found' }, 404);
+}
+
+/**
+ * POST /api/coach/injury (SPEC §20.16). Health data, so the order matters: who is asking and
+ * whether they agreed are settled before the body is read, the red-flag screen runs before
+ * anything is spent, and nothing about the request is logged or stored.
+ */
+export async function handleInjury(
+  request: Request,
+  url: URL,
+  env: Env,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Response> {
+  if (request.method !== 'POST') return json({ error: 'method' }, 405);
+  const origin = request.headers.get('origin') ?? '';
+  if (origin && origin !== url.origin) return json({ error: 'forbidden' }, 403);
+  if (!authConfigured(env) || !env.PUSH) {
+    return json({ error: 'Injury help is not set up on the server yet.' }, 503);
+  }
+  const user = await requireUser(request, env, fetchImpl);
+  if (!user) return json({ error: 'Sign in (Settings → Sync) to use injury help.' }, 401);
+  if (!mayEstimate(user, env)) {
+    return json({ error: 'Injury help is switched on for household accounts only.' }, 403);
+  }
+  if (request.headers.get(INJURY_CONSENT_HEADER) !== INJURY_CONSENT_VALUE) {
+    return json({ error: 'Injury help needs your agreement first.' }, 403);
+  }
+  if (!(await underLimit(env.ESTIMATE_LIMIT, `injury:${user.id}`))) {
+    return json({ error: 'One at a time — try again in a minute.' }, 429);
+  }
+  const size = Number(request.headers.get('content-length') ?? 0);
+  if (size > 20_000) return json({ error: 'Too large.' }, 413);
+  let raw: unknown;
+  try {
+    raw = await request.json();
+  } catch {
+    return json({ error: 'bad request' }, 400);
+  }
+  const req = cleanInjuryRequest(raw);
+  if ('error' in req) return json({ error: req.error }, 400);
+
+  // A red flag is answered before the quota is touched: being told to see a doctor is free.
+  const flags = screenInjury(req);
+  if (flags.length > 0) return json({ flags });
+  if (!env.OPENROUTER_API_KEY) {
+    return json({ error: 'Injury help is not set up on the server yet.' }, 503);
+  }
+  const admitted = await admitInjury(env.PUSH, user.id, env);
+  if (!admitted.ok) {
+    return json(
+      {
+        error:
+          admitted.reason === 'user'
+            ? 'You have used today’s injury help. Tomorrow is a new day.'
+            : 'Injury help is paused until tomorrow.',
+      },
+      429,
+    );
+  }
+  const out = await runInjury(req, env, fetchImpl);
+  if (!out.ok) return json({ error: out.error }, out.status);
+  if ('flags' in out) return json({ flags: out.flags });
+  return json({
+    result: out.result,
+    model: out.model,
+    used: admitted.usedToday,
+    cap: admitted.capUser,
+  });
 }
 
 /** Cron: every few minutes, send whatever is due. Dead subscriptions are dropped. */
@@ -456,6 +536,7 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith('/api/push/')) return handlePush(request, url, env);
+    if (url.pathname === '/api/coach/injury') return handleInjury(request, url, env);
 
     // §18.6 — a kept suggestion joins the shared bank (content only, no one's data).
     if (url.pathname === '/api/suggest/keep') {

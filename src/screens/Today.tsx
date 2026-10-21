@@ -18,6 +18,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AccountChip } from '@/components/AccountChip';
 import { AmountSheet, SLOT_LABEL } from '@/components/AmountSheet';
 import { DailyChecks } from '@/components/DailyChecks';
+import { useUnitSystem } from '@/hooks/useUnits';
 import { DayHero } from '@/components/DayHero';
 import { SwipeRow } from '@/components/SwipeRow';
 import { toast } from '@/components/Toast';
@@ -39,6 +40,7 @@ import { dayTotals } from '@/core/nutrition';
 import { formatPortions } from '@/core/recipes';
 import type { EngineResult } from '@/core/tdee';
 import { computeTrend } from '@/core/trend';
+import { formatFoodMass, type UnitSystem } from '@/core/measure';
 import {
   MEAL_SLOTS,
   type Batch,
@@ -93,6 +95,7 @@ export default function Today() {
   const target = useDailyTarget(date);
   const banking = useBanking(date);
   const weighIns = useWeighIns();
+  const units = useUnitSystem();
   const allFavourites = useFavourites();
   const batches = useActiveBatches();
   const tdee = useTdee();
@@ -347,7 +350,7 @@ export default function Today() {
                   {shortName(f.name)}
                 </span>
                 <span className="mt-3 text-[13px] text-muted tabular">
-                  {fmt(f.last_grams)} g · {fmt(f.last_kcal)} kcal
+                  {formatFoodMass(f.last_grams, units)} · {fmt(f.last_kcal)} kcal
                 </span>
               </button>
             ))}
@@ -390,7 +393,7 @@ export default function Today() {
                       badge={
                         e.confidence !== 'high' ? <Badge tone="kcal">estimate</Badge> : undefined
                       }
-                      subtitle={entryMeta(e)}
+                      subtitle={entryMeta(e, units)}
                       value={fmt(e.kcal)}
                       valueSub="kcal"
                     />
@@ -549,10 +552,13 @@ function engineLine(r: EngineResult, pending: boolean): string {
   }
 }
 
-/** "150 g · 34 g protein · 3 g fiber" — the two macros the plan is built on; the rest are on the sheet. */
-function entryMeta(e: LogEntry): string {
+/**
+ * "150 g · 34 g protein · 3 g fiber" — the two macros the plan is built on; the rest are on the
+ * sheet. The amount follows the units (§22): "5.3 oz · 34 g protein". Macros stay grams.
+ */
+function entryMeta(e: LogEntry, units: UnitSystem): string {
   const parts: string[] = [];
-  if (e.grams > 0) parts.push(`${fmt(e.grams)} g`);
+  if (e.grams > 0) parts.push(formatFoodMass(e.grams, units));
   parts.push(`${fmt(e.protein_g)} g protein`);
   if (e.fiber_g >= 1) parts.push(`${fmt(e.fiber_g)} g fiber`);
   return parts.join(' · ');

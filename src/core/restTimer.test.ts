@@ -6,6 +6,8 @@ import {
   isRestDone,
   MAX_REST_SEC,
   restOverrun,
+  REST_ALERT_GRACE_SEC,
+  restAlertDue,
   restProgress,
   restRemaining,
   startRest,
@@ -104,6 +106,19 @@ describe('adjustRest', () => {
     expect(isRestDone(ended, at(10))).toBe(true);
   });
 
+  it('records a rest ended early as a rest of nothing', () => {
+    const ended = adjustRest(t, -15, at(80));
+    expect(ended.duration_sec).toBe(0);
+    expect(ended.ends_at).toBe(at(80).toISOString());
+    expect(restProgress(ended, at(80))).toBe(1);
+  });
+
+  it('a "−15" that leaves time on the clock keeps the duration it took off', () => {
+    const shorter = adjustRest(t, -15, at(10));
+    expect(shorter.duration_sec).toBe(75);
+    expect(restRemaining(shorter, at(10))).toBe(65);
+  });
+
   it('keeps the recorded duration sane', () => {
     expect(adjustRest(t, -9999, T0).duration_sec).toBe(0);
     expect(adjustRest(t, 999999, T0).duration_sec).toBe(MAX_REST_SEC);
@@ -135,5 +150,73 @@ describe('formatDuration', () => {
     expect(formatDuration(2700)).toBe('45m');
     expect(formatDuration(3600)).toBe('1h');
     expect(formatDuration(4320)).toBe('1h 12m');
+  });
+});
+
+describe('restAlertDue', () => {
+  const rest = startRest(90, T0);
+
+  it('is silent while the rest is still running', () => {
+    expect(restAlertDue(rest, at(0))).toBe(false);
+    expect(restAlertDue(rest, at(89))).toBe(false);
+    // 89.5 s in, half a second remains, which rounds up to one: still resting.
+    expect(restAlertDue(rest, at(89.5))).toBe(false);
+  });
+
+  it('sounds the moment the rest ends', () => {
+    expect(restAlertDue(rest, at(90))).toBe(true);
+  });
+
+  it('still sounds for a tick that arrived a little late', () => {
+    expect(restAlertDue(rest, at(91))).toBe(true);
+    expect(restAlertDue(rest, at(90 + REST_ALERT_GRACE_SEC))).toBe(true);
+  });
+
+  it('stays quiet when the app is opened long after the rest ended', () => {
+    // The hidden-page case: the phone was locked through the end, and the first repaint on
+    // waking is minutes late. That is news about the past, not a cue to lift.
+    expect(restAlertDue(rest, at(90 + REST_ALERT_GRACE_SEC + 1))).toBe(false);
+    expect(restAlertDue(rest, at(90 + 180))).toBe(false);
+    expect(restAlertDue(rest, at(90 + 3600))).toBe(false);
+  });
+
+  it('sounds once per end, not once per repaint', () => {
+    expect(restAlertDue(rest, at(90), rest.ends_at)).toBe(false);
+    expect(restAlertDue(rest, at(92), rest.ends_at)).toBe(false);
+  });
+
+  it('sounds again for a new end after "+15 s"', () => {
+    const later = adjustRest(rest, 15, at(80));
+    expect(restAlertDue(later, at(90), rest.ends_at)).toBe(false);
+    expect(restAlertDue(later, at(105), rest.ends_at)).toBe(true);
+  });
+
+  it('stays quiet for a rest the person ended themselves with "−15"', () => {
+    // They were looking at the screen to press it; the chime is for someone who is not.
+    const cut = adjustRest(rest, -60, at(85));
+    expect(cut.ends_at).toBe(at(85).toISOString());
+    expect(restAlertDue(cut, at(85))).toBe(false);
+    expect(restAlertDue(cut, at(86))).toBe(false);
+  });
+
+  it('still sounds for a rest merely shortened, when it runs out by itself', () => {
+    const shorter = adjustRest(rest, -30, at(10));
+    expect(restAlertDue(shorter, at(59))).toBe(false);
+    expect(restAlertDue(shorter, at(60))).toBe(true);
+  });
+
+  it('never sounds for a zero-length rest', () => {
+    const none = startRest(0, T0);
+    expect(restAlertDue(none, at(0))).toBe(false);
+    expect(restAlertDue(none, at(1))).toBe(false);
+  });
+
+  it('never sounds for a corrupt end instant', () => {
+    expect(restAlertDue({ ends_at: 'not a date', duration_sec: 90 }, at(90))).toBe(false);
+  });
+
+  it('is unaffected by a clock that runs backwards', () => {
+    // A phone whose time is corrected mid-rest: "now" before the start is simply still resting.
+    expect(restAlertDue(rest, at(-30))).toBe(false);
   });
 });

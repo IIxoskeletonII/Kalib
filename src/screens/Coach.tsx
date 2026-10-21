@@ -20,9 +20,11 @@ import {
   type Recommendation,
 } from '@/core/coach';
 import { mealSlotForTime, todayKey } from '@/core/dates';
+import { bodyUnit, formatFoodMass, signedBodyChange } from '@/core/measure';
 import type { MicroStat, WeekReview } from '@/core/review';
 import type { Food } from '@/core/types';
 import { useCoach, useWeekOverview } from '@/hooks/useData';
+import { useUnitSystem } from '@/hooks/useUnits';
 
 export default function Coach() {
   const today = todayKey();
@@ -191,6 +193,7 @@ export default function Coach() {
 }
 
 function WeekCard({ r }: { r: WeekReview }) {
+  const units = useUnitSystem();
   const adherenceTone =
     r.adherence <= 1.05 && r.adherence >= 0.85
       ? 'text-accent'
@@ -230,8 +233,7 @@ function WeekCard({ r }: { r: WeekReview }) {
           <span>
             Trend{' '}
             <span className={`font-semibold ${r.weightDelta <= 0 ? 'text-fiber' : 'text-fat'}`}>
-              {r.weightDelta > 0 ? '+' : ''}
-              {r.weightDelta.toFixed(1)} kg
+              {signedBodyChange(r.weightDelta, units)} {bodyUnit(units)}
             </span>
           </span>
         )}
@@ -322,6 +324,7 @@ function GapFoods({
   fresh: Recommendation[];
   onPick: (food: Food, grams: number) => void;
 }) {
+  const units = useUnitSystem();
   // Open on whichever tier has something to say; new ideas win the tie.
   const [tab, setTab] = useState<'fresh' | 'familiar'>(fresh.length > 0 ? 'fresh' : 'familiar');
   const shown = tab === 'fresh' ? fresh : familiar;
@@ -354,7 +357,7 @@ function GapFoods({
               onClick={() => onPick(r.food, r.grams)}
               wrapTitle
               title={r.food.name.split(',').slice(0, 2).join(',')}
-              subtitle={`${fmt(r.grams)} g · ${fmt(r.kcal)} kcal${r.familiar ? ' · in your rotation' : ''}`}
+              subtitle={`${formatFoodMass(r.grams, units)} · ${fmt(r.kcal)} kcal${r.familiar ? ' · in your rotation' : ''}`}
               value={`+${fmt(r.adds, gap.unit === 'g' ? 0 : 1)} ${gap.unit}`}
               valueSub={gap.label.toLowerCase()}
             />

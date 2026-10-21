@@ -3,11 +3,19 @@
 import { Check, Droplets, Pill, Plus, Scale } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
+import {
+  bodyUnit,
+  bodyWeightValue,
+  formatWaterAmount,
+  waterTotalValue,
+  waterUnit,
+} from '@/core/measure';
 import { TIMING_LABEL, formatDose } from '@/core/supplements';
 import type { Supplement, WeighIn } from '@/core/types';
-import { DEFAULT_GLASS_ML, WATER_GLASS_KEY, sumWater } from '@/core/water';
+import { WATER_GLASS_KEY, defaultGlassMl, sumWater } from '@/core/water';
 import { addWater } from '@/db/repo/water';
 import { useSetting, useSupplements, useTakenSupplements, useWaterLogs } from '@/hooks/useData';
+import { useUnitSystem } from '@/hooks/useUnits';
 import { setTaken } from '@/services/supplements';
 import { WaterSheet } from './WaterSheet';
 import { WeighInSheet } from './WeighInSheet';
@@ -29,7 +37,9 @@ export function DailyChecks({
   const [open, setOpen] = useState<'weight' | 'water' | 'supplements' | null>(null);
   const [pulse, setPulse] = useState(0);
   const logs = useWaterLogs(date);
-  const glass = useSetting<number>(WATER_GLASS_KEY, DEFAULT_GLASS_ML);
+  const units = useUnitSystem();
+  // An unset glass is a 250 ml glass, or an 8 fl oz cup: the default is said in the units shown.
+  const glass = useSetting<number | null>(WATER_GLASS_KEY, null) ?? defaultGlassMl(units);
   const supplements = useSupplements();
   const taken = useTakenSupplements(date);
   const water = sumWater(logs ?? []);
@@ -44,15 +54,15 @@ export function DailyChecks({
           icon={Scale}
           label="Weight"
           onClick={() => setOpen('weight')}
-          value={todaysWeighIn ? todaysWeighIn.weight_kg.toFixed(1) : undefined}
-          unit="kg"
+          value={todaysWeighIn ? bodyWeightValue(todaysWeighIn.weight_kg, units) : undefined}
+          unit={bodyUnit(units)}
           sub={
             todaysWeighIn
               ? trendKg != null
-                ? `trend ${trendKg.toFixed(1)}`
+                ? `trend ${bodyWeightValue(trendKg, units)}`
                 : 'logged'
               : previousWeighIn
-                ? `last ${previousWeighIn.weight_kg.toFixed(1)}`
+                ? `last ${bodyWeightValue(previousWeighIn.weight_kg, units)}`
                 : 'not yet'
           }
           cta={todaysWeighIn ? undefined : 'Log'}
@@ -62,14 +72,11 @@ export function DailyChecks({
           label="Water"
           tone="water"
           onClick={() => setOpen('water')}
-          value={(water / 1000).toLocaleString(undefined, {
-            maximumFractionDigits: 1,
-            minimumFractionDigits: 1,
-          })}
-          unit="L"
-          sub={`of ${(waterTargetMl / 1000).toLocaleString(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 1 })}`}
+          value={waterTotalValue(water, units)}
+          unit={waterUnit(units)}
+          sub={`of ${waterTotalValue(waterTargetMl, units)}`}
           action={{
-            label: `Add ${glass} ml of water`,
+            label: `Add ${formatWaterAmount(glass, units)} of water`,
             onClick: () => {
               void addWater(date, glass);
               setPulse((n) => n + 1);

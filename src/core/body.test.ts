@@ -128,4 +128,11 @@ describe('resolveBodyFat', () => {
     );
     expect(bodyFatBasis({ pct: 35, source: 'profile' })).toBe('your starting estimate');
   });
+
+  it('says the waist in the units shown (§22)', () => {
+    const e = { pct: 30, source: 'waist' as const, waist_cm: 86.36 };
+    expect(bodyFatBasis(e, 'metric')).toBe('from a 86 cm waist (RFM)');
+    expect(bodyFatBasis(e, 'us')).toBe('from a 34.0 in waist (RFM)');
+    expect(bodyFatBasis({ pct: 28, source: 'measured' }, 'us')).toBe('as entered');
+  });
 });

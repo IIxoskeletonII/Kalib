@@ -3,7 +3,16 @@
 // A routine is a template, not a record. Nothing here is a weight: what you lifted is decided
 // set by set in the session, against what you did last time. What a routine fixes is the order,
 // how many sets, the rep range you are aiming at, and how long to rest.
-import { ArrowDown, ArrowUp, ChevronLeft, Link2, Plus, Trash2 } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronLeft,
+  Download,
+  Link2,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { ExercisePicker } from '@/components/ExercisePicker';
@@ -11,7 +20,7 @@ import { NumberPad } from '@/components/NumberPad';
 import { ExerciseThumb } from '@/components/ExerciseDemo';
 import { SwipeRow } from '@/components/SwipeRow';
 import { toast } from '@/components/Toast';
-import { Button, Card, IconButton, ListRow, Segmented, Sheet } from '@/components/ui';
+import { Button, Card, IconButton, ListRow, Segmented, Sheet, StepProgress } from '@/components/ui';
 import { formatClock, REST_PRESETS_SEC } from '@/core/restTimer';
 import { moveItem, removeItem, toggleSuperset } from '@/core/routines';
 import type { RoutineItem } from '@/core/types';
@@ -19,6 +28,7 @@ import { getExercise } from '@/db/repo/exercises';
 import { addRoutine, deleteRoutine, nextRoutineOrder, updateRoutine } from '@/db/repo/workouts';
 import { warmExerciseMedia } from '@/services/exerciseMedia';
 import { useBack } from '@/hooks/useBack';
+import { useOfflineMedia } from '@/hooks/useOfflineMedia';
 import { useExercisesByIds, useRoutine } from '@/hooks/useWorkouts';
 
 /**
@@ -196,6 +206,8 @@ function RoutineForm({
         <Button icon={Plus} size="lg" className="mt-3 w-full" onClick={() => setPicking(true)}>
           Add an exercise
         </Button>
+
+        <OfflineCard media={items.map((it) => media?.get(it.exercise_id)?.media)} />
       </div>
 
       <div className="pt-3">
@@ -230,6 +242,69 @@ function RoutineForm({
         )}
       </Sheet>
     </div>
+  );
+}
+
+/**
+ * §20.14 — whether this routine works without a signal, and the button that makes it so.
+ *
+ * Saving already fetches the demonstrations quietly, but quietly is not enough before a trip or
+ * a basement gym: this says how many are actually on the phone, fetches the rest on request,
+ * and names what it could not get rather than claiming a success it did not have.
+ */
+function OfflineCard({ media }: { media: (string | undefined)[] }) {
+  const { status, progress, result, save } = useOfflineMedia(media);
+  // Nothing to say where the browser keeps no caches, or there are no demonstrations to keep.
+  if (!status || status.total === 0) return null;
+
+  const { saved, total } = status;
+  const ready = saved === total && !progress;
+  const failed = result && result.failed > 0 && !ready ? result.failed : 0;
+  const noun = (n: number) => (n === 1 ? 'demonstration' : 'demonstrations');
+
+  return (
+    <section className="mt-6" aria-label="Offline">
+      <Card className="p-4">
+        {progress ? (
+          <StepProgress
+            label={`Saving ${progress.done} of ${progress.total} ${noun(progress.total)}…`}
+            done={progress.done}
+            total={progress.total}
+          />
+        ) : (
+          <div className="flex items-start gap-3">
+            <span
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                ready ? 'bg-accent/15 text-accent' : 'bg-surface-2 text-ink-2'
+              }`}
+            >
+              {ready ? (
+                <Check size={17} strokeWidth={2.8} aria-hidden />
+              ) : (
+                <Download size={17} strokeWidth={2.2} aria-hidden />
+              )}
+            </span>
+            <span className="min-w-0 flex-1" role="status" aria-live="polite">
+              <span className="block text-[15px] font-semibold">
+                {ready ? 'Ready offline' : 'Not all offline yet'}
+              </span>
+              <span className="block text-[13px] leading-snug text-muted">
+                {ready
+                  ? `All ${total} ${noun(total)} are on this phone, so the routine works without a signal.`
+                  : failed > 0
+                    ? `${failed} could not be saved — try again with a connection. ${saved} of ${total} are on this phone.`
+                    : `${saved} of ${total} ${noun(total)} are on this phone. Save the rest before a trip or a gym without signal.`}
+              </span>
+            </span>
+          </div>
+        )}
+        {!ready && !progress && (
+          <Button icon={Download} className="mt-3 w-full" onClick={() => void save()}>
+            {failed > 0 ? 'Try again' : 'Make available offline'}
+          </Button>
+        )}
+      </Card>
+    </section>
   );
 }
 

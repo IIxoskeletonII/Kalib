@@ -294,6 +294,20 @@ describe('the day’s checklist (§17 + reminders)', () => {
     );
   });
 
+  it('says the water in fluid ounces for a phone set to US units (SPEC §22)', () => {
+    const s = { ...base, day: day({ water_left_ml: 1400, us_units: true }) };
+    expect(reminderMessage('log', outstanding(s, '2026-09-23')).body).toBe('47 fl oz of water.');
+    // Never "0 fl oz" for a sip that is still owed.
+    const sip = { ...base, day: day({ water_left_ml: 10, us_units: true }) };
+    expect(reminderMessage('log', outstanding(sip, '2026-09-23')).body).toBe('1 fl oz of water.');
+  });
+
+  it('keeps litres for a phone that did not say, which is every phone before §22', () => {
+    const s = { ...base, day: day({ water_left_ml: 400 }) };
+    expect(outstanding(s, '2026-09-23').us_units).toBe(false);
+    expect(reminderMessage('log', outstanding(s, '2026-09-23')).body).toBe('400 ml of water.');
+  });
+
   it('stays quiet once the whole checklist is done', () => {
     expect(dueReminders({ ...base, day: day({}) }, evening)).toEqual([]);
   });

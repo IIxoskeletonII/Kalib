@@ -2,7 +2,9 @@
 // time of the user's choosing. iOS only delivers these to the Home Screen app.
 import { Bell, BellOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { formatWaterTotal } from '@/core/measure';
 import { useDayReport, useSetting } from '@/hooks/useData';
+import { useUnitSystem } from '@/hooks/useUnits';
 import { isStandalone, pushSupport, serverConfig } from '@/platform/push';
 import {
   DEFAULT_REMINDERS,
@@ -21,6 +23,7 @@ import { Button, Card } from './ui';
 
 export function RemindersCard() {
   const settings = useSetting<ReminderSettings>(REMINDERS_KEY, DEFAULT_REMINDERS);
+  const units = useUnitSystem();
   const [server, setServer] = useState<'checking' | 'on' | 'off'>('checking');
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -231,7 +234,7 @@ export function RemindersCard() {
                           ? `${status.day.supplements_left} of ${status.day.supplements_total} supplements left`
                           : '',
                         status.day.water_left_ml > 0
-                          ? `${(status.day.water_left_ml / 1000).toFixed(1)} L of water to go`
+                          ? `${formatWaterTotal(status.day.water_left_ml, units)} of water to go`
                           : 'water done',
                       ]
                         .filter(Boolean)

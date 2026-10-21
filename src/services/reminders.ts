@@ -119,7 +119,9 @@ export async function pingIfEnabled(done: DoneToday): Promise<void> {
   if (!s.enabled) return;
   const d = done.day;
   const stamp = `${done.lastLoggedDate ?? ''}|${done.lastWeighedDate ?? ''}|${
-    d ? `${d.date}:${d.weighed}:${d.logged}:${d.supplements_left}:${d.water_left_ml}` : ''
+    d
+      ? `${d.date}:${d.weighed}:${d.logged}:${d.supplements_left}:${d.water_left_ml}:${d.us_units === true}`
+      : ''
   }`;
   if (stamp === lastPing) return;
   lastPing = stamp;

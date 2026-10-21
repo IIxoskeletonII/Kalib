@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WaterLog } from './types';
-import { formatLitres, formatWater, sumWater } from './water';
+import { DEFAULT_GLASS_ML, defaultGlassMl, formatLitres, formatWater, sumWater } from './water';
 
 const log = (ml: number, deleted = false): WaterLog => ({
   id: String(ml),
@@ -23,5 +23,12 @@ describe('water', () => {
     expect(formatLitres(3850)).toBe('3.9 L');
     expect(formatWater(250)).toBe('250 ml');
     expect(formatWater(1000)).toBe('1.0 L');
+  });
+});
+
+describe('defaultGlassMl (§22)', () => {
+  it('is a 250 ml glass in metric and an 8 fl oz cup in US', () => {
+    expect(defaultGlassMl('metric')).toBe(DEFAULT_GLASS_ML);
+    expect(defaultGlassMl('us')).toBe(237);
   });
 });
