@@ -5,6 +5,7 @@
 // per tick of a checkbox, which sounds wasteful and is not: a session is a couple of kilobytes,
 // IndexedDB writes are cheap, and it means a crash mid-set loses nothing and last-write-wins
 // sync has exactly one row to reason about.
+import { easySets, isEasyDay } from '@/core/block';
 import { newRecords, type PRHit } from '@/core/pr';
 import { sessionDuration, sessionVolume } from '@/core/sets';
 import { startRest, type RestTimer } from '@/core/restTimer';
@@ -24,6 +25,7 @@ import {
   updateRoutine,
 } from '@/db/repo/workouts';
 import { todayKey } from '@/core/dates';
+import { getEasyWeeks } from './block';
 
 export const WEIGHT_UNIT_KEY = 'weight_unit';
 export const REST_DEFAULT_KEY = 'rest_default_sec';
@@ -62,6 +64,9 @@ export async function startSession(routine?: Routine): Promise<WorkoutSession> {
 
   let entries: WorkoutEntry[] = [];
   if (routine) {
+    // In an easier week the routine runs at half its sets (§20.12); the weights come from the
+    // prescriptions, which know the week too.
+    const easy = isEasyDay(todayKey(), await getEasyWeeks());
     const ex = await getExercises(routine.items.map((i) => i.exercise_id));
     entries = routine.items.map((i) => {
       const live = ex.get(i.exercise_id);
@@ -71,7 +76,9 @@ export async function startSession(routine?: Routine): Promise<WorkoutSession> {
         // so a rename shows through.
         name: live?.name ?? i.name,
         load_type: live?.load_type ?? i.load_type,
-        sets: Array.from({ length: Math.max(1, i.sets) }, () => emptySet()),
+        sets: Array.from({ length: easy ? easySets(i.sets) : Math.max(1, i.sets) }, () =>
+          emptySet(),
+        ),
       };
       if (i.rest_sec != null) entry.rest_sec = i.rest_sec;
       if (i.superset != null) entry.superset = i.superset;

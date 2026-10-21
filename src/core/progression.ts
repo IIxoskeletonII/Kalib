@@ -35,7 +35,7 @@ export const DELOAD_FRACTION = 0.1;
 export const SANDBAGGING_RIR = TARGET_RIR + 2;
 
 export type ProgressionKind =
-  'first_time' | 'add_load' | 'add_reps' | 'hold' | 'deload' | 'no_advice';
+  'first_time' | 'add_load' | 'add_reps' | 'hold' | 'deload' | 'easy' | 'no_advice';
 
 export type ProgressionReason =
   | 'no_history'
@@ -44,6 +44,7 @@ export type ProgressionReason =
   | 'missed_range'
   | 'left_reps_in_reserve'
   | 'stalled'
+  | 'easy_week'
   | 'not_a_lift'
   | 'no_rep_range';
 
@@ -226,6 +227,33 @@ export function nextPrescription(
     reason: sandbagged ? 'left_reps_in_reserve' : 'missed_range',
     ...(hasLoad ? { weight_kg: load } : {}),
     reps: rep_low,
+  };
+}
+
+/**
+ * The same lift in an easier week (§20.12): last time's working weight, to the bottom of the
+ * range, so effort drops while the bar stays familiar. Coaches agree on keeping the weight and
+ * cutting the work; the halved sets are made when the session is started, not here.
+ *
+ * `recent` must exclude earlier easier-week sessions, as for `nextPrescription`, so a second
+ * easier week starts from real training rather than from the last one.
+ */
+export function easyPrescription(
+  recent: readonly Performance[],
+  opts: ProgressionOptions,
+): Prescription {
+  if (opts.load_type === 'time' || opts.load_type === 'distance_time') {
+    return { kind: 'no_advice', reason: 'not_a_lift' };
+  }
+  const last = recent.find((p) => p.some((s) => isWorkingSet(s)));
+  if (!last) return { kind: 'first_time', reason: 'no_history' };
+  const load = workingLoad(last);
+  const reps = opts.rep_low ?? lowestReps(setsAtLoad(last, load));
+  return {
+    kind: 'easy',
+    reason: 'easy_week',
+    ...(load != null && opts.load_type !== 'bodyweight_reps' ? { weight_kg: load } : {}),
+    ...(Number.isFinite(reps) && reps > 0 ? { reps } : {}),
   };
 }
 

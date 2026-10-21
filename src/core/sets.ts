@@ -105,15 +105,24 @@ export function e1rm(weight_kg: number, reps: number): number | undefined {
   return (epley + brzycki) / 2;
 }
 
-/** The best one-rep max any working set in an entry implies, if any of them can. */
-export function bestE1rm(e: WorkoutEntry): number | undefined {
+/**
+ * The best one-rep max any working set in an entry implies, if any of them can.
+ *
+ * On bodyweight work the load is the lifter plus the belt, so the estimate needs bodyweight and
+ * is undefined without it. Estimating from the belt alone would call a chin-up with 10 kg on a
+ * "12.5 kg 1RM", which is a number about the belt, not about the person.
+ */
+export function bestE1rm(e: WorkoutEntry, bodyweight_kg?: number): number | undefined {
   // A plank has no one-rep max, and neither does a row on an erg. Without this guard a timed
   // set carrying leftover weight and reps fields would quietly produce one.
   if (e.load_type === 'time' || e.load_type === 'distance_time') return undefined;
+  const base = e.load_type === 'weight_reps' ? 0 : bodyweight_kg;
+  if (base == null) return undefined;
   let best: number | undefined;
   for (const s of e.sets) {
-    if (!isWorkingSet(s) || s.weight_kg == null || s.reps == null) continue;
-    const est = e1rm(s.weight_kg, s.reps);
+    if (!isWorkingSet(s) || s.reps == null) continue;
+    const added = e.load_type === 'bodyweight_reps' ? 0 : (s.weight_kg ?? 0);
+    const est = e1rm(base + added, s.reps);
     if (est != null && (best == null || est > best)) best = est;
   }
   return best;

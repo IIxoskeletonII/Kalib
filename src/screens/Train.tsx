@@ -3,11 +3,12 @@
 // Structured the way the rest of the app is: the week's figures sit directly on the background,
 // and the cards below are things you tap. Starting a routine is the common act, so the routines
 // carry the weight; an empty workout is the exception and reads like one.
-import { Dumbbell, ListPlus, Play, Plus } from 'lucide-react';
+import { Dumbbell, Feather, ListPlus, Play, Plus } from 'lucide-react';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from '@/components/Toast';
 import { Button, Card, EmptyState, ListRow, SectionHeading, Skeleton, fmt } from '@/components/ui';
+import type { BlockState } from '@/core/block';
 import { fromDateKey, toDateKey } from '@/core/dates';
 import { formatDuration } from '@/core/restTimer';
 import { nextRoutine, type NextRoutine } from '@/core/rotation';
@@ -18,11 +19,19 @@ import { toDisplay, UNIT_LABEL } from '@/core/weightUnit';
 import { useWeighIns } from '@/hooks/useData';
 import {
   useActiveSession,
+  useBlock,
   useRecentSessions,
   useRoutines,
   useWeeklyLoad,
   useWeightUnit,
 } from '@/hooks/useWorkouts';
+import {
+  declineEasyWeek,
+  endEasyWeekNow,
+  restoreBlock,
+  snapshotBlock,
+  startEasyWeek,
+} from '@/services/block';
 import { startSession } from '@/services/workouts';
 
 /**
@@ -33,7 +42,7 @@ import { startSession } from '@/services/workouts';
  * needs attention, and a chart makes you work that out for yourself. Muscles are named at most
  * three at a time for the same reason.
  */
-function Coverage({ report }: { report: LoadReport }) {
+function Coverage({ report, easy }: { report: LoadReport; easy: boolean }) {
   const name = (ms: readonly string[]) =>
     ms.length <= 3 ? ms.join(', ') : `${ms.slice(0, 3).join(', ')} +${ms.length - 3}`;
 
@@ -41,7 +50,9 @@ function Coverage({ report }: { report: LoadReport }) {
   // read first; under-trained is the same complaint one degree weaker.
   const short = [...report.untrained, ...report.under];
   let line: string | undefined;
-  if (short.length > 0) line = `Short this week: ${name(short)}`;
+  // In an easier week fewer sets is the point, so being under the band is not news (§20.12).
+  if (easy) line = 'Easier week: fewer sets is the point';
+  else if (short.length > 0) line = `Short this week: ${name(short)}`;
   else if (report.concentrated.length > 0) line = `All in one day: ${name(report.concentrated)}`;
   else if (report.over.length > 0) line = `Over ${MAX_SETS} sets: ${name(report.over)}`;
   else if (report.muscles.length > 0) line = `Every muscle inside ${MIN_SETS}-${MAX_SETS} sets`;
@@ -68,6 +79,7 @@ export default function Train() {
   const unit = useWeightUnit();
   const coverage = useWeeklyLoad();
   const weighIns = useWeighIns();
+  const block = useBlock();
 
   const next = useMemo(
     () => (routines && recent ? nextRoutine(routines, recent) : undefined),
@@ -124,7 +136,7 @@ export default function Train() {
               </div>
             </div>
             <WeekDots trained={week.days} />
-            {coverage && <Coverage report={coverage} />}
+            {coverage && <Coverage report={coverage} easy={block?.kind === 'easy'} />}
           </>
         )}
       </section>
@@ -133,6 +145,8 @@ export default function Train() {
       {!active && next && routines && routines.length >= 2 && (
         <UpNext next={next} onStart={() => void begin(next.routine)} />
       )}
+
+      {!active && block && <BlockCard block={block} />}
 
       {active && (
         <Card className="mt-6 p-5" onClick={() => navigate('/train/session')}>
@@ -209,6 +223,18 @@ export default function Train() {
             Build a week for me
           </Button>
         )}
+        {/* Asking for one is always possible; the card above only appears when one is due. */}
+        {block?.kind === 'block' && !block.offer && (
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={Feather}
+            className="mt-1 w-full"
+            onClick={() => void takeEasyWeek()}
+          >
+            Take an easier week
+          </Button>
+        )}
       </section>
 
       {recent && recent.length > 0 && (
@@ -236,6 +262,103 @@ export default function Train() {
         </section>
       )}
     </div>
+  );
+}
+
+async function takeEasyWeek(): Promise<void> {
+  const before = await snapshotBlock();
+  const week = await startEasyWeek();
+  toast(`Easier week until ${shortDay(week.to)}`, {
+    label: 'Undo',
+    run: () => restoreBlock(...before),
+  });
+}
+
+function shortDay(key: string): string {
+  return fromDateKey(key).toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+/** "Bench and Squat", "Bench, Squat and 2 more". */
+function lifts(names: readonly string[]): string {
+  if (names.length <= 2) return names.join(' and ');
+  return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
+}
+
+/**
+ * The easier week (§20.12): running, or offered. Offered with its reason, and with the honest
+ * caveat, because the evidence is that these keep you fresh rather than make you grow, and a
+ * card that oversold them would be the app having an opinion it cannot back.
+ */
+function BlockCard({ block }: { block: BlockState }) {
+  if (block.kind === 'easy') {
+    const end = async () => {
+      const before = await snapshotBlock();
+      await endEasyWeekNow();
+      toast('Easier week ended', { label: 'Undo', run: () => restoreBlock(...before) });
+    };
+    return (
+      <section className="mt-6" aria-label="Easier week">
+        <Card className="p-5">
+          <div className="text-[13px] font-semibold text-accent">Easier week</div>
+          <div className="mt-1 text-[20px] leading-tight font-bold">
+            Until {shortDay(block.week.to)}
+          </div>
+          <p className="mt-1 text-[14px] leading-snug text-ink-2">
+            Half the sets at the same weights, stopping at the bottom of each range. Progress picks
+            up where it left off.
+          </p>
+          <Button variant="secondary" size="sm" className="mt-3" onClick={() => void end()}>
+            End it early
+          </Button>
+        </Card>
+      </section>
+    );
+  }
+  if (block.kind !== 'block' || !block.offer) return null;
+  const { reason } = block.offer;
+  const title =
+    reason === 'stalled'
+      ? `${lifts(block.offer.lifts)} have stalled`
+      : reason === 'slipping'
+        ? `${lifts(block.offer.lifts)} are slipping`
+        : `${block.week - 1} weeks without a break`;
+  const decline = async () => {
+    const before = await snapshotBlock();
+    await declineEasyWeek();
+    toast('Carrying on — a new block starts today', {
+      label: 'Undo',
+      run: () => restoreBlock(...before),
+    });
+  };
+  return (
+    <section className="mt-6" aria-label="An easier week?">
+      <Card className="p-5">
+        <div className="text-[13px] font-semibold text-muted">An easier week?</div>
+        <div className="mt-1 text-[20px] leading-tight font-bold">{title}</div>
+        <p className="mt-1 text-[14px] leading-snug text-ink-2">
+          A week at half the sets, same weights, helps you stay fresh. It is not shown to build more
+          muscle, so skipping one is fine if you feel good.
+        </p>
+        <div className="mt-3 flex gap-2">
+          {/* No icon: with one, the label wraps to two lines at this width. */}
+          <Button
+            variant="primary"
+            size="sm"
+            className="flex-1"
+            onClick={() => void takeEasyWeek()}
+          >
+            Start easier week
+          </Button>
+          <Button variant="secondary" size="sm" className="flex-1" onClick={() => void decline()}>
+            Not now
+          </Button>
+        </div>
+      </Card>
+    </section>
   );
 }
 

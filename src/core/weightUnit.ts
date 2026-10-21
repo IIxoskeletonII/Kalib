@@ -42,6 +42,14 @@ export function formatWeight(kg: number, unit: WeightUnit): string {
   return `${Number.isInteger(n) ? n : n.toFixed(1)} ${UNIT_LABEL[unit]}`;
 }
 
+/**
+ * An estimate, such as a one-rep max, to the whole unit. Two formulas that disagree by a few
+ * percent cannot support the half-kilo a loaded bar can (§2.4).
+ */
+export function formatEstimate(kg: number, unit: WeightUnit): string {
+  return `${Math.round(toDisplay(kg, unit))} ${UNIT_LABEL[unit]}`;
+}
+
 /** The number alone, for a pad or a field that prints its own unit. */
 export function displayValue(kg: number, unit: WeightUnit): string {
   const n = roundForDisplay(toDisplay(kg, unit));

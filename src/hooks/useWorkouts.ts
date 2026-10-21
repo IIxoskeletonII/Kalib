@@ -2,9 +2,11 @@
 // useData.ts does for food: `undefined` means loading, `null` means loaded and absent.
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
+import { withoutEasy, type BlockState } from '@/core/block';
 import type { ExerciseDoc } from '@/core/exerciseSearch';
 import { lastPerformance, personalRecords, type ExercisePR, type LastPerformance } from '@/core/pr';
 import type { Prescription } from '@/core/progression';
+import { progressSeries, type Progress } from '@/core/strength';
 import type { RestTimer } from '@/core/restTimer';
 import type { LoadReport } from '@/core/trainingLoad';
 import type { Exercise, Routine, WeightUnit, WorkoutSession } from '@/core/types';
@@ -15,6 +17,7 @@ import {
   listStrengthExercises,
 } from '@/db/repo/exercises';
 import { getDailyTarget } from '@/db/repo/dailyTargets';
+import { listWeighIns } from '@/db/repo/weighIns';
 import { getSetting } from '@/db/repo/settings';
 import {
   activeSession,
@@ -23,7 +26,8 @@ import {
   listRoutines,
   listSessions,
 } from '@/db/repo/workouts';
-import { prescriptionsFor, weeklyLoad } from '@/services/training';
+import { getEasyWeeks } from '@/services/block';
+import { currentBlock, prescriptionsFor, weeklyLoad } from '@/services/training';
 import { flatTargetFor } from '@/services/targets';
 import { recentSessions, REST_TIMER_KEY, WEIGHT_UNIT_KEY } from '@/services/workouts';
 
@@ -178,6 +182,26 @@ export function useExercisePR(exercise_id: string | undefined): ExercisePR | und
   }, [exercise_id]);
 }
 
+/**
+ * One exercise's line over the last year (§20.11). `null` once loaded with nothing to draw:
+ * fewer than two sessions, or a kind of exercise that has no single "better" number.
+ */
+export function useExerciseProgress(
+  exercise: Exercise | null | undefined,
+): Progress | null | undefined {
+  return useLiveQuery(async () => {
+    if (!exercise) return null;
+    const [sessions, weighIns, easyWeeks] = await Promise.all([
+      recentSessions(),
+      listWeighIns(),
+      getEasyWeeks(),
+    ]);
+    // An easier week's short sets are a planned dip, not a decline, so they are not drawn.
+    const trained = withoutEasy(sessions, easyWeeks);
+    return progressSeries(trained, exercise.id, exercise.load_type, weighIns) ?? null;
+  }, [exercise?.id, exercise?.load_type]);
+}
+
 /** Every session that touched one exercise, newest first, for its history screen. */
 export function useExerciseHistory(exercise_id: string | undefined): WorkoutSession[] | undefined {
   return useLiveQuery(async () => {
@@ -194,7 +218,7 @@ export function useExerciseHistory(exercise_id: string | undefined): WorkoutSess
  * every prescription: the advice comes from finished sessions and cannot change mid-workout.
  */
 export function usePrescriptions(
-  session: Pick<WorkoutSession, 'id' | 'routine_id' | 'entries'> | undefined,
+  session: Pick<WorkoutSession, 'id' | 'routine_id' | 'entries' | 'started_at'> | undefined,
 ): Map<string, Prescription> | undefined {
   const key = session ? `${session.id}|${session.entries.map((e) => e.exercise_id).join(',')}` : '';
   return useLiveQuery(async () => {
@@ -206,4 +230,9 @@ export function usePrescriptions(
 /** This week's hard sets per muscle, and where the week is short (§20.8). */
 export function useWeeklyLoad(): LoadReport | undefined {
   return useLiveQuery(() => weeklyLoad(), []);
+}
+
+/** Where you are in a training block, and whether an easier week is on offer (§20.12). */
+export function useBlock(): BlockState | undefined {
+  return useLiveQuery(() => currentBlock(), []);
 }

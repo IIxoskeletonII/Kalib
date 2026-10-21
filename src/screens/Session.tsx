@@ -92,6 +92,8 @@ function describeAdvice(p: Prescription | undefined): string | undefined {
         : 'Short of the range — same weight';
     case 'deload':
       return `Stuck ${p.stalled_sessions} sessions — backing off`;
+    case 'easy':
+      return 'Easier week — same weight, fewer reps';
     default:
       return undefined;
   }

@@ -195,6 +195,25 @@ describe('bestE1rm', () => {
     expect(bestE1rm(entry({ sets: [set({ reps: 20 })] }))).toBeUndefined();
   });
 
+  it('prices bodyweight work at the lifter plus the belt, and refuses without bodyweight', () => {
+    const chin = entry({
+      load_type: 'weighted_bodyweight',
+      sets: [set({ weight_kg: 10, reps: 8 })],
+    });
+    // The bug this guards: a belted chin-up read as a 12.5 kg one-rep max.
+    expect(bestE1rm(chin)).toBeUndefined();
+    expect(bestE1rm(chin, 80)).toBeCloseTo(e1rm(90, 8)!, 10);
+    const bare = entry({
+      load_type: 'weighted_bodyweight',
+      sets: [{ kind: 'normal', reps: 6, done: true }],
+    });
+    expect(bestE1rm(bare, 80)).toBeCloseTo(e1rm(80, 6)!, 10);
+    // Plain bodyweight carries no belt, whatever a stray weight field says.
+    const push = entry({ load_type: 'bodyweight_reps', sets: [set({ weight_kg: 20, reps: 10 })] });
+    expect(bestE1rm(push)).toBeUndefined();
+    expect(bestE1rm(push, 70)).toBeCloseTo(e1rm(70, 10)!, 10);
+  });
+
   it('has no answer for timed or distance work, whatever fields the set carries', () => {
     // A plank has no one-rep max. The set helper fills weight and reps by default, so without
     // a guard this would confidently return one.

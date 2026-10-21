@@ -19,6 +19,7 @@ const ID = {
   exercise: 'sweep-exercise',
   routine: 'sweep-routine',
   done: 'sweep-session-done',
+  earlier: 'sweep-session-earlier',
   live: 'sweep-session-live',
 } as const;
 
@@ -143,6 +144,36 @@ test.describe('every screen', () => {
       expect([...new Set(errors)], 'console errors').toEqual([]);
     });
   }
+});
+
+// The sweep checks that screens behave, not what they say. One content check rides on its seed
+// because the seed is the only place two finished sessions already exist: the line is drawn
+// from them, and its sentence reads what the axis cannot (§20.11).
+test('an exercise draws its line from the sessions that trained it', async ({ page }) => {
+  await page.goto('/');
+  await seed(page);
+  await open(page, `/train/exercise/${ID.exercise}`);
+  const progress = page.getByRole('region', { name: 'Progress' });
+  await expect(progress).toContainText('Estimated 1RM');
+  await expect(progress.getByRole('img')).toHaveAccessibleName(/last time, up from \d+ kg on /);
+  await expect(progress.locator('canvas')).toHaveCount(1);
+});
+
+// §20.12 on the same seed: an easier week asked for, then a routine run inside it.
+test('an easier week halves the sets and keeps the weight', async ({ page }) => {
+  await page.goto('/');
+  await seed(page);
+  await open(page, '/train');
+  await page.getByRole('button', { name: 'Take an easier week' }).click();
+  const card = page.getByRole('region', { name: 'Easier week' });
+  await expect(card).toContainText('Until');
+  await expect(page.getByText('Easier week: fewer sets is the point')).toBeVisible();
+
+  await page.getByRole('button', { name: /^Sweep day 1 exercise/ }).click();
+  await expect(page).toHaveURL(/\/train\/session$/);
+  // Three sets in the routine, two this week; last time's 60 kg, at the bottom of the range.
+  await expect(page.getByText('Easier week — same weight, fewer reps')).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Complete set \d/ })).toHaveCount(2);
 });
 
 test.describe('the sweep itself', () => {
@@ -812,6 +843,30 @@ async function seed(page: Page): Promise<void> {
           rep_low: 6,
           rep_high: 10,
           rest_sec: 120,
+        },
+      ],
+    });
+    // A second, older outing, so the exercise screen has a line to draw (§20.11).
+    put('workout_sessions', {
+      ...meta(id.earlier),
+      started_at: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+      ended_at: new Date(Date.now() - 10 * 86_400_000 + 3_600_000).toISOString(),
+      routine_id: id.routine,
+      name: 'Sweep day',
+      volume_kg: 1380,
+      duration_sec: 3600,
+      entries: [
+        {
+          exercise_id: id.exercise,
+          name: 'Sweep press',
+          load_type: 'weight_reps',
+          sets: [1, 2, 3].map(() => ({
+            kind: 'normal',
+            weight_kg: 57.5,
+            reps: 8,
+            rir: 2,
+            done: true,
+          })),
         },
       ],
     });

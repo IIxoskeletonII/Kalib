@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   displayValue,
+  formatEstimate,
   formatWeight,
   fromDisplay,
   isPlausibleLoad,
@@ -88,5 +89,12 @@ describe('isPlausibleLoad', () => {
     expect(isPlausibleLoad(1000)).toBe(false);
     expect(isPlausibleLoad(Number.NaN)).toBe(false);
     expect(isPlausibleLoad(Number.POSITIVE_INFINITY)).toBe(false);
+  });
+});
+
+describe('formatEstimate', () => {
+  it('prints an estimate to the whole unit, in the unit chosen', () => {
+    expect(formatEstimate(113.4, 'kg')).toBe('113 kg');
+    expect(formatEstimate(100, 'lb')).toBe('220 lb');
   });
 });

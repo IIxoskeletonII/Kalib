@@ -3,7 +3,7 @@
 **Project:** Kalib — adaptive macro tracker
 **Package / bundle id:** `com.eliya.kalib`
 **Name chosen:** 19 Sep 2026, after App Store collision checks rejected *Tare*,
-*Mizan* and *Tarra* (see §15). Domain and trademark not yet verified — see §13.7.
+*Mizan* and *Tarra* (see §15). Domain and trademark: preliminary screen done 20 Oct 2026 — see §13.7.
 **Owner:** Eliya
 **Written:** 19 Sep 2026
 **Target v0 ship:** 28 Sep 2026
@@ -850,6 +850,32 @@ list grouped by aisle, step-by-step recipe instructions.
    availability and EUIPO/USPTO clearance are **unverified**. Nothing public ships until
    they are. Internal package id and repo name are safe to use immediately.
 
+   **Preliminary screen, 20 Oct 2026** (public databases via TMview; not a professional search
+   and not legal advice):
+   - **No exact KALIB mark** in classes 9, 41, 42 or 44 at EUIPO, UKIPO, USPTO or WIPO. The only
+     exact KALIB marks are Chinese food and drink marks (Uyghur *kalib*, "heart").
+   - **The one real risk is KALIBRA, owned by Nestlé** (EM 015600034, UK00915600034, WO 1484108)
+     in classes 42 ("computer services related to dietary programs") and 44 ("dietary planning
+     and weight loss supervision"). KALIB is its whole first part, so **using** the name is low
+     risk but **registering** it in 9/42/44 could plausibly draw an opposition. Others found
+     (Kalibra International, KALIBER, KALIBRATE, KALIBIOS, calib) are other fields or regions.
+   - **Domains:** kalib.app, kalib.eu, kalib.io, kalib.fit, kalib.health, getkalib.com and
+     kalibapp.com were unregistered on that date; kalib.com is parked by an investor since 2004.
+   - **Similar products:** "Kalibra: TDEE & Calories" on Google Play (tiny, same category),
+     Kalibra Diet (iOS, ketogenic programme), kalibra.ai, and Caliber (a large strength app with
+     a sound-alike name).
+   - **Languages:** *qālib*/*kalıp* mean mould or form (Arabic, Persian, Urdu, Turkish);
+     nothing offensive found.
+   - **Not checked:** the full EUIPO goods lists (the detail page refused access), USPTO's own
+     search, and the WIPO Global Brand Database directly.
+
+   Next steps, all the owner's call: register **kalib.app** (and kalib.eu as a cheap backup);
+   keep the app described as a tracker, not a diet or weight-loss supervision service; and
+   before any trademark filing, pay for a professional clearance opinion on KALIB against
+   KALIBRA. An EUIPO filing would cost €850 for one class, plus €50 for the second and €150 for
+   each after that (€1,050 for 9 + 42 + 44). That is optional and well above the €1/month cost
+   ceiling.
+
 ---
 
 ## 14. Eliya's starting parameters
@@ -1351,6 +1377,11 @@ estimated 1RM, best single set, most reps at a weight, longest hold.
 **An exercise's first outing sets no records.** Otherwise everything is a PR on day one, exactly
 when someone first looks. More reps at a weight never used before is *new*, not an improvement.
 
+Estimated 1RM on bodyweight work is of **lifter plus belt**, so it needs bodyweight and is
+absent without it (v0.38.0). Before that a chin-up with 10 kg on the belt reported a "12.5 kg"
+best 1RM: a number about the belt. It is printed to the whole kilo or pound — two formulas that
+disagree by a few percent do not support the half-kilo a loaded bar does (§2.4).
+
 ### 20.5a The session summary (added 15 Oct 2026)
 
 Finishing a workout lands on a summary rather than a toast: volume, sets and duration as figures
@@ -1593,6 +1624,122 @@ reads as the app having an opinion. Once today is trained it says **Next time** 
 steps down, so it never reads as asking for a second session. It is absent with fewer than two
 routines, where it would only repeat the list, and while a session is running, which already
 says what is next.
+
+### 20.11 Is it going up (added 20 Oct 2026)
+
+Records say what the best ever was; they cannot say whether the lift is still climbing, because
+a record from March reads the same in October whether everything since has crept up or slid
+back. Each exercise's screen draws **one number per session over the last year**
+(`core/strength.ts`), derived from history like everything else and stored nowhere.
+
+The number depends on the exercise. A loaded lift is drawn by **estimated 1RM**, which puts a
+set of five and a set of ten on one scale. Bodyweight work is drawn by **most reps in a set**,
+and a hold by its **longest time**. Belted bodyweight work switches to estimated 1RM of lifter
+plus belt once a belt has been used and bodyweight is known, priced at the **weigh-in nearest
+before that session**, not today's: someone who has lost ten kilos would otherwise look weaker
+on every pull-up they ever did. Distance work has no line, since "better" depends on whether
+the goal was pace or distance, and the app does not know which.
+
+Every session is a dot. The ones that beat everything before them are filled in the accent;
+the first never is, as with records. Two points are the minimum, since one dot shows no
+direction. Under the line is a single sentence, which is also the chart's accessible name:
+*"93 kg last time, up from 85 kg on 3 Jun. Best 95 kg on 12 Sep."* The comparison is made on
+the printed figures, so a rise too small to show reads as "the same", never as "up from" an
+identical number.
+
+### 20.12 Blocks, and the easier week (added 20 Oct 2026)
+
+The evidence is thin, and the feature is sized to it. A randomized trial in trained lifters
+(Coleman et al. 2024, PeerJ, n=39) took a whole week off mid-block and found **equal muscle
+growth and somewhat less strength** than training straight through. A second, smaller one
+(Pancar et al. 2026, Sci Rep) cut the volume for a week instead of stopping and found **no cost
+and no gain**. Coaches (Bell et al. 2023 Delphi consensus) use lighter weeks for fatigue,
+adherence and injury risk, about every 4–6 weeks, by cutting sets while keeping the lifts and
+the days. So an easier week here is **offered, never imposed; lighter, never none; and sold as
+staying fresh, not as growing more.**
+
+**A block is derived, not stored** (`core/block.ts`). It starts at the latest of: the first
+session; the first session after **a week or more off** (a break already, whatever it was
+called); the day after an easier week; and the day an offer was turned down. Only the easier
+weeks taken (date ranges) and the last "not now" are kept, in settings, which already sync.
+
+**When it is offered:**
+- **Scheduled:** from week **6** of a block (five ordinary weeks and an easier one).
+- **Early, from week 3,** when **two or more lifts** say so at once: stalled by their own rule
+  (§20.8), or **slipping** — two or more fewer reps at an unchanged weight than the session
+  before. One lift is that lift's problem and has its own back-off; two is the week's. Only
+  lifts trained in the last three weeks count.
+- **Never scheduled for a beginner** — under 12 weeks of history, no stall yet, no easier week
+  taken — who recovers faster than they tire. The early signals still apply.
+- **Always on request:** "Take an easier week" on Train.
+- **"Not now" starts a fresh block,** so the offer comes back when the next one is due rather
+  than the next morning.
+
+**What it is:** seven days. A routine started inside one runs at **half its sets, rounded up,
+never none**, at **last time's working weight, to the bottom of the range**. Coaches agree on
+keeping the weight and cutting the work; the bar stays familiar while the effort drops.
+
+**What it does to the rest of the app.** Its sessions are **invisible to progression**, so a
+week of deliberately short sets is not read as three stalls, and the week after resumes from
+the training before it. A lift that was stalled takes its own 10% back-off then, at the start
+of the new block. They are left off the progress line (§20.11), where they would read as a
+decline. The week's coverage line says *fewer sets is the point* instead of listing muscles
+short of the band. It can be ended early; ending it keeps the days already taken.
+
+**Deliberately not built:** a reps-in-reserve ramp across the block (3 → 0), which a 2025
+trial (Martikainen et al.) found no better than a steady target, and which beginners cannot
+rate to within a rep; weekly set ramps toward a "maximum recoverable volume"; mandatory weeks
+off, the one design shown to cost strength; and readiness questionnaires or fatigue scores,
+none validated for this population. Block length is not tunable per person, because there are
+no data to tune it with.
+
+### 20.13 Where the training market leaves gaps (surveyed 20 Oct 2026)
+
+A fresh pass over Hevy, Strong, Fitbod, MacroFactor Workouts, Alpha Progression, RP
+Hypertrophy, JuggernautAI, Dr. Muscle, Boostcamp, Liftosaur, Caliber, Ladder, Gymshark,
+StrongLifts, Jefit and the 2026 newcomers (Arvo, Whoop's Strength Trainer, Lyfta). App Store
+pages and vendors' own help pages were read directly; Reddit could not be, so community
+sentiment is second-hand.
+
+**The finding that matters most:** MacroFactor launched a separate workouts app in January
+2026, and its help centre says the two **deliberately do not adjust each other** — no training
+from nutrition data, no nutrition targets from training data. The combination Kalib already has
+(the energy bridge, §20.7; training-day banking) is still unoccupied, and is where the novel
+work is.
+
+**Gaps, ranked by value to a person ÷ cost to build here** (offline, no per-user paid service,
+one developer):
+
+1. **Import from Strong and Hevy, and a workout CSV export.** Years of history are what keep
+   people on an app. Hevy imports only Strong; Strong imports nothing. Kalib exports food as CSV
+   and everything as a JSON backup, but no workouts as CSV, and imports none.
+2. **Bodyweight-aware load** — done for e1RM in v0.38–0.39 (§20.5, §20.11); volume already
+   prices bodyweight (§20.4).
+3. **Blocks and easier weeks** — done in v0.39.0 (§20.12). Competitors also offer selectable
+   progression schemes (MacroFactor added four in Sep 2026); double progression stays the
+   default here until there is a reason to add another.
+4. **Gym profiles and equipment-aware swaps** — the kits of §20.9 are the start of this.
+5. **Left/right logging, AMRAP, myo-reps, partials.** Kalib logs warm-up, drop and failure sets;
+   none of these four.
+6. **Known programs as data** (5/3/1, GZCLP, PPL), run by the existing progression engine.
+7. **Logging a workout after the fact.** Strong's reviewers ask for it; Kalib starts every
+   session at "now" and has no back-dating either.
+8. **A rest timer that alerts with the screen locked.** Kalib vibrates only while open; Web
+   Push from the Worker (already used for reminders) is the only route in an installed PWA.
+
+**Novel, and only possible with both halves:**
+- **Cut quality.** Strength on the staple lifts against the weight trend: when e1RM falls
+  while weight drops fast, suggest a slower rate. Nobody does it; MacroFactor chose not to.
+- **One calendar for diet breaks and easier weeks** (§20.12 with the diet-break feature), so
+  the two land together, and a smaller set band during an aggressive deficit.
+- **Performance against fuel** — each session's result against what progression expected,
+  set beside the previous day's intake, shown only once there is enough data to say anything.
+
+**What users dislike, and Kalib avoids:** paywalled history (Hevy shows three months of graphs
+free; Strong caps routines at three); "AI" picks that experienced lifters ignore; blocks that
+cannot be changed mid-way (the easier week here is always optional and can be ended); a
+workout screen that traps you until you finish; and counting workout calories on top of a
+TDEE that already contains them, which §20.6 already refuses.
 
 ---
 

@@ -1,20 +1,35 @@
 // SPEC §20.2 / §20.5 — one exercise: how it is done, what you have lifted on it, and when.
 import { ChevronLeft } from 'lucide-react';
+import { useCallback, useMemo } from 'react';
 import { useParams } from 'react-router';
 import { ExerciseDemo } from '@/components/ExerciseDemo';
+import { ProgressChart } from '@/components/ProgressChart';
 import { Badge, Card, EmptyState, IconButton, Row, SectionHeading } from '@/components/ui';
 import { MUSCLE_LABEL } from '@/core/muscles';
 import { formatDuration } from '@/core/restTimer';
 import { isWorkingSet } from '@/core/sets';
-import { formatWeight } from '@/core/weightUnit';
+import { describeProgress, type ProgressMetric } from '@/core/strength';
+import { formatEstimate, formatWeight, toDisplay } from '@/core/weightUnit';
 import { Dumbbell } from 'lucide-react';
 import { useBack } from '@/hooks/useBack';
-import { useExercise, useExerciseHistory, useExercisePR, useWeightUnit } from '@/hooks/useWorkouts';
+import {
+  useExercise,
+  useExerciseHistory,
+  useExercisePR,
+  useExerciseProgress,
+  useWeightUnit,
+} from '@/hooks/useWorkouts';
 
 /** The library shouts its equipment in lower case; the muscle beside it is sentence case. */
 function sentence(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+const METRIC_LABEL: Record<ProgressMetric, string> = {
+  e1rm: 'Estimated 1RM',
+  reps: 'Most reps in a set',
+  seconds: 'Longest hold',
+};
 
 export default function ExerciseDetail() {
   const { id } = useParams();
@@ -22,7 +37,23 @@ export default function ExerciseDetail() {
   const pr = useExercisePR(id);
   const history = useExerciseHistory(id);
   const unit = useWeightUnit();
+  const progress = useExerciseProgress(exercise);
   const back = useBack('/train');
+
+  const display = useCallback(
+    (v: number) => (progress?.metric === 'e1rm' ? toDisplay(v, unit) : v),
+    [progress?.metric, unit],
+  );
+  const summary = useMemo(() => {
+    if (!progress) return '';
+    const format = (v: number) =>
+      progress.metric === 'e1rm'
+        ? formatEstimate(v, unit)
+        : progress.metric === 'reps'
+          ? `${v} reps`
+          : `${v}s`;
+    return describeProgress(progress, format);
+  }, [progress, unit]);
 
   if (exercise === undefined) return null;
   if (exercise === null) {
@@ -80,6 +111,16 @@ export default function ExerciseDetail() {
         </section>
       )}
 
+      {progress && (
+        <section className="mt-7" aria-label="Progress">
+          <SectionHeading trailing={METRIC_LABEL[progress.metric]}>Progress</SectionHeading>
+          <Card className="p-4">
+            <ProgressChart points={progress.points} display={display} label={summary} />
+            <p className="mt-3 text-[14px] leading-snug text-ink-2">{summary}</p>
+          </Card>
+        </section>
+      )}
+
       {pr && (pr.heaviest_kg != null || pr.best_seconds != null) && (
         <section className="mt-7">
           <SectionHeading>Records</SectionHeading>
@@ -92,7 +133,7 @@ export default function ExerciseDetail() {
               />
             )}
             {pr.best_e1rm_kg != null && (
-              <Row label="Best estimated 1RM" value={formatWeight(pr.best_e1rm_kg, unit)} />
+              <Row label="Best estimated 1RM" value={formatEstimate(pr.best_e1rm_kg, unit)} />
             )}
             {pr.best_set_volume_kg != null && (
               <Row

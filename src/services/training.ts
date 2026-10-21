@@ -3,11 +3,20 @@
 // Orchestration only. The rules live in core/progression.ts and core/trainingLoad.ts; this
 // assembles the history, the rep ranges and the exercise catalogue they need, because none of
 // those live on a logged session itself.
-import { nextPrescription, performances, type Prescription } from '@/core/progression';
+import { blockState, isEasyDay, liftSignals, withoutEasy, type BlockState } from '@/core/block';
+import { todayKey, toDateKey } from '@/core/dates';
+import {
+  easyPrescription,
+  nextPrescription,
+  performances,
+  type Prescription,
+} from '@/core/progression';
 import { musclesCovered, trainingLoad, type LoadReport, type MuscleMap } from '@/core/trainingLoad';
 import type { Exercise, Routine, WorkoutSession } from '@/core/types';
 import { getExercises } from '@/db/repo/exercises';
+import { getSetting } from '@/db/repo/settings';
 import { getRoutine, listRoutines } from '@/db/repo/workouts';
+import { BLOCK_RESET_KEY, getEasyWeeks } from './block';
 import { recentSessions } from './workouts';
 
 /** Days of history a prescription may look back over. Older than this and the lift has moved on. */
@@ -32,9 +41,15 @@ function muscleMap(exercises: ReadonlyMap<string, Exercise>): Map<string, Muscle
  * and `nextPrescription` says so rather than inventing one.
  */
 export async function prescriptionsFor(
-  session: Pick<WorkoutSession, 'id' | 'routine_id' | 'entries'>,
+  session: Pick<WorkoutSession, 'id' | 'routine_id' | 'entries'> & { started_at?: string },
 ): Promise<Map<string, Prescription>> {
-  const history = await recentSessions(HISTORY_DAYS);
+  // Easier-week sessions are invisible to progression (§20.12): their short sets are what was
+  // asked, not a stall, and the week after resumes from the training before it.
+  const weeks = await getEasyWeeks();
+  const history = withoutEasy(await recentSessions(HISTORY_DAYS), weeks);
+  const day = session.started_at ? toDateKey(new Date(session.started_at)) : todayKey();
+  const easy = isEasyDay(day, weeks);
+  const rule = easy ? easyPrescription : nextPrescription;
   const routine = session.routine_id ? await getRoutine(session.routine_id) : undefined;
 
   const ranges = new Map<string, { rep_low?: number; rep_high?: number }>();
@@ -50,7 +65,7 @@ export async function prescriptionsFor(
     if (out.has(entry.exercise_id)) continue;
     out.set(
       entry.exercise_id,
-      nextPrescription(performances(history, entry.exercise_id, session.id), {
+      rule(performances(history, entry.exercise_id, session.id), {
         load_type: entry.load_type,
         ...(ranges.get(entry.exercise_id) ?? {}),
       }),
@@ -80,4 +95,39 @@ export async function weeklyLoad(): Promise<LoadReport> {
     map,
   );
   return trainingLoad(sessions, map, { expected });
+}
+
+/** Rep ranges by exercise, from every routine; the first routine to name an exercise wins. */
+function allRanges(
+  routines: readonly Routine[],
+): Map<string, { rep_low?: number; rep_high?: number }> {
+  const out = new Map<string, { rep_low?: number; rep_high?: number }>();
+  for (const r of routines) {
+    for (const i of r.items) {
+      if (out.has(i.exercise_id)) continue;
+      out.set(i.exercise_id, {
+        ...(i.rep_low != null ? { rep_low: i.rep_low } : {}),
+        ...(i.rep_high != null ? { rep_high: i.rep_high } : {}),
+      });
+    }
+  }
+  return out;
+}
+
+/** Where you are in a block, and whether an easier week is due (§20.12). */
+export async function currentBlock(today = todayKey()): Promise<BlockState> {
+  const [sessions, routines, easyWeeks, resetOn] = await Promise.all([
+    recentSessions(),
+    listRoutines(),
+    getEasyWeeks(),
+    getSetting<string | null>(BLOCK_RESET_KEY),
+  ]);
+  const signals = liftSignals(withoutEasy(sessions, easyWeeks), allRanges(routines), today);
+  return blockState({
+    sessions,
+    easyWeeks,
+    signals,
+    today,
+    ...(resetOn ? { resetOn } : {}),
+  });
 }
