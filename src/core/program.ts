@@ -82,7 +82,7 @@ export const STAPLE_EQUIPMENT: readonly string[] = [
  * shoulders as their primary muscle, so on a body-weight week a left hook was written in as the
  * shoulder work.
  */
-const NOT_PROGRAMMED = /\bboxing\b/i;
+export const NOT_PROGRAMMED = /\bboxing\b/i;
 
 const DIFFICULTY_RANK: Record<string, number> = { beginner: 0, intermediate: 1, advanced: 2 };
 
@@ -170,26 +170,30 @@ const SPLITS: Record<number, readonly DayPlan[]> = {
  * purpose, and swapping a movement is two taps.
  */
 export const STAPLES: Partial<Record<Muscle, readonly string[]>> = {
-  chest: ['Barbell Bench Press', 'Dumbbell Bench Press', 'Barbell Incline Bench Press', 'Push-Up'],
-  lats: [
-    'Chin-Up',
-    'Cable Bar Lateral Pulldown',
-    'Barbell Bent Over Row',
-    'Dumbbell One Arm Bent-Over Row',
+  chest: [
+    'Bench Press (Barbell)',
+    'Bench Press (Dumbbell)',
+    'Incline Bench Press (Barbell)',
+    'Push-Up',
   ],
-  'upper back': ['Cable Seated Row', 'Lever Seated Row', 'Dumbbell Reverse Fly'],
-  shoulders: [
-    'Barbell Standing Overhead Press',
-    'Dumbbell Seated Shoulder Press',
-    'Dumbbell Lateral Raise',
+  lats: ['Chin-Up', 'Lat Pulldown (Cable)', 'Bent Over Row (Barbell)', 'Single-Arm Row (Dumbbell)'],
+  'upper back': ['Seated Row (Cable)', 'Seated Row (Machine)', 'Reverse Fly (Dumbbell)'],
+  shoulders: ['Overhead Press (Barbell)', 'Shoulder Press (Dumbbell)', 'Lateral Raise (Dumbbell)'],
+  triceps: ['Triceps Pushdown (Cable)', 'Skull Crusher (Dumbbell)', 'Triceps Dip'],
+  biceps: ['Bicep Curl (Barbell)', 'Bicep Curl (Dumbbell)', 'Bicep Curl (Cable)'],
+  quads: ['Squat (Barbell)', 'Goblet Squat (Dumbbell)', 'Leg Extension (Machine)'],
+  hamstrings: [
+    'Romanian Deadlift (Barbell)',
+    'Lying Leg Curl (Machine)',
+    'Seated Leg Curl (Machine)',
   ],
-  triceps: ['Cable Pushdown', 'Dumbbell Lying Triceps Extension', 'Triceps Dip'],
-  biceps: ['Barbell Curl', 'Dumbbell Biceps Curl', 'Cable Curl'],
-  quads: ['Barbell Full Squat', 'Dumbbell Goblet Squat', 'Lever Leg Extension'],
-  hamstrings: ['Barbell Romanian Deadlift', 'Lever Lying Leg Curl', 'Lever Seated Leg Curl'],
-  glutes: ['Barbell Glute Bridge', 'Barbell Lunge', 'Dumbbell Lunge'],
-  calves: ['Lever Standing Calf Raise', 'Lever Seated Calf Raise', 'Dumbbell Standing Calf Raise'],
-  abs: ['Captains Chair Straight Leg Raise', 'Cable Kneeling Crunch', '3/4 Sit-Up'],
+  glutes: ['Glute Bridge (Barbell)', 'Lunge (Barbell)', 'Lunge (Dumbbell)'],
+  calves: [
+    'Standing Calf Raise (Machine)',
+    'Seated Calf Raise (Machine)',
+    'Standing Calf Raise (Dumbbell)',
+  ],
+  abs: ["Captain's Chair Leg Raise", 'Cable Crunch', '3/4 Sit-Up'],
 };
 
 /**
@@ -212,14 +216,14 @@ export const HOME_STAPLES: Partial<Record<Muscle, readonly string[]>> = {
   shoulders: ['Band Shoulder Press'],
   triceps: ['Triceps Dip', 'Diamond Push-Up', 'Close-Grip Push-Up'],
   biceps: ['Band Alternating Biceps Curl'],
-  quads: ['Quads (bodyweight Squat)', 'Split Squats'],
+  quads: ['Bodyweight Squat', 'Split Squat'],
   hamstrings: [
     'Self Assisted Inverse Leg Curl (Hands on Bench)',
     'Inverse Leg Curl (bench Support)',
   ],
-  glutes: ['Forward Lunge', 'Low Glute Bridge On Floor'],
-  calves: ['Bodyweight Standing Calf Raise'],
-  abs: ['Crunch Floor', 'Reverse Crunch'],
+  glutes: ['Forward Lunge', 'Glute Bridge'],
+  calves: ['Bodyweight Calf Raise'],
+  abs: ['Crunch', 'Reverse Crunch'],
 };
 
 const namesOf = (t: Partial<Record<Muscle, readonly string[]>>) =>
@@ -319,8 +323,11 @@ function isBetter(a: readonly number[], b: readonly number[]): boolean {
   return false;
 }
 
-/** A compound earns longer rest and lower reps; an isolation does not need either. */
-function prescriptionFor(
+/**
+ * A compound earns longer rest and lower reps; an isolation does not need either. Shared with
+ * §20.18's suggestions, so an exercise added to close a gap is prescribed as a built week's is.
+ */
+export function prescriptionFor(
   e: ProgramExercise,
 ): Pick<RoutineItem, 'rep_low' | 'rep_high' | 'rest_sec'> {
   // Core work is never the heavy range, whatever it lists alongside. A 3/4 sit-up names the

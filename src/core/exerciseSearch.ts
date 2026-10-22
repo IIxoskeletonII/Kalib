@@ -18,6 +18,8 @@ export interface ExerciseDoc {
   secondary_muscles: Muscle[];
   category: ExerciseCategory;
   custom: boolean;
+  /** One of the exercises a gym actually works from (§20.19): shown first, ranked first. */
+  popular: boolean;
   /** Basename of the demo, so a result can show the movement without a second read. */
   media?: string;
   tokens: string[];
@@ -47,6 +49,7 @@ export function buildExerciseDoc(e: {
   secondary_muscles?: Muscle[] | undefined;
   category: ExerciseCategory;
   media?: string | undefined;
+  popular?: boolean | undefined;
   source: Exercise['source'];
 }): ExerciseDoc {
   // Aliases join the index but not the name, so a hit on "rdl" still shows "Barbell Romanian
@@ -60,6 +63,7 @@ export function buildExerciseDoc(e: {
     secondary_muscles: e.secondary_muscles ?? [],
     category: e.category,
     custom: e.source === 'custom',
+    popular: e.popular === true,
     ...(e.media ? { media: e.media } : {}),
     tokens: tokenize([e.name, ...(e.aliases ?? [])].join(' ')),
     nameKey: nameTokens.join(' '),
@@ -95,14 +99,94 @@ const CATEGORY_BOOST: Record<ExerciseCategory, number> = {
   rehabilitation: 0,
 };
 
+/**
+ * What a popular exercise is worth over an obscure one that matches as well. Enough that "fly"
+ * means the chest fly before "Cable Incline Fly (on Stability Ball)"; not so much that it beats
+ * a name typed in full, which is worth 2.5.
+ */
+export const POPULAR_BOOST = 1;
+
+/** Damerau–Levenshtein distance of at most one, decided without building the matrix. */
+export function withinOneEdit(a: string, b: string): boolean {
+  if (a === b) return true;
+  const la = a.length;
+  const lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  let i = 0;
+  while (i < la && i < lb && a[i] === b[i]) i++;
+  if (la === lb) {
+    // One substitution, or two neighbours swapped.
+    if (a.slice(i + 1) === b.slice(i + 1)) return true;
+    return a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2);
+  }
+  // One letter missing or one extra.
+  return la > lb ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);
+}
+
+/** How often each word appears across a catalogue, for choosing what a typo meant. */
+const vocabularies = new WeakMap<readonly ExerciseDoc[], Map<string, number>>();
+
+function vocabulary(docs: readonly ExerciseDoc[]): Map<string, number> {
+  let v = vocabularies.get(docs);
+  if (!v) {
+    v = new Map();
+    for (const d of docs) for (const t of d.tokens) v.set(t, (v.get(t) ?? 0) + 1);
+    vocabularies.set(docs, v);
+  }
+  return v;
+}
+
+/**
+ * A query with its slips corrected against the catalogue's own words: "incline dumbell press"
+ * becomes "incline dumbbell press", and from there is the same search as if it had been typed
+ * right — including the decisive full-phrase match, which a per-word fuzzy score would miss.
+ *
+ * Only words of five letters or more are touched — "row" one letter off is "raw", "rod" or
+ * "tow" — and only ones that are not words of the catalogue as typed. Then:
+ *
+ *   - the last word may still be being typed, so if it starts a real word it is left alone and
+ *     matches as a prefix, as it always has;
+ *   - an earlier word is finished, so one that only starts a real word was cut short: "barbel
+ *     row" is "barbell row", not every row that happens to use a barbell;
+ *   - a word that starts nothing is a slip, corrected to a word one letter away — wrong,
+ *     missing, extra, or two swapped.
+ *
+ * When several words qualify, the commonest wins, since that is the likelier one.
+ */
+export function correctQuery(q: readonly string[], docs: readonly ExerciseDoc[]): string[] {
+  const vocab = vocabulary(docs);
+  return q.map((t, i) => {
+    if (t.length < 5 || vocab.has(t)) return t;
+    let completion: string | undefined;
+    let completionCount = 0;
+    for (const [w, n] of vocab) {
+      if (w.startsWith(t) && n > completionCount) {
+        completion = w;
+        completionCount = n;
+      }
+    }
+    if (completion) return i === q.length - 1 ? t : completion;
+    let best: string | undefined;
+    let bestCount = 0;
+    for (const [w, n] of vocab) {
+      if (w.length >= 5 && n > bestCount && withinOneEdit(t, w)) {
+        best = w;
+        bestCount = n;
+      }
+    }
+    return best ?? t;
+  });
+}
+
 export function searchExercises(
   docs: readonly ExerciseDoc[],
   query: string,
   usage: ReadonlyMap<string, number> = new Map(),
   limit = 40,
 ): ExerciseHit[] {
-  const q = tokenize(query);
-  if (q.length === 0) return [];
+  const typed = tokenize(query);
+  if (typed.length === 0) return [];
+  const q = correctQuery(typed, docs);
   const qKey = q.join(' ');
   const out: ExerciseHit[] = [];
 
@@ -135,6 +219,7 @@ export function searchExercises(
       CATEGORY_BOOST[doc.category] +
       (EQUIPMENT_BOOST[doc.equipment.toLowerCase()] ?? 0) +
       (doc.custom ? 1.5 : 0) +
+      (doc.popular ? POPULAR_BOOST : 0) +
       Math.log1p(used) * 0.6;
     out.push({ ...doc, score });
   }

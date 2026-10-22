@@ -6,10 +6,14 @@
 // independent effect on hypertrophy, and that nutrient timing barely moves fat loss or lean
 // mass. So this is an adherence feature and says so. Implying a metabolic benefit would be the
 // easy copy and the dishonest one.
+import { CalendarDays } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Card, SectionHeading, Segmented, fmt } from '@/components/ui';
+import { useNavigate } from 'react-router';
+import { Card, ListRow, SectionHeading, Segmented, fmt } from '@/components/ui';
+import { describePlan } from '@/core/schedule';
 import type { DayBudget } from '@/core/trainingDays';
 import type { GymUnitChoice } from '@/core/measure';
+import { usePlan } from '@/hooks/useSchedule';
 import { useRestAlertEnabled } from '@/hooks/useSessionAids';
 import { useUnits } from '@/hooks/useUnits';
 import { weekTargets } from '@/services/targets';
@@ -44,19 +48,25 @@ export function TrainingCard() {
   const units = useUnits();
   const restAlert = useRestAlertEnabled();
   const [bridge, setBridge] = useState<EnergyBridge | null>(null);
+  const navigate = useNavigate();
+  const plan = usePlan();
   const [pattern, setPattern] = useState<number[] | null>(null);
+  const [chosen, setChosen] = useState(false);
   const [week, setWeek] = useState<DayBudget[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void getEnergyBridge().then((b) => !cancelled && setBridge(b));
-    void weekShape(new Date().toLocaleDateString('en-CA')).then(
-      (s) => !cancelled && setPattern(s.pattern),
-    );
+    void weekShape(new Date().toLocaleDateString('en-CA')).then((s) => {
+      if (cancelled) return;
+      setPattern(s.pattern);
+      setChosen(s.source === 'chosen');
+    });
     return () => {
       cancelled = true;
     };
-  }, []);
+    // Re-read when the days change: the bridge leans toward whatever they are now.
+  }, [plan]);
 
   // The shape is re-read whenever the setting changes, so the preview is of what is actually
   // stored rather than of what the control last said.
@@ -77,6 +87,17 @@ export function TrainingCard() {
   return (
     <section>
       <SectionHeading>Training</SectionHeading>
+      {/* §20.17: the one place the days are chosen; the row says what they are and goes there. */}
+      <Card className="mb-3 divide-y divide-line">
+        <ListRow
+          onClick={() => navigate('/train/schedule')}
+          icon={CalendarDays}
+          iconTone="accent"
+          title="Training days"
+          subtitle={plan ? describePlan(plan) : ' '}
+          chevron
+        />
+      </Card>
       <Card className="space-y-5 p-5">
         <div>
           <p className="mb-2 text-[15px] font-semibold">Gym weights</p>
@@ -151,13 +172,19 @@ export function TrainingCard() {
             <p className="mt-3 text-[13px] leading-snug text-muted">
               {pattern == null ? null : pattern.length === 0 ? (
                 <>
-                  Nothing is moving yet: it takes a couple of weeks of sessions before the days you
-                  train can be told from the days you happened to. Until then the budget stays flat.
+                  Nothing is moving yet. Choose your training days above, or after a couple of weeks
+                  of sessions they are read from what you do. Until then the budget stays flat.
+                </>
+              ) : chosen ? (
+                <>
+                  Leaning toward {pattern.map((d) => WEEKDAY_LABEL[d]).join(', ')}, the days you
+                  chose. A day you train anyway counts on the day.
                 </>
               ) : (
                 <>
                   Reading {pattern.map((d) => WEEKDAY_LABEL[d]).join(', ')} as your training days,
-                  from what you have actually done. A day you train anyway counts on the day.
+                  from what you have actually done. Choose your days under Training days to set
+                  them. A day you train anyway counts on the day.
                 </>
               )}
             </p>

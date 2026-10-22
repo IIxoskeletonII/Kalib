@@ -14,10 +14,14 @@
 //     `shoulders` are three different things;
 //   - every exercise gets a load type, since the library never says whether a set is weight and
 //     reps, reps alone, or seconds (core/exercises.ts);
-//   - names get the shorthand a gym actually types, derived automatically and then topped up
-//     from data/exercise-aliases.json — the library calls the back squat "Barbell Full Squat".
+//   - names get the shorthand a gym actually types, derived automatically (core/exercises.ts);
+//   - the few hundred exercises people actually do are renamed the way a gym names them, a few
+//     the library lacks are added, and all of them are marked popular (data/exercises-curated.json,
+//     merged by core/exerciseCatalogue.ts, SPEC §20.19). The library calls the back squat
+//     "Barbell Full Squat"; the gym calls it "Squat (Barbell)".
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { applyCurated, type CuratedFile } from '../src/core/exerciseCatalogue';
 import { autoAliases, isCameraVariant, loadTypeFor } from '../src/core/exercises';
 import type { ExerciseSeedFile, SeedExercise } from '../src/core/exerciseSeed';
 import { normaliseMuscle, normaliseMuscles } from '../src/core/muscles';
@@ -28,7 +32,10 @@ const CACHE = join(ROOT, '.cache');
 const OUT = join(ROOT, 'public', 'data');
 
 const REPO = 'AbanoubAmir/open-exercise-figures';
-const SOURCE_REF = 'Open Exercise Figures (CC0 1.0), github.com/' + REPO;
+const SOURCE_REF =
+  'Open Exercise Figures (CC0 1.0), github.com/' +
+  REPO +
+  "; renamed and extended by Kalib's own catalogue (data/exercises-curated.json)";
 const INDEX_URL = `https://cdn.jsdelivr.net/gh/${REPO}@main/exercises.json`;
 
 const CATEGORIES: ExerciseCategory[] = [
@@ -54,10 +61,6 @@ interface RawExercise {
   animation: string;
 }
 
-interface AliasFile {
-  aliases: Record<string, string[]>;
-}
-
 async function cached(url: string, file: string): Promise<string> {
   mkdirSync(CACHE, { recursive: true });
   const path = join(CACHE, file);
@@ -80,11 +83,11 @@ function isDifficulty(s: string): s is ExerciseDifficulty {
 
 async function main(): Promise<void> {
   const raw = JSON.parse(await cached(INDEX_URL, 'exercise-library.json')) as RawExercise[];
-  const curated = (
-    JSON.parse(readFileSync(join(ROOT, 'data', 'exercise-aliases.json'), 'utf8')) as AliasFile
-  ).aliases;
+  const curated = JSON.parse(
+    readFileSync(join(ROOT, 'data', 'exercises-curated.json'), 'utf8'),
+  ) as CuratedFile;
 
-  const out: SeedExercise[] = [];
+  const base: SeedExercise[] = [];
   const dropped: string[] = [];
   const seen = new Set<string>();
 
@@ -113,8 +116,7 @@ async function main(): Promise<void> {
     }
     seen.add(key);
 
-    const hand = (curated[r.id] ?? []).map((a) => a.toLowerCase()).filter((a) => a !== key);
-    const aliases = [...new Set([...autoAliases(name), ...hand])].filter((a) => a !== key);
+    const aliases = autoAliases(name).filter((a) => a !== key);
 
     const load_type = loadTypeFor({ name, equipment: r.equipment, category: r.category });
     const ex: SeedExercise = {
@@ -131,20 +133,13 @@ async function main(): Promise<void> {
       media: r.id,
     };
     if (aliases.length) ex.aliases = aliases;
-    if (hand.length) ex.shorthand = hand;
     if (isDifficulty(r.difficulty)) ex.difficulty = r.difficulty;
     if (r.instructions?.length) ex.instructions = r.instructions;
-    out.push(ex);
+    base.push(ex);
   }
 
-  // Every curated alias must point at an exercise that survived, or it is silently dead.
-  const ids = new Set(out.map((e) => e.external_id));
-  const orphans = Object.keys(curated).filter((k) => !ids.has(k));
-  if (orphans.length) {
-    throw new Error(
-      `data/exercise-aliases.json points at ${orphans.length} exercise(s) not in the library: ${orphans.join(', ')}`,
-    );
-  }
+  // Throws on a rename pointing at a dropped row, a duplicated name or a contested shorthand.
+  const out = applyCurated(base, curated);
 
   out.sort((a, b) => (a.name < b.name ? -1 : 1));
   const seed: ExerciseSeedFile = {
@@ -179,6 +174,9 @@ async function main(): Promise<void> {
       .join(', ')}`,
   );
   console.log(`with aliases: ${out.filter((e) => e.aliases?.length).length}`);
+  console.log(
+    `popular: ${out.filter((e) => e.popular).length} (${curated.added.length} added, no demonstration yet)`,
+  );
   console.log(`wrote ${path}`);
 }
 

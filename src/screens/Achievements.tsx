@@ -8,7 +8,16 @@
 // already known is noise (MASTER.md).
 import { CalendarCheck, ChevronLeft, Repeat, Trophy, Weight, type LucideIcon } from 'lucide-react';
 import { useEffect } from 'react';
-import { Card, IconButton, SectionHeading, Segmented, Skeleton, fmt } from '@/components/ui';
+import { useNavigate } from 'react-router';
+import {
+  Button,
+  Card,
+  IconButton,
+  SectionHeading,
+  Segmented,
+  Skeleton,
+  fmt,
+} from '@/components/ui';
 import {
   comparison,
   formatMass,
@@ -18,12 +27,15 @@ import {
   type AchievementKind,
 } from '@/core/achievements';
 import { fromDateKey } from '@/core/dates';
+import { describeWeekdays, EMPTY_PLAN, flexiblePlan } from '@/core/schedule';
 import { describeRun, skipsLine, weekLine, type StreakWeek } from '@/core/streak';
 import type { WeightUnit } from '@/core/types';
 import { useBack } from '@/hooks/useBack';
 import { useMomentum } from '@/hooks/useMomentum';
+import { usePlan } from '@/hooks/useSchedule';
 import { useWeightUnit } from '@/hooks/useWorkouts';
-import { markSeen, setAim } from '@/services/momentum';
+import { markSeen } from '@/services/momentum';
+import { setPlan } from '@/services/schedule';
 
 const KINDS: { kind: AchievementKind; heading: string; icon: LucideIcon }[] = [
   { kind: 'volume', heading: 'Weight lifted', icon: Weight },
@@ -138,9 +150,14 @@ function shortDate(key: string): string {
 
 function Run({ m }: { m: NonNullable<ReturnType<typeof useMomentum>> }) {
   const { streak } = m;
-  const choice: AimChoice = m.aim_setting == null ? 'auto' : (String(m.aim_setting) as AimChoice);
+  const navigate = useNavigate();
+  const plan = usePlan();
+  const fixed = (plan?.weekdays.length ?? 0) > 0;
+  // The aim is the plan's count (§20.17): one number, chosen here or with the days.
+  const per = plan?.per_week ?? m.aim_setting;
+  const choice: AimChoice = per == null ? 'auto' : (String(Math.min(6, per)) as AimChoice);
   const weeks = streak.history.slice(-STRIP_WEEKS);
-  const auto = m.aim_setting == null;
+  const auto = per == null;
   return (
     <section className="mt-7" aria-label="Weeks running">
       <SectionHeading trailing={`best ${describeRun(streak.best.weeks)}`}>
@@ -153,23 +170,39 @@ function Run({ m }: { m: NonNullable<ReturnType<typeof useMomentum>> }) {
         <p className="mt-4 text-[14px] leading-snug text-ink-2">
           {weekLine(streak.this_week)}. {skipsLine(streak.skips)}.
         </p>
-        <div role="group" aria-labelledby="aim-label">
-          <div className="mt-5 text-[13px] font-semibold text-muted" id="aim-label">
-            Days a week
+        {fixed && plan ? (
+          <div className="mt-5 flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-semibold text-muted">Days a week</div>
+              <div className="mt-0.5 text-[15px] font-semibold">
+                {plan.weekdays.length}: {describeWeekdays(plan.weekdays)}
+              </div>
+            </div>
+            <Button size="sm" className="shrink-0" onClick={() => navigate('/train/schedule')}>
+              Change days
+            </Button>
           </div>
-          <Segmented
-            className="mt-2"
-            value={choice}
-            options={AIMS.map((v) => ({ value: v, label: v === 'auto' ? 'Auto' : v }))}
-            onChange={(v) => void setAim(v === 'auto' ? null : Number(v))}
-          />
-        </div>
+        ) : (
+          <div role="group" aria-labelledby="aim-label">
+            <div className="mt-5 text-[13px] font-semibold text-muted" id="aim-label">
+              Days a week
+            </div>
+            <Segmented
+              className="mt-2"
+              value={choice}
+              options={AIMS.map((v) => ({ value: v, label: v === 'auto' ? 'Auto' : v }))}
+              onChange={(v) => void setPlan(v === 'auto' ? EMPTY_PLAN : flexiblePlan(Number(v)))}
+            />
+          </div>
+        )}
         <p className="mt-2 text-[13px] leading-snug text-muted">
-          {auto
-            ? streak.this_week.aim_source === 'inferred'
-              ? `Auto follows your last four weeks: ${streak.this_week.aim} this week.`
-              : 'Auto asks for one day a week until there are two weeks to go on.'
-            : 'From this week on. Weeks already over keep the aim they had.'}
+          {fixed
+            ? 'Your training days set the aim. Weeks already over keep the aim they had.'
+            : auto
+              ? streak.this_week.aim_source === 'inferred'
+                ? `Auto follows your last four weeks: ${streak.this_week.aim} this week.`
+                : 'Auto asks for one day a week until there are two weeks to go on.'
+              : 'From this week on. Weeks already over keep the aim they had.'}
         </p>
       </Card>
       <p className="mt-2 px-1 text-[12px] leading-snug text-muted">

@@ -19,6 +19,7 @@ import type { MacroTotals } from '@/core/types';
 import { getCurrentProfile } from '@/db/repo/profiles';
 import { getSetting, setSetting } from '@/db/repo/settings';
 import { listSessions } from '@/db/repo/workouts';
+import { getPlan } from './schedule';
 
 export const ENERGY_BRIDGE_KEY = 'training:energy_bridge';
 
@@ -52,18 +53,22 @@ export async function setEnergyBridge(patch: Partial<EnergyBridge>): Promise<voi
 export interface WeekShape {
   /** Mon–Sun of the week containing the date asked about. */
   days: { date: string; training: boolean }[];
-  /** The weekdays the pattern was inferred from; empty means not enough history. */
+  /** The training weekdays; empty means none chosen and not enough history to infer them. */
   pattern: number[];
+  /** Where the pattern came from: the days you chose (§20.17), or what you have done. */
+  source: 'chosen' | 'inferred';
 }
 
 /**
  * Which days of `date`'s week count as training days: those that already have a finished
- * session, plus those whose weekday matches the inferred pattern.
+ * session, plus those whose weekday is one you train on — the days you chose, or, without fixed
+ * days, the pattern inferred from what you have done.
  */
 export async function weekShape(date: string): Promise<WeekShape> {
-  const sessions = await listSessions();
+  const [sessions, plan] = await Promise.all([listSessions(), getPlan(date)]);
   const trained = new Set(sessions.map((s) => toDateKey(new Date(s.started_at))));
-  const pattern = inferTrainingWeekdays([...trained], new Date());
+  const chosen = plan.weekdays.length > 0;
+  const pattern = chosen ? plan.weekdays : inferTrainingWeekdays([...trained], new Date());
 
   const start = weekStart(new Date(`${date}T12:00:00`));
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -72,7 +77,7 @@ export async function weekShape(date: string): Promise<WeekShape> {
     const key = toDateKey(d);
     return { date: key, training: isTrainingDay(key, trained, pattern) };
   });
-  return { days, pattern };
+  return { days, pattern, source: chosen ? 'chosen' : 'inferred' };
 }
 
 export interface BridgedDay {

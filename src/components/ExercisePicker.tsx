@@ -1,5 +1,5 @@
-// SPEC §20.2 — choosing an exercise. A search sheet over the 1,394-row library plus the user's
-// own, ranked by core/exerciseSearch.ts.
+// SPEC §20.2, §20.19 — choosing an exercise. A search sheet over the 1,426-row library plus
+// the user's own, ranked by core/exerciseSearch.ts.
 //
 // This is the one place in the app a text keyboard is right: you are typing a name, not a
 // number (§8 bans the OS keyboard for numbers, not for words). Everything numeric that follows
@@ -9,9 +9,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { searchExercises, type ExerciseDoc } from '@/core/exerciseSearch';
 import { MUSCLE_LABEL } from '@/core/muscles';
 import type { Muscle } from '@/core/types';
-import { Badge, Chip, EmptyState, Sheet, Skeleton } from '@/components/ui';
+import { Badge, Button, Chip, EmptyState, Sheet, Skeleton, fmt } from '@/components/ui';
 import { ExerciseDemo, ExerciseThumb } from '@/components/ExerciseDemo';
 import { useExerciseDocs } from '@/hooks/useWorkouts';
+
+/**
+ * Most rows a browse lists. Every popular exercise fits; "show all" without a filter is the
+ * whole library, and past this many it is the search box's job.
+ */
+const BROWSE_LIMIT = 300;
 
 /** Muscles worth a filter chip, in the order a split is usually planned. */
 const FILTERS: Muscle[] = [
@@ -66,24 +72,34 @@ function PickerBody({
     input.current?.focus();
   }, []);
 
-  const hits = useMemo(() => {
+  // Browsing shows the exercises a gym works from (§20.19); the library's other thousand-odd
+  // variants are one tap away, and always reachable by search.
+  const [everything, setEverything] = useState(false);
+
+  const { hits, hidden } = useMemo(() => {
     const all: ExerciseDoc[] = docs ?? [];
     const pool = muscle
       ? all.filter((d) => d.primary_muscle === muscle || d.secondary_muscles?.includes(muscle))
       : all;
-    if (q.trim()) return searchExercises(pool, q, usage, 60);
-    // With no query, show what you actually train, then the rest alphabetically. A list of
-    // 1,394 exercises in library order would be useless.
-    return [...pool]
+    if (q.trim()) return { hits: searchExercises(pool, q, usage, 60), hidden: 0 };
+    const used = (d: ExerciseDoc) => usage?.get(d.id) ?? 0;
+    const shown = everything ? pool : pool.filter((d) => d.popular || d.custom || used(d) > 0);
+    // What you actually train first, then your own, then — under a muscle filter — what trains
+    // that muscle first rather than also, then the rest alphabetically. "Chest" opening on
+    // Burpee and Bench Dip, which only touch it, would be the wrong answer to the question.
+    const primary = (d: ExerciseDoc) => Number(muscle != null && d.primary_muscle === muscle);
+    const sorted = [...shown]
       .sort(
         (a, b) =>
-          (usage?.get(b.id) ?? 0) - (usage?.get(a.id) ?? 0) ||
+          used(b) - used(a) ||
           Number(b.custom) - Number(a.custom) ||
+          primary(b) - primary(a) ||
           (a.name < b.name ? -1 : 1),
       )
-      .slice(0, 60)
+      .slice(0, BROWSE_LIMIT)
       .map((d) => ({ ...d, score: 0 }));
-  }, [docs, q, muscle, usage]);
+    return { hits: sorted, hidden: pool.length - shown.length };
+  }, [docs, q, muscle, usage, everything]);
 
   return (
     <div className="space-y-3">
@@ -101,7 +117,9 @@ function PickerBody({
           enterKeyHint="search"
           placeholder="Bench, squat, rdl…"
           aria-label="Search exercises"
-          className="w-full rounded-full bg-surface-2 py-3 pr-11 pl-11 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent"
+          // The browser's own clear control is hidden: ours sits in the same place, and two
+          // crosses side by side read as a glitch.
+          className="w-full rounded-full bg-surface-2 py-3 pr-11 pl-11 text-[16px] outline-none placeholder:text-muted focus:ring-2 focus:ring-accent [&::-webkit-search-cancel-button]:appearance-none"
         />
         {q && (
           <button
@@ -189,6 +207,18 @@ function PickerBody({
               )}
             </li>
           ))}
+          {!q.trim() && (hidden > 0 || everything) && (
+            <li className="py-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={() => setEverything(!everything)}
+              >
+                {everything ? 'Show the usual ones only' : `Show ${fmt(hidden)} more variants`}
+              </Button>
+            </li>
+          )}
         </ul>
       )}
     </div>

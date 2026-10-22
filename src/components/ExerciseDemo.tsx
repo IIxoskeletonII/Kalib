@@ -65,11 +65,20 @@ export function ExerciseDemo({
   const [failed, setFailed] = useState(false);
 
   if (!media || failed) {
+    // Said, not just shown: an empty square reads as broken. A few mainstream exercises Kalib
+    // added itself have no demonstration yet (§20.19); a clip that failed to load is usually a
+    // phone offline before the exercise was ever opened.
     return (
       <div
-        className={`flex aspect-square w-full items-center justify-center rounded-[20px] bg-surface-2 text-muted ${className}`}
+        role="img"
+        aria-label={`${name}: ${media ? 'demonstration unavailable' : 'no demonstration yet'}`}
+        className={`flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-[20px] bg-surface-2 px-6 text-center text-muted ${className}`}
+        data-exercise-demo="none"
       >
         <Dumbbell size={32} strokeWidth={1.6} aria-hidden />
+        <span className="text-[13px] leading-snug">
+          {media ? 'Can’t load the demonstration right now' : 'No demonstration for this one yet'}
+        </span>
       </div>
     );
   }

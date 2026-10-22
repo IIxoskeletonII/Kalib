@@ -1,0 +1,1917 @@
+{
+  "note": "SPEC §20.19 — the exercises people actually do, named the way a gym names them. scripts/seed-exercises.ts merges this over the open library: `library` renames an existing row (its id never changes, so routines and history keep working; the textbook name stays searchable as an alias) and may correct its muscles or load type; `added` holds mainstream movements the library has no entry for, written by Kalib, with no demonstration yet. Every entry here is marked popular, which is what the picker shows first and what search ranks above obscure variants. `shorthand` is what typing in full names this exercise outright (one owner per phrase, checked at build); `aliases` only help it match.",
+  "naming": "Movement first, then the implement in parentheses: Bench Press (Barbell), Incline Bench Press (Dumbbell), Lat Pulldown (Cable), Pec Deck (Machine). Movements done with the body alone take no parentheses: Pull-Up, Push-Up, Plank. This is the convention Hevy and Strong use, so a name read in either reads the same here.",
+  "library": {
+    "0025": {
+      "name": "Bench Press (Barbell)",
+      "shorthand": [
+        "bench",
+        "bench press",
+        "flat bench",
+        "bb bench",
+        "barbell bench",
+        "barbell bench press",
+        "flat bench press"
+      ],
+      "aliases": ["chest press barbell"]
+    },
+    "0047": {
+      "name": "Incline Bench Press (Barbell)",
+      "shorthand": [
+        "incline bench",
+        "incline bench press",
+        "incline barbell press",
+        "incline bb bench",
+        "incline press",
+        "barbell incline bench press"
+      ]
+    },
+    "0033": {
+      "name": "Decline Bench Press (Barbell)",
+      "shorthand": ["decline bench", "decline bench press", "decline barbell press"]
+    },
+    "0289": {
+      "name": "Bench Press (Dumbbell)",
+      "shorthand": [
+        "db bench",
+        "dumbbell bench",
+        "dumbbell bench press",
+        "db press",
+        "dumbbell press",
+        "flat dumbbell press",
+        "db bench press",
+        "dumbbell chest press"
+      ]
+    },
+    "0314": {
+      "name": "Incline Bench Press (Dumbbell)",
+      "shorthand": [
+        "incline dumbbell press",
+        "incline db press",
+        "incline dumbbell bench",
+        "incline db bench",
+        "incline dumbbell bench press",
+        "dumbbell incline press",
+        "dumbbell incline bench press"
+      ]
+    },
+    "0301": {
+      "name": "Decline Bench Press (Dumbbell)",
+      "shorthand": ["decline dumbbell press", "decline db press"]
+    },
+    "0308": {
+      "name": "Chest Fly (Dumbbell)",
+      "shorthand": [
+        "dumbbell fly",
+        "db fly",
+        "dumbbell flye",
+        "dumbbell flyes",
+        "flat fly",
+        "dumbbell chest fly"
+      ]
+    },
+    "0319": {
+      "name": "Incline Chest Fly (Dumbbell)",
+      "shorthand": ["incline dumbbell fly", "incline db fly", "incline fly", "incline flye"]
+    },
+    "0596": {
+      "name": "Pec Deck (Machine)",
+      "shorthand": [
+        "pec deck",
+        "pec dec",
+        "pec deck fly",
+        "chest fly machine",
+        "machine fly",
+        "butterfly",
+        "machine chest fly",
+        "pec fly",
+        "chest fly"
+      ]
+    },
+    "0576": {
+      "name": "Chest Press (Machine)",
+      "shorthand": [
+        "chest press",
+        "machine chest press",
+        "chest press machine",
+        "seated chest press"
+      ]
+    },
+    "1299": {
+      "name": "Incline Chest Press (Machine)",
+      "shorthand": ["incline chest press", "incline machine press", "machine incline press"]
+    },
+    "1300": {
+      "name": "Decline Chest Press (Machine)",
+      "shorthand": ["decline chest press", "decline machine press"]
+    },
+    "0155": {
+      "name": "Cable Crossover",
+      "shorthand": [
+        "cable crossover",
+        "cable crossovers",
+        "crossover",
+        "crossovers",
+        "cable cross over",
+        "high to low cable fly",
+        "high cable fly"
+      ]
+    },
+    "0188": {
+      "name": "Cable Fly",
+      "shorthand": [
+        "cable fly",
+        "cable flye",
+        "cable flyes",
+        "cable chest fly",
+        "mid cable fly",
+        "standing cable fly"
+      ]
+    },
+    "0179": {
+      "name": "Low-to-High Cable Fly",
+      "shorthand": ["low to high cable fly", "low cable fly", "upward cable fly", "low to high fly"]
+    },
+    "0171": {
+      "name": "Incline Cable Fly",
+      "shorthand": ["incline cable fly", "incline cable flye"]
+    },
+    "0748": {
+      "name": "Bench Press (Smith Machine)",
+      "shorthand": [
+        "smith bench",
+        "smith bench press",
+        "smith machine bench press",
+        "smith machine bench"
+      ]
+    },
+    "0757": {
+      "name": "Incline Bench Press (Smith Machine)",
+      "shorthand": [
+        "smith incline",
+        "smith incline bench",
+        "incline smith press",
+        "smith machine incline press",
+        "smith incline press"
+      ]
+    },
+    "0662": {
+      "name": "Push-Up",
+      "shorthand": ["push up", "pushup", "pushups", "push ups", "press up", "press ups"]
+    },
+    "0493": { "name": "Incline Push-Up", "shorthand": ["incline pushup", "incline push up"] },
+    "0279": { "name": "Decline Push-Up", "shorthand": ["decline pushup", "decline push up"] },
+    "0251": { "name": "Chest Dip", "shorthand": ["chest dip", "chest dips"] },
+    "0009": { "name": "Chest Dip (Assisted)", "shorthand": ["assisted chest dip"] },
+    "0375": {
+      "name": "Pullover (Dumbbell)",
+      "shorthand": ["dumbbell pullover", "db pullover", "pullover", "pullovers"]
+    },
+    "2285": {
+      "name": "Pullover (Machine)",
+      "shorthand": ["machine pullover", "lat pullover machine", "pullover machine"]
+    },
+
+    "0652": {
+      "name": "Pull-Up",
+      "shorthand": ["pull up", "pullup", "pullups", "pull ups", "pull-ups"]
+    },
+    "1429": {
+      "name": "Wide-Grip Pull-Up",
+      "shorthand": ["wide grip pull up", "wide pullup", "wide grip pullup", "wide pull up"]
+    },
+    "0651": {
+      "name": "Neutral-Grip Pull-Up",
+      "shorthand": [
+        "neutral grip pull up",
+        "hammer grip pull up",
+        "neutral pullup",
+        "parallel grip pull up"
+      ]
+    },
+    "1326": {
+      "name": "Chin-Up",
+      "shorthand": ["chin up", "chinup", "chinups", "chin ups", "chin-ups"]
+    },
+    "0017": {
+      "name": "Pull-Up (Assisted)",
+      "shorthand": [
+        "assisted pull up",
+        "assisted pullup",
+        "assisted pull up machine",
+        "assisted pullups"
+      ]
+    },
+    "0572": { "name": "Chin-Up (Assisted)", "shorthand": ["assisted chin up", "assisted chinup"] },
+    "0150": {
+      "name": "Lat Pulldown (Cable)",
+      "shorthand": [
+        "lat pulldown",
+        "lat pull down",
+        "pulldown",
+        "pulldowns",
+        "lat pulldowns",
+        "wide grip lat pulldown",
+        "lat pull downs",
+        "wide grip pulldown"
+      ]
+    },
+    "2616": {
+      "name": "Close-Grip Lat Pulldown (Cable)",
+      "shorthand": [
+        "close grip pulldown",
+        "v bar pulldown",
+        "close grip lat pulldown",
+        "v grip pulldown"
+      ]
+    },
+    "0818": {
+      "name": "Neutral-Grip Lat Pulldown (Cable)",
+      "shorthand": ["neutral grip pulldown", "neutral grip lat pulldown", "parallel grip pulldown"]
+    },
+    "0245": {
+      "name": "Reverse-Grip Lat Pulldown (Cable)",
+      "shorthand": [
+        "underhand pulldown",
+        "reverse grip pulldown",
+        "supinated pulldown",
+        "reverse grip lat pulldown"
+      ]
+    },
+    "0579": {
+      "name": "Lat Pulldown (Machine)",
+      "shorthand": ["machine pulldown", "machine lat pulldown", "lat pulldown machine"]
+    },
+    "3563": {
+      "name": "Single-Arm Lat Pulldown (Cable)",
+      "shorthand": [
+        "single arm pulldown",
+        "one arm lat pulldown",
+        "single arm lat pulldown",
+        "one arm pulldown"
+      ]
+    },
+    "0238": {
+      "name": "Straight-Arm Pulldown (Cable)",
+      "shorthand": [
+        "straight arm pulldown",
+        "straight arm lat pulldown",
+        "lat pushdown",
+        "straight arm pushdown"
+      ]
+    },
+    "0027": {
+      "name": "Bent Over Row (Barbell)",
+      "shorthand": [
+        "barbell row",
+        "bb row",
+        "bent over row",
+        "bent row",
+        "bor",
+        "barbell bent over row",
+        "rows",
+        "barbell rows"
+      ]
+    },
+    "3017": {
+      "name": "Pendlay Row (Barbell)",
+      "shorthand": ["pendlay row", "pendlay", "pendlay rows"]
+    },
+    "0118": {
+      "name": "Reverse-Grip Bent Over Row (Barbell)",
+      "shorthand": ["underhand row", "yates row", "reverse grip row", "underhand barbell row"]
+    },
+    "0292": {
+      "name": "Single-Arm Row (Dumbbell)",
+      "shorthand": [
+        "db row",
+        "dumbbell row",
+        "one arm row",
+        "single arm row",
+        "one arm dumbbell row",
+        "single arm dumbbell row",
+        "kroc row",
+        "dumbbell rows"
+      ]
+    },
+    "0293": {
+      "name": "Bent Over Row (Dumbbell)",
+      "shorthand": ["dumbbell bent over row", "two arm dumbbell row", "db bent over row"]
+    },
+    "0327": {
+      "name": "Chest-Supported Row (Dumbbell)",
+      "shorthand": [
+        "chest supported row",
+        "chest supported dumbbell row",
+        "incline dumbbell row",
+        "incline db row"
+      ]
+    },
+    "0248": { "name": "Seal Row (Barbell)", "shorthand": ["seal row", "seal rows", "bench row"] },
+    "0861": {
+      "name": "Seated Row (Cable)",
+      "shorthand": [
+        "seated row",
+        "cable row",
+        "seated cable row",
+        "low row",
+        "v grip row",
+        "cable rows",
+        "seated cable rows"
+      ]
+    },
+    "0218": {
+      "name": "Wide-Grip Seated Row (Cable)",
+      "shorthand": ["wide grip cable row", "wide grip seated row"]
+    },
+    "0214": {
+      "name": "Single-Arm Seated Row (Cable)",
+      "shorthand": ["single arm cable row", "one arm cable row"]
+    },
+    "1350": {
+      "name": "Seated Row (Machine)",
+      "shorthand": [
+        "machine row",
+        "seated machine row",
+        "row machine strength",
+        "chest supported machine row"
+      ]
+    },
+    "0606": {
+      "name": "T-Bar Row (Machine)",
+      "shorthand": ["chest supported t bar row", "t bar row machine", "machine t bar row"]
+    },
+    "0574": {
+      "name": "T-Bar Row (Landmine)",
+      "shorthand": ["t bar row", "tbar row", "t-bar row", "landmine row", "t bar rows"]
+    },
+    "0589": {
+      "name": "Meadows Row (Landmine)",
+      "shorthand": ["meadows row", "single arm landmine row", "landmine single arm row"]
+    },
+    "1313": {
+      "name": "Iso-Lateral Row (Machine)",
+      "shorthand": [
+        "iso lateral row",
+        "unilateral row machine",
+        "hammer strength row",
+        "single arm machine row"
+      ]
+    },
+    "0581": {
+      "name": "High Row (Machine)",
+      "shorthand": ["high row", "machine high row", "hammer strength high row"]
+    },
+    "0499": {
+      "name": "Inverted Row",
+      "shorthand": ["inverted row", "australian pull up", "body row", "inverted rows"]
+    },
+    "0095": {
+      "name": "Shrug (Barbell)",
+      "shorthand": ["shrug", "shrugs", "barbell shrug", "bb shrug", "barbell shrugs"]
+    },
+    "0406": {
+      "name": "Shrug (Dumbbell)",
+      "shorthand": ["dumbbell shrug", "db shrug", "dumbbell shrugs"]
+    },
+    "0604": { "name": "Shrug (Machine)", "shorthand": ["machine shrug", "shrug machine"] },
+    "0767": {
+      "name": "Shrug (Smith Machine)",
+      "shorthand": ["smith shrug", "smith machine shrug"]
+    },
+    "0220": { "name": "Shrug (Cable)", "shorthand": ["cable shrug"] },
+    "0032": {
+      "name": "Deadlift (Barbell)",
+      "shorthand": [
+        "deadlift",
+        "deadlifts",
+        "dl",
+        "deads",
+        "conventional deadlift",
+        "barbell deadlift"
+      ]
+    },
+    "0117": {
+      "name": "Sumo Deadlift (Barbell)",
+      "shorthand": ["sumo", "sumo deadlift", "sumo dl", "sumo deadlifts"]
+    },
+    "0811": {
+      "name": "Trap Bar Deadlift",
+      "shorthand": ["trap bar deadlift", "hex bar deadlift", "hex bar dl", "trap bar dl", "hex bar"]
+    },
+    "0074": {
+      "name": "Rack Pull (Barbell)",
+      "shorthand": ["rack pull", "rack pulls", "block pull"]
+    },
+    "0300": { "name": "Deadlift (Dumbbell)", "shorthand": ["dumbbell deadlift", "db deadlift"] },
+    "0489": {
+      "name": "Back Extension",
+      "shorthand": [
+        "back extension",
+        "back extensions",
+        "hyperextension",
+        "hyperextensions",
+        "hyper",
+        "45 degree back extension"
+      ]
+    },
+    "0573": {
+      "name": "Back Extension (Machine)",
+      "shorthand": ["machine back extension", "back extension machine", "lower back machine"]
+    },
+    "0593": {
+      "name": "Reverse Hyperextension (Machine)",
+      "shorthand": ["reverse hyper", "reverse hyperextension", "reverse hypers"]
+    },
+    "0044": {
+      "name": "Good Morning (Barbell)",
+      "shorthand": ["good morning", "good mornings", "barbell good morning"]
+    },
+
+    "pulse-0002": {
+      "name": "Overhead Press (Barbell)",
+      "shorthand": [
+        "ohp",
+        "overhead press",
+        "military press",
+        "standing press",
+        "strict press",
+        "barbell overhead press",
+        "standing overhead press",
+        "barbell ohp"
+      ]
+    },
+    "0091": {
+      "name": "Seated Overhead Press (Barbell)",
+      "shorthand": [
+        "seated ohp",
+        "seated overhead press",
+        "seated barbell press",
+        "seated military press"
+      ]
+    },
+    "0405": {
+      "name": "Shoulder Press (Dumbbell)",
+      "shorthand": [
+        "dumbbell shoulder press",
+        "db shoulder press",
+        "seated dumbbell press",
+        "dumbbell overhead press",
+        "db ohp",
+        "seated db press",
+        "shoulder press",
+        "seated dumbbell shoulder press"
+      ]
+    },
+    "0426": {
+      "name": "Standing Shoulder Press (Dumbbell)",
+      "shorthand": [
+        "standing dumbbell press",
+        "standing db press",
+        "standing dumbbell shoulder press"
+      ]
+    },
+    "2137": {
+      "name": "Arnold Press (Dumbbell)",
+      "shorthand": ["arnold press", "arnolds", "arnold presses"]
+    },
+    "0603": {
+      "name": "Shoulder Press (Machine)",
+      "shorthand": ["machine shoulder press", "shoulder press machine", "machine overhead press"]
+    },
+    "0766": {
+      "name": "Shoulder Press (Smith Machine)",
+      "shorthand": [
+        "smith shoulder press",
+        "smith ohp",
+        "smith machine shoulder press",
+        "smith overhead press"
+      ]
+    },
+    "1700": {
+      "name": "Push Press (Dumbbell)",
+      "shorthand": ["dumbbell push press", "db push press"]
+    },
+    "0334": {
+      "name": "Lateral Raise (Dumbbell)",
+      "shorthand": [
+        "lateral raise",
+        "lateral raises",
+        "side raise",
+        "side raises",
+        "lat raise",
+        "lat raises",
+        "side lateral",
+        "laterals",
+        "side laterals",
+        "db lateral raise",
+        "dumbbell lateral raise"
+      ]
+    },
+    "0396": {
+      "name": "Seated Lateral Raise (Dumbbell)",
+      "shorthand": ["seated lateral raise", "seated side raise"]
+    },
+    "0192": {
+      "name": "Lateral Raise (Cable)",
+      "shorthand": [
+        "cable lateral raise",
+        "cable lateral",
+        "cable side raise",
+        "cable lateral raises",
+        "single arm cable lateral raise"
+      ]
+    },
+    "0178": {
+      "name": "Two-Arm Lateral Raise (Cable)",
+      "shorthand": ["two arm cable lateral raise", "cable crossover lateral raise"],
+      "popular": false
+    },
+    "0584": {
+      "name": "Lateral Raise (Machine)",
+      "shorthand": ["machine lateral raise", "lateral raise machine", "machine laterals"]
+    },
+    "0310": {
+      "name": "Front Raise (Dumbbell)",
+      "shorthand": ["front raise", "front raises", "db front raise", "dumbbell front raise"]
+    },
+    "0041": { "name": "Front Raise (Barbell)", "shorthand": ["barbell front raise"] },
+    "0162": { "name": "Front Raise (Cable)", "shorthand": ["cable front raise"] },
+    "0834": {
+      "name": "Plate Front Raise",
+      "shorthand": ["plate front raise", "plate raise", "plate raises"]
+    },
+    "0383": {
+      "name": "Reverse Fly (Dumbbell)",
+      "shorthand": [
+        "rear delt fly",
+        "reverse fly",
+        "rear delt raise",
+        "bent over lateral raise",
+        "rear lateral raise",
+        "bent over reverse fly",
+        "rear delts",
+        "dumbbell reverse fly",
+        "rear delt flyes"
+      ]
+    },
+    "0602": {
+      "name": "Reverse Fly (Machine)",
+      "shorthand": [
+        "reverse pec deck",
+        "rear delt machine",
+        "machine reverse fly",
+        "rear delt fly machine",
+        "reverse fly machine",
+        "machine rear delt fly"
+      ]
+    },
+    "0154": {
+      "name": "Reverse Fly (Cable)",
+      "shorthand": ["cable reverse fly", "cable rear delt fly", "reverse cable crossover"]
+    },
+    "0203": {
+      "name": "Rear Delt Row (Cable)",
+      "shorthand": ["cable rear delt row", "rear delt row", "rope rear delt row"]
+    },
+    "0120": {
+      "name": "Upright Row (Barbell)",
+      "shorthand": ["upright row", "upright rows", "barbell upright row"]
+    },
+    "0437": {
+      "name": "Upright Row (Dumbbell)",
+      "shorthand": ["dumbbell upright row", "db upright row"]
+    },
+    "0246": { "name": "Upright Row (Cable)", "shorthand": ["cable upright row"] },
+
+    "0031": {
+      "name": "Bicep Curl (Barbell)",
+      "shorthand": [
+        "barbell curl",
+        "bb curl",
+        "barbell curls",
+        "straight bar curl",
+        "barbell bicep curl",
+        "standing barbell curl"
+      ]
+    },
+    "0294": {
+      "name": "Bicep Curl (Dumbbell)",
+      "shorthand": [
+        "dumbbell curl",
+        "db curl",
+        "dumbbell curls",
+        "bicep curl",
+        "bicep curls",
+        "biceps curl",
+        "curls",
+        "curl",
+        "dumbbell bicep curl"
+      ]
+    },
+    "0285": {
+      "name": "Alternating Bicep Curl (Dumbbell)",
+      "shorthand": [
+        "alternating curl",
+        "alternating dumbbell curl",
+        "alt db curl",
+        "alternating bicep curl"
+      ]
+    },
+    "0391": {
+      "name": "Seated Bicep Curl (Dumbbell)",
+      "shorthand": ["seated dumbbell curl", "seated curl", "seated bicep curl"]
+    },
+    "0447": {
+      "name": "Bicep Curl (EZ Bar)",
+      "shorthand": ["ez bar curl", "ez curl", "ez barbell curl", "ez bar curls", "ez bicep curl"]
+    },
+    "0313": {
+      "name": "Hammer Curl (Dumbbell)",
+      "shorthand": ["hammer curl", "hammer curls", "db hammer curl", "dumbbell hammer curl"]
+    },
+    "0298": {
+      "name": "Cross-Body Hammer Curl (Dumbbell)",
+      "shorthand": ["cross body hammer curl", "cross body curl", "crossbody hammer curl"]
+    },
+    "0165": {
+      "name": "Rope Hammer Curl (Cable)",
+      "shorthand": ["rope hammer curl", "cable hammer curl", "rope curl"]
+    },
+    "0868": {
+      "name": "Bicep Curl (Cable)",
+      "shorthand": ["cable curl", "cable curls", "cable bicep curl", "cable biceps curl"]
+    },
+    "1636": {
+      "name": "Overhead Cable Curl",
+      "shorthand": ["overhead cable curl", "high cable curl", "overhead curl"]
+    },
+    "0070": {
+      "name": "Preacher Curl (Barbell)",
+      "shorthand": ["preacher curl", "barbell preacher curl", "preacher curls"]
+    },
+    "1627": {
+      "name": "Preacher Curl (EZ Bar)",
+      "shorthand": ["ez bar preacher curl", "ez preacher curl", "ez preacher"]
+    },
+    "0372": {
+      "name": "Preacher Curl (Dumbbell)",
+      "shorthand": ["dumbbell preacher curl", "db preacher curl"]
+    },
+    "0592": {
+      "name": "Preacher Curl (Machine)",
+      "shorthand": ["machine preacher curl", "preacher curl machine"]
+    },
+    "0195": { "name": "Preacher Curl (Cable)", "shorthand": ["cable preacher curl"] },
+    "0575": {
+      "name": "Bicep Curl (Machine)",
+      "shorthand": ["machine curl", "machine bicep curl", "bicep curl machine"]
+    },
+    "0318": {
+      "name": "Incline Curl (Dumbbell)",
+      "shorthand": ["incline curl", "incline dumbbell curl", "incline db curl", "incline curls"]
+    },
+    "0297": {
+      "name": "Concentration Curl (Dumbbell)",
+      "shorthand": ["concentration curl", "concentration curls"]
+    },
+    "0454": { "name": "Spider Curl (EZ Bar)", "shorthand": ["spider curl", "spider curls"] },
+    "0080": {
+      "name": "Reverse Curl (Barbell)",
+      "shorthand": ["reverse curl", "reverse grip curl", "reverse curls", "barbell reverse curl"]
+    },
+    "0451": {
+      "name": "Reverse Curl (EZ Bar)",
+      "shorthand": ["ez bar reverse curl", "reverse ez curl"]
+    },
+    "0439": { "name": "Zottman Curl (Dumbbell)", "shorthand": ["zottman curl", "zottman"] },
+    "0038": { "name": "Drag Curl (Barbell)", "shorthand": ["drag curl", "drag curls"] },
+
+    "0201": {
+      "name": "Triceps Pushdown (Cable)",
+      "shorthand": [
+        "tricep pushdown",
+        "triceps pushdown",
+        "pushdown",
+        "pushdowns",
+        "cable pushdown",
+        "tricep pressdown",
+        "straight bar pushdown",
+        "tricep pushdowns"
+      ]
+    },
+    "0200": {
+      "name": "Rope Pushdown (Cable)",
+      "shorthand": [
+        "rope pushdown",
+        "rope pushdowns",
+        "tricep rope pushdown",
+        "rope tricep pushdown",
+        "rope tricep extension"
+      ]
+    },
+    "0241": {
+      "name": "V-Bar Pushdown (Cable)",
+      "shorthand": ["v bar pushdown", "v-bar pushdown", "v bar tricep pushdown"]
+    },
+    "0207": {
+      "name": "Reverse-Grip Pushdown (Cable)",
+      "shorthand": ["reverse grip pushdown", "underhand pushdown"]
+    },
+    "1723": {
+      "name": "Single-Arm Pushdown (Cable)",
+      "shorthand": ["single arm pushdown", "one arm pushdown", "single arm tricep pushdown"]
+    },
+    "0194": {
+      "name": "Overhead Triceps Extension (Cable)",
+      "shorthand": [
+        "overhead tricep extension cable",
+        "cable overhead extension",
+        "rope overhead extension",
+        "overhead rope extension",
+        "cable overhead tricep extension"
+      ]
+    },
+    "0430": {
+      "name": "Overhead Triceps Extension (Dumbbell)",
+      "shorthand": [
+        "dumbbell overhead extension",
+        "overhead dumbbell extension",
+        "db overhead extension",
+        "overhead tricep extension",
+        "overhead triceps extension",
+        "dumbbell tricep extension"
+      ]
+    },
+    "0453": {
+      "name": "Overhead Triceps Extension (EZ Bar)",
+      "shorthand": ["ez bar overhead extension", "french press", "seated french press"]
+    },
+    "0060": {
+      "name": "Skull Crusher (Barbell)",
+      "shorthand": [
+        "skullcrusher",
+        "skull crusher",
+        "skullcrushers",
+        "skull crushers",
+        "lying tricep extension",
+        "lying triceps extension",
+        "barbell skull crusher"
+      ]
+    },
+    "0351": {
+      "name": "Skull Crusher (Dumbbell)",
+      "shorthand": [
+        "dumbbell skull crusher",
+        "db skullcrusher",
+        "dumbbell lying tricep extension",
+        "dumbbell skullcrusher"
+      ]
+    },
+    "0030": {
+      "name": "Close-Grip Bench Press (Barbell)",
+      "shorthand": ["close grip bench", "cgbp", "close grip bench press", "close grip press"]
+    },
+    "0751": {
+      "name": "Close-Grip Bench Press (Smith Machine)",
+      "shorthand": ["smith close grip bench", "smith close grip press"]
+    },
+    "0296": {
+      "name": "Close-Grip Press (Dumbbell)",
+      "shorthand": ["db close grip press", "crush press"]
+    },
+    "0052": { "name": "JM Press (Barbell)", "shorthand": ["jm press", "jm presses"] },
+    "0333": {
+      "name": "Triceps Kickback (Dumbbell)",
+      "shorthand": [
+        "kickback",
+        "kickbacks",
+        "tricep kickback",
+        "dumbbell kickback",
+        "triceps kickback",
+        "db kickback"
+      ]
+    },
+    "0860": {
+      "name": "Triceps Kickback (Cable)",
+      "shorthand": ["cable tricep kickback", "cable triceps kickback"]
+    },
+    "0814": {
+      "name": "Triceps Dip",
+      "shorthand": [
+        "tricep dip",
+        "triceps dips",
+        "tricep dips",
+        "dips",
+        "dip",
+        "parallel bar dip",
+        "parallel bar dips"
+      ]
+    },
+    "0812": { "name": "Bench Dip", "shorthand": ["bench dip", "bench dips"] },
+    "1451": {
+      "name": "Dip (Machine)",
+      "shorthand": [
+        "seated dip machine",
+        "machine dip",
+        "dip machine",
+        "tricep dip machine",
+        "machine dips"
+      ]
+    },
+    "0019": {
+      "name": "Dip (Assisted)",
+      "shorthand": ["assisted dip", "assisted dips", "assisted tricep dip"]
+    },
+    "0607": {
+      "name": "Triceps Extension (Machine)",
+      "shorthand": [
+        "tricep extension machine",
+        "machine tricep extension",
+        "triceps extension machine"
+      ]
+    },
+    "0283": {
+      "name": "Diamond Push-Up",
+      "shorthand": ["diamond pushup", "diamond push ups", "diamond push up"]
+    },
+    "0259": {
+      "name": "Close-Grip Push-Up",
+      "shorthand": ["close grip pushup", "close grip push up"]
+    },
+
+    "0126": {
+      "name": "Wrist Curl (Barbell)",
+      "shorthand": ["wrist curl", "wrist curls", "barbell wrist curl"]
+    },
+    "0082": {
+      "name": "Reverse Wrist Curl (Barbell)",
+      "shorthand": ["reverse wrist curl", "reverse wrist curls"]
+    },
+    "0369": {
+      "name": "Wrist Curl (Dumbbell)",
+      "shorthand": ["dumbbell wrist curl", "db wrist curl"]
+    },
+    "0859": { "name": "Wrist Roller", "shorthand": ["wrist roller", "forearm roller"] },
+    "2133": {
+      "name": "Farmer's Walk (Dumbbell)",
+      "shorthand": [
+        "farmers walk",
+        "farmer walk",
+        "farmers carry",
+        "farmer carry",
+        "farmer's walk",
+        "farmer's carry",
+        "farmers walks"
+      ],
+      "primary": "forearms",
+      "secondary": ["traps", "abs", "quads", "calves"]
+    },
+
+    "0043": {
+      "name": "Squat (Barbell)",
+      "shorthand": [
+        "squat",
+        "squats",
+        "back squat",
+        "barbell squat",
+        "bb squat",
+        "back squats",
+        "barbell back squat"
+      ],
+      "primary": "quads",
+      "secondary": ["glutes", "adductors", "hamstrings", "lower back"]
+    },
+    "0042": {
+      "name": "Front Squat (Barbell)",
+      "shorthand": ["front squat", "front squats", "fronts"],
+      "primary": "quads",
+      "secondary": ["glutes", "upper back", "abs"]
+    },
+    "0026": {
+      "name": "Box Squat (Barbell)",
+      "shorthand": ["box squat", "box squats"],
+      "primary": "quads",
+      "secondary": ["glutes", "hamstrings", "adductors"]
+    },
+    "0069": { "name": "Overhead Squat (Barbell)", "shorthand": ["overhead squat", "ohs"] },
+    "1760": {
+      "name": "Goblet Squat (Dumbbell)",
+      "shorthand": ["goblet squat", "goblet squats", "db goblet squat", "dumbbell goblet squat"]
+    },
+    "0534": {
+      "name": "Goblet Squat (Kettlebell)",
+      "shorthand": ["kettlebell goblet squat", "kb goblet squat"]
+    },
+    "0770": {
+      "name": "Squat (Smith Machine)",
+      "shorthand": ["smith squat", "smith machine squat", "smith squats"],
+      "primary": "quads",
+      "secondary": ["glutes", "hamstrings", "adductors"]
+    },
+    "1433": {
+      "name": "Front Squat (Smith Machine)",
+      "shorthand": ["smith front squat", "smith machine front squat"],
+      "primary": "quads",
+      "secondary": ["glutes", "abs"]
+    },
+    "0739": {
+      "name": "Leg Press (Machine)",
+      "shorthand": [
+        "leg press",
+        "leg presses",
+        "45 degree leg press",
+        "45 leg press",
+        "sled leg press",
+        "leg press machine",
+        "machine leg press"
+      ],
+      "primary": "quads",
+      "secondary": ["glutes", "hamstrings", "adductors"]
+    },
+    "1425": {
+      "name": "Single-Leg Leg Press (Machine)",
+      "shorthand": ["single leg leg press", "one leg leg press", "single leg press"],
+      "primary": "quads",
+      "secondary": ["glutes", "hamstrings"]
+    },
+    "0743": {
+      "name": "Hack Squat (Machine)",
+      "shorthand": ["hack squat", "machine hack squat", "hack squats", "hack squat machine"],
+      "primary": "quads",
+      "secondary": ["glutes", "hamstrings", "adductors"]
+    },
+    "0046": {
+      "name": "Hack Squat (Barbell)",
+      "shorthand": ["barbell hack squat", "behind the back hack squat"],
+      "primary": "quads",
+      "secondary": ["glutes", "hamstrings"]
+    },
+    "0410": {
+      "name": "Bulgarian Split Squat (Dumbbell)",
+      "shorthand": [
+        "bulgarian split squat",
+        "bulgarians",
+        "bss",
+        "rear foot elevated split squat",
+        "rfess",
+        "bulgarian",
+        "dumbbell bulgarian split squat",
+        "bulgarian split squats"
+      ]
+    },
+    "0099": {
+      "name": "Bulgarian Split Squat (Barbell)",
+      "shorthand": ["barbell bulgarian split squat", "barbell bulgarian"]
+    },
+    "0768": {
+      "name": "Bulgarian Split Squat (Smith Machine)",
+      "shorthand": ["smith bulgarian split squat", "smith machine bulgarian split squat"]
+    },
+    "2368": {
+      "name": "Split Squat",
+      "shorthand": ["split squat", "split squats", "bodyweight split squat"]
+    },
+    "2810": { "name": "Split Squat (Barbell)", "shorthand": ["barbell split squat"] },
+    "0336": {
+      "name": "Lunge (Dumbbell)",
+      "shorthand": ["dumbbell lunge", "db lunge", "lunges", "lunge", "dumbbell lunges"]
+    },
+    "0054": {
+      "name": "Lunge (Barbell)",
+      "shorthand": ["barbell lunge", "barbell lunges", "bb lunge"]
+    },
+    "3470": {
+      "name": "Forward Lunge",
+      "shorthand": ["bodyweight lunge", "forward lunge", "bodyweight lunges"]
+    },
+    "1460": {
+      "name": "Walking Lunge",
+      "shorthand": ["walking lunge", "walking lunges", "bodyweight walking lunge"]
+    },
+    "0381": {
+      "name": "Reverse Lunge (Dumbbell)",
+      "shorthand": ["reverse lunge", "rear lunge", "reverse lunges", "dumbbell reverse lunge"]
+    },
+    "0078": {
+      "name": "Reverse Lunge (Barbell)",
+      "shorthand": ["barbell reverse lunge", "barbell rear lunge"]
+    },
+    "0431": {
+      "name": "Step-Up (Dumbbell)",
+      "shorthand": ["step up", "step ups", "dumbbell step up", "step-ups", "db step up"]
+    },
+    "0114": { "name": "Step-Up (Barbell)", "shorthand": ["barbell step up"] },
+    "1759": {
+      "name": "Pistol Squat",
+      "shorthand": ["pistol squat", "pistols", "pistol", "single leg squat"]
+    },
+    "1489": { "name": "Sissy Squat", "shorthand": ["sissy squat", "sissy squats"] },
+    "3533": {
+      "name": "Bodyweight Squat",
+      "shorthand": ["air squat", "bodyweight squat", "air squats", "bodyweight squats"]
+    },
+    "0585": {
+      "name": "Leg Extension (Machine)",
+      "shorthand": [
+        "leg extension",
+        "leg extensions",
+        "quad extension",
+        "knee extension",
+        "leg extension machine"
+      ]
+    },
+    "0599": {
+      "name": "Seated Leg Curl (Machine)",
+      "shorthand": [
+        "seated leg curl",
+        "leg curl",
+        "hamstring curl",
+        "seated hamstring curl",
+        "seated leg curls"
+      ]
+    },
+    "0586": {
+      "name": "Lying Leg Curl (Machine)",
+      "shorthand": [
+        "lying leg curl",
+        "leg curls",
+        "lying hamstring curl",
+        "prone leg curl",
+        "lying leg curls"
+      ]
+    },
+    "0339": {
+      "name": "Lying Leg Curl (Dumbbell)",
+      "shorthand": ["dumbbell leg curl", "db leg curl"]
+    },
+    "0085": {
+      "name": "Romanian Deadlift (Barbell)",
+      "shorthand": [
+        "rdl",
+        "romanian deadlift",
+        "romanians",
+        "rdls",
+        "barbell rdl",
+        "romanian deadlifts",
+        "bb rdl"
+      ]
+    },
+    "1459": {
+      "name": "Romanian Deadlift (Dumbbell)",
+      "shorthand": ["db rdl", "dumbbell rdl", "dumbbell romanian deadlift", "dumbbell rdls"]
+    },
+    "0116": {
+      "name": "Stiff-Leg Deadlift (Barbell)",
+      "shorthand": ["stiff leg deadlift", "sldl", "stiff legged deadlift", "straight leg deadlift"]
+    },
+    "0432": {
+      "name": "Stiff-Leg Deadlift (Dumbbell)",
+      "shorthand": ["dumbbell stiff leg deadlift", "db stiff leg deadlift"]
+    },
+    "1757": {
+      "name": "Single-Leg Romanian Deadlift (Dumbbell)",
+      "shorthand": [
+        "single leg rdl",
+        "single leg deadlift",
+        "sl rdl",
+        "single leg romanian deadlift",
+        "one leg rdl"
+      ]
+    },
+    "3193": {
+      "name": "Glute-Ham Raise",
+      "shorthand": ["ghr", "glute ham raise", "glute ham raises"]
+    },
+    "0196": {
+      "name": "Pull-Through (Cable)",
+      "shorthand": ["pull through", "cable pull through", "pull throughs", "cable pullthrough"]
+    },
+    "0549": {
+      "name": "Kettlebell Swing",
+      "shorthand": [
+        "kb swing",
+        "kettlebell swings",
+        "swings",
+        "russian swing",
+        "kb swings",
+        "swing"
+      ]
+    },
+    "1409": {
+      "name": "Glute Bridge (Barbell)",
+      "shorthand": ["barbell glute bridge", "bb glute bridge", "weighted glute bridge"]
+    },
+    "3013": {
+      "name": "Glute Bridge",
+      "shorthand": ["glute bridge", "glute bridges", "bridge", "hip bridge"]
+    },
+    "0756": {
+      "name": "Hip Thrust (Smith Machine)",
+      "shorthand": ["smith hip thrust", "smith machine hip thrust"],
+      "primary": "glutes",
+      "secondary": ["hamstrings", "quads"]
+    },
+    "0228": {
+      "name": "Glute Kickback (Cable)",
+      "shorthand": [
+        "cable kickback",
+        "glute kickback",
+        "cable glute kickback",
+        "cable kickbacks",
+        "glute kickbacks"
+      ]
+    },
+    "2286": {
+      "name": "Glute Kickback (Machine)",
+      "shorthand": ["glute kickback machine", "machine glute kickback"]
+    },
+    "0597": {
+      "name": "Hip Abduction (Machine)",
+      "shorthand": [
+        "hip abduction",
+        "abductor machine",
+        "abductors",
+        "outer thigh machine",
+        "hip abductor",
+        "abduction machine"
+      ]
+    },
+    "0598": {
+      "name": "Hip Adduction (Machine)",
+      "shorthand": [
+        "hip adduction",
+        "adductor machine",
+        "adductors",
+        "inner thigh machine",
+        "hip adductor",
+        "adduction machine"
+      ]
+    },
+    "0168": {
+      "name": "Hip Adduction (Cable)",
+      "shorthand": ["cable hip adduction", "cable adduction"]
+    },
+    "0605": {
+      "name": "Standing Calf Raise (Machine)",
+      "shorthand": [
+        "standing calf raise",
+        "calf raise",
+        "calf raises",
+        "calves machine",
+        "standing calf raises",
+        "machine calf raise"
+      ]
+    },
+    "0594": {
+      "name": "Seated Calf Raise (Machine)",
+      "shorthand": ["seated calf raise", "seated calves", "seated calf raises"]
+    },
+    "0738": {
+      "name": "Calf Press (Leg Press)",
+      "shorthand": [
+        "leg press calf raise",
+        "calf press",
+        "leg press calf press",
+        "calf press on leg press"
+      ]
+    },
+    "0417": {
+      "name": "Standing Calf Raise (Dumbbell)",
+      "shorthand": ["dumbbell calf raise", "db calf raise"]
+    },
+    "0409": {
+      "name": "Single-Leg Calf Raise (Dumbbell)",
+      "shorthand": ["single leg calf raise", "one leg calf raise"]
+    },
+    "0773": {
+      "name": "Standing Calf Raise (Smith Machine)",
+      "shorthand": ["smith calf raise", "smith machine calf raise"]
+    },
+    "1372": { "name": "Standing Calf Raise (Barbell)", "shorthand": ["barbell calf raise"] },
+    "1373": {
+      "name": "Bodyweight Calf Raise",
+      "shorthand": ["calf raise bodyweight", "standing calf raise bodyweight"]
+    },
+    "0284": { "name": "Donkey Calf Raise", "shorthand": ["donkey calf raise", "donkey calves"] },
+
+    "0175": {
+      "name": "Cable Crunch",
+      "shorthand": ["cable crunch", "cable crunches", "kneeling cable crunch", "rope crunch"]
+    },
+    "0274": { "name": "Crunch", "shorthand": ["crunch", "crunches", "floor crunch"] },
+    "1452": {
+      "name": "Crunch (Machine)",
+      "shorthand": [
+        "ab machine",
+        "ab crunch machine",
+        "machine crunch",
+        "crunch machine",
+        "ab crunch"
+      ]
+    },
+    "0472": {
+      "name": "Hanging Leg Raise",
+      "shorthand": ["hanging leg raise", "hanging leg raises", "hlr"]
+    },
+    "1764": {
+      "name": "Hanging Knee Raise",
+      "shorthand": ["hanging knee raise", "hanging knee raises", "knee raise", "knee raises"]
+    },
+    "2963": {
+      "name": "Captain's Chair Leg Raise",
+      "shorthand": [
+        "captains chair",
+        "captain's chair",
+        "roman chair leg raise",
+        "vertical knee raise",
+        "captains chair leg raise"
+      ]
+    },
+    "0620": {
+      "name": "Lying Leg Raise",
+      "shorthand": ["lying leg raise", "leg raise", "leg raises", "lying leg raises"]
+    },
+    "0872": { "name": "Reverse Crunch", "shorthand": ["reverse crunch", "reverse crunches"] },
+    "pulse-0003": {
+      "name": "Plank",
+      "shorthand": ["plank", "planks", "front plank", "forearm plank"]
+    },
+    "0705": { "name": "Side Plank", "shorthand": ["side plank", "side planks", "side bridge"] },
+    "0687": { "name": "Russian Twist", "shorthand": ["russian twist", "russian twists"] },
+    "0276": { "name": "Dead Bug", "shorthand": ["dead bug", "dead bugs", "deadbug"] },
+    "0857": {
+      "name": "Ab Wheel Rollout",
+      "shorthand": [
+        "ab wheel",
+        "ab rollout",
+        "ab roller",
+        "wheel rollout",
+        "ab wheel rollout",
+        "ab rollouts"
+      ]
+    },
+    "3679": { "name": "Sit-Up", "shorthand": ["sit up", "situps", "sit ups", "situp"] },
+    "0282": {
+      "name": "Decline Sit-Up",
+      "shorthand": ["decline sit up", "decline situp", "decline sit ups"]
+    },
+    "0277": { "name": "Decline Crunch", "shorthand": ["decline crunch", "decline crunches"] },
+    "0003": {
+      "name": "Bicycle Crunch",
+      "shorthand": ["bicycle crunch", "bicycle crunches", "bicycles", "bicycle"]
+    },
+    "4240": { "name": "Pallof Press (Band)", "shorthand": ["band pallof press", "pallof band"] },
+    "0230": {
+      "name": "Woodchopper (Cable)",
+      "shorthand": [
+        "woodchop",
+        "woodchopper",
+        "cable woodchop",
+        "wood chop",
+        "wood chopper",
+        "cable chop",
+        "woodchops"
+      ]
+    },
+    "0407": {
+      "name": "Side Bend (Dumbbell)",
+      "shorthand": ["side bend", "side bends", "dumbbell side bend"]
+    },
+    "3419": { "name": "L-Sit", "shorthand": ["l sit", "l-sit", "lsit"] },
+    "0630": { "name": "Mountain Climber", "shorthand": ["mountain climber", "mountain climbers"] },
+
+    "0648": {
+      "name": "Power Clean",
+      "shorthand": ["power clean", "power cleans", "cleans", "clean"]
+    },
+    "3305": {
+      "name": "Thruster (Barbell)",
+      "shorthand": ["thruster", "thrusters", "barbell thruster"]
+    },
+    "0550": {
+      "name": "Thruster (Kettlebell)",
+      "shorthand": ["kettlebell thruster", "kb thruster"]
+    },
+    "0551": {
+      "name": "Turkish Get-Up (Kettlebell)",
+      "shorthand": ["turkish get up", "tgu", "turkish getup", "get up"]
+    },
+    "0542": { "name": "Snatch (Kettlebell)", "shorthand": ["kettlebell snatch", "kb snatch"] },
+    "0631": { "name": "Muscle-Up", "shorthand": ["muscle up", "muscle ups", "muscleup"] },
+    "0471": {
+      "name": "Handstand Push-Up",
+      "shorthand": ["hspu", "handstand push up", "handstand pushup", "handstand push ups"]
+    },
+    "0680": { "name": "Rope Climb", "shorthand": ["rope climb", "rope climbs"] },
+    "0514": {
+      "name": "Jump Squat",
+      "shorthand": ["jump squat", "jump squats", "squat jump", "squat jumps"]
+    },
+    "3224": {
+      "name": "Jumping Jacks",
+      "shorthand": ["jumping jacks", "jumping jack", "star jumps"]
+    },
+    "1160": { "name": "Burpee", "shorthand": ["burpee", "burpees"] },
+    "2612": {
+      "name": "Jump Rope",
+      "shorthand": ["jump rope", "skipping", "skipping rope", "rope skipping"]
+    },
+    "0128": {
+      "name": "Battle Ropes",
+      "shorthand": ["battle ropes", "battle rope", "battling ropes"]
+    },
+    "0685": { "name": "Running", "shorthand": ["run", "running", "jog", "jogging", "outdoor run"] },
+    "pulse-0001": { "name": "Walking (outdoor)", "shorthand": ["walk", "walking", "outdoor walk"] },
+    "pulse-0004": {
+      "name": "Treadmill Run",
+      "shorthand": ["treadmill", "treadmill run", "treadmill running"]
+    },
+    "pulse-0005": {
+      "name": "Treadmill Walk",
+      "shorthand": ["treadmill walk", "treadmill walking"]
+    },
+    "3666": {
+      "name": "Incline Treadmill Walk",
+      "shorthand": ["incline walk", "incline treadmill", "12 3 30", "incline treadmill walk"]
+    },
+    "2138": {
+      "name": "Cycling (Stationary Bike)",
+      "shorthand": [
+        "bike",
+        "stationary bike",
+        "exercise bike",
+        "cycling",
+        "spin bike",
+        "spin",
+        "indoor cycling"
+      ]
+    },
+    "2141": {
+      "name": "Elliptical",
+      "shorthand": ["elliptical", "cross trainer", "elliptical trainer"]
+    },
+    "2311": {
+      "name": "Stair Climber",
+      "shorthand": ["stairmaster", "stair master", "stepmill", "stair climber", "stairs"]
+    },
+    "2142": { "name": "Ski Erg", "shorthand": ["skierg", "ski erg", "ski ergometer"] }
+  },
+  "added": [
+    {
+      "id": "kalib-face-pull-cable",
+      "name": "Face Pull (Cable)",
+      "category": "strength",
+      "equipment": "cable",
+      "primary": "shoulders",
+      "secondary": ["upper back", "traps"],
+      "difficulty": "beginner",
+      "shorthand": ["face pull", "face pulls", "rope face pull", "cable face pull"],
+      "instructions": [
+        "Set a rope on a cable at about head height and hold one end in each hand, thumbs toward you.",
+        "Step back until your arms are straight and the weight is off the stack; stand tall with a light brace.",
+        "Pull the rope toward your face, driving your elbows high and wide and pulling the ends apart as they pass your ears.",
+        "Pause with your hands beside your head and your shoulder blades squeezed together, then let the arms straighten under control."
+      ]
+    },
+    {
+      "id": "kalib-hip-thrust-barbell",
+      "name": "Hip Thrust (Barbell)",
+      "category": "strength",
+      "equipment": "barbell",
+      "primary": "glutes",
+      "secondary": ["hamstrings", "quads"],
+      "difficulty": "intermediate",
+      "shorthand": [
+        "hip thrust",
+        "hip thrusts",
+        "barbell hip thrust",
+        "bb hip thrust",
+        "glute thrust",
+        "barbell hip thrusts"
+      ],
+      "instructions": [
+        "Sit on the floor with your upper back against the edge of a bench and roll a padded barbell over your hips.",
+        "Plant your feet flat about hip-width apart, close enough that your shins are vertical at the top.",
+        "Tuck your chin, brace, and drive through your heels to lift your hips until your body is straight from shoulders to knees.",
+        "Squeeze your glutes hard at the top without arching your lower back, then lower your hips under control."
+      ]
+    },
+    {
+      "id": "kalib-hip-thrust-machine",
+      "name": "Hip Thrust (Machine)",
+      "category": "strength",
+      "equipment": "leverage machine",
+      "primary": "glutes",
+      "secondary": ["hamstrings"],
+      "difficulty": "beginner",
+      "shorthand": [
+        "hip thrust machine",
+        "machine hip thrust",
+        "glute drive",
+        "glute drive machine"
+      ],
+      "instructions": [
+        "Sit in the machine with your upper back on the pad and the hip belt or pad across your hips.",
+        "Set your feet flat on the platform so your shins are vertical when your hips are up.",
+        "Drive through your heels and lift your hips until your thighs line up with your body.",
+        "Hold the squeeze for a moment, then lower until the weight is almost back on its rest."
+      ]
+    },
+    {
+      "id": "kalib-pendulum-squat",
+      "name": "Pendulum Squat (Machine)",
+      "category": "strength",
+      "equipment": "leverage machine",
+      "primary": "quads",
+      "secondary": ["glutes", "adductors"],
+      "difficulty": "beginner",
+      "shorthand": ["pendulum squat", "pendulum squats", "pendulum"],
+      "instructions": [
+        "Step into the machine with your back against the pad and your shoulders under the shoulder pads.",
+        "Place your feet in the middle of the platform about hip-width apart and release the safety.",
+        "Bend your knees and let the pad swing down and back until your thighs pass parallel, keeping your heels down.",
+        "Drive through the whole foot to swing back up, stopping just short of locking your knees."
+      ]
+    },
+    {
+      "id": "kalib-belt-squat",
+      "name": "Belt Squat (Machine)",
+      "category": "strength",
+      "equipment": "leverage machine",
+      "primary": "quads",
+      "secondary": ["glutes", "adductors"],
+      "difficulty": "beginner",
+      "shorthand": ["belt squat", "belt squats"],
+      "instructions": [
+        "Fasten the belt around your hips and attach it to the machine, then stand on the platform with feet a little wider than hip-width.",
+        "Hold the handles lightly for balance and release the stop so the load hangs from your hips.",
+        "Sit straight down between your heels until your thighs are about parallel, chest up.",
+        "Stand back up by pushing the floor away, keeping your knees in line with your toes."
+      ]
+    },
+    {
+      "id": "kalib-landmine-press",
+      "name": "Landmine Press",
+      "category": "strength",
+      "equipment": "barbell",
+      "primary": "shoulders",
+      "secondary": ["chest", "triceps"],
+      "difficulty": "beginner",
+      "shorthand": ["landmine press", "landmine presses", "landmine shoulder press"],
+      "instructions": [
+        "Wedge one end of a barbell into a landmine base or a corner and load the other end.",
+        "Hold the loaded end at shoulder height with one or both hands, standing in a split or square stance.",
+        "Press the bar up and forward along its arc until your arm is straight, letting your shoulder blade move with it.",
+        "Lower it back to your shoulder under control."
+      ]
+    },
+    {
+      "id": "kalib-floor-press-barbell",
+      "name": "Floor Press (Barbell)",
+      "category": "strength",
+      "equipment": "barbell",
+      "primary": "chest",
+      "secondary": ["triceps", "shoulders"],
+      "difficulty": "intermediate",
+      "shorthand": ["floor press", "barbell floor press"],
+      "instructions": [
+        "Lie on the floor inside a rack with the bar set at the height of your outstretched arms.",
+        "Grip the bar as for a bench press and unrack it over your chest.",
+        "Lower until your upper arms rest on the floor, pause briefly, and keep your elbows about 45 degrees from your sides.",
+        "Press the bar back up until your arms are straight."
+      ]
+    },
+    {
+      "id": "kalib-push-press-barbell",
+      "name": "Push Press (Barbell)",
+      "category": "strength",
+      "equipment": "barbell",
+      "primary": "shoulders",
+      "secondary": ["triceps", "quads", "glutes"],
+      "difficulty": "intermediate",
+      "shorthand": ["push press", "push presses", "barbell push press"],
+      "instructions": [
+        "Hold the bar on the front of your shoulders with a grip just outside shoulder width, elbows slightly in front of the bar.",
+        "Dip a few centimetres by bending your knees, keeping your torso upright.",
+        "Drive hard out of the dip and use that momentum to press the bar overhead until your arms lock out.",
+        "Lower the bar back to your shoulders, absorbing it with your legs."
+      ]
+    },
+    {
+      "id": "kalib-snatch-barbell",
+      "name": "Snatch (Barbell)",
+      "category": "strength",
+      "equipment": "barbell",
+      "primary": "glutes",
+      "secondary": ["hamstrings", "quads", "traps", "shoulders"],
+      "difficulty": "advanced",
+      "shorthand": ["snatch", "snatches", "barbell snatch", "power snatch"],
+      "instructions": [
+        "Set up over the bar with a wide grip, hips higher than your knees and your back flat.",
+        "Push the floor away to lift the bar past your knees, keeping it close.",
+        "Extend your hips explosively as the bar reaches your upper thighs, then pull yourself under it.",
+        "Catch the bar overhead on straight arms in a squat, then stand up with it."
+      ]
+    },
+    {
+      "id": "kalib-clean-and-jerk",
+      "name": "Clean and Jerk (Barbell)",
+      "category": "strength",
+      "equipment": "barbell",
+      "primary": "glutes",
+      "secondary": ["quads", "hamstrings", "shoulders", "triceps", "traps"],
+      "difficulty": "advanced",
+      "shorthand": ["clean and jerk", "clean & jerk", "c&j", "clean and jerks"],
+      "instructions": [
+        "Lift the bar from the floor and extend your hips explosively, pulling yourself under it to catch it on the front of your shoulders.",
+        "Stand up out of the catch with the bar in the front rack.",
+        "Dip and drive with your legs, then split or push your feet as you punch the bar overhead.",
+        "Bring your feet back together under the locked-out bar before lowering it."
+      ]
+    },
+    {
+      "id": "kalib-hang-clean",
+      "name": "Hang Clean (Barbell)",
+      "category": "strength",
+      "equipment": "barbell",
+      "primary": "glutes",
+      "secondary": ["hamstrings", "traps", "quads"],
+      "difficulty": "intermediate",
+      "shorthand": ["hang clean", "hang cleans", "hang power clean"],
+      "instructions": [
+        "Stand holding the bar at your thighs with a grip just outside your legs.",
+        "Hinge so the bar slides to just above your knees, back flat.",
+        "Extend your hips and knees explosively, shrug, and pull yourself under the bar.",
+        "Catch it on the front of your shoulders with your elbows high, then stand tall."
+      ]
+    },
+    {
+      "id": "kalib-skull-crusher-ez",
+      "name": "Skull Crusher (EZ Bar)",
+      "category": "strength",
+      "equipment": "ez barbell",
+      "primary": "triceps",
+      "secondary": [],
+      "difficulty": "beginner",
+      "shorthand": [
+        "ez bar skull crusher",
+        "ez skull crusher",
+        "ez skullcrusher",
+        "ez bar skullcrusher",
+        "ez bar lying tricep extension"
+      ],
+      "instructions": [
+        "Lie on a flat bench holding an EZ bar over your chest on the angled grips, arms straight.",
+        "Keeping your upper arms still, bend your elbows to lower the bar toward your forehead or just behind your head.",
+        "Stop when your forearms are about level with the bench.",
+        "Straighten your elbows to press the bar back up."
+      ]
+    },
+    {
+      "id": "kalib-bayesian-curl",
+      "name": "Bayesian Curl (Cable)",
+      "category": "strength",
+      "equipment": "cable",
+      "primary": "biceps",
+      "secondary": ["forearms"],
+      "difficulty": "beginner",
+      "shorthand": ["bayesian curl", "bayesian curls", "behind the back cable curl"],
+      "instructions": [
+        "Set a handle on a low pulley and face away from the machine, holding the handle in one hand behind you.",
+        "Step forward until your arm is pulled back behind your body with a stretch in the biceps.",
+        "Curl the handle forward and up without letting your elbow drift in front of your body.",
+        "Lower it back to the stretch slowly, then switch arms after the set."
+      ]
+    },
+    {
+      "id": "kalib-external-rotation-cable",
+      "name": "External Rotation (Cable)",
+      "category": "strength",
+      "equipment": "cable",
+      "primary": "shoulders",
+      "secondary": ["upper back"],
+      "difficulty": "beginner",
+      "shorthand": [
+        "external rotation",
+        "cable external rotation",
+        "rotator cuff",
+        "external rotations"
+      ],
+      "instructions": [
+        "Set a handle at elbow height and stand side-on to the machine, holding it in the hand farther from the stack.",
+        "Tuck your elbow against your side, bent to 90 degrees, forearm across your stomach.",
+        "Rotate your forearm out and away from your body, keeping the elbow pinned.",
+        "Return slowly across your body."
+      ]
+    },
+    {
+      "id": "kalib-split-squat-dumbbell",
+      "name": "Split Squat (Dumbbell)",
+      "category": "strength",
+      "equipment": "dumbbell",
+      "primary": "quads",
+      "secondary": ["glutes", "hamstrings"],
+      "difficulty": "beginner",
+      "shorthand": ["dumbbell split squat", "db split squat"],
+      "instructions": [
+        "Hold a dumbbell at each side and take a long step forward into a staggered stance.",
+        "Lower straight down until your back knee nearly touches the floor, front shin close to vertical.",
+        "Push through your front foot to rise, staying in the split stance.",
+        "Finish the set on one side before switching legs."
+      ]
+    },
+    {
+      "id": "kalib-walking-lunge-dumbbell",
+      "name": "Walking Lunge (Dumbbell)",
+      "category": "strength",
+      "equipment": "dumbbell",
+      "primary": "glutes",
+      "secondary": ["quads", "hamstrings"],
+      "difficulty": "beginner",
+      "shorthand": [
+        "dumbbell walking lunge",
+        "db walking lunge",
+        "walking lunges with dumbbells",
+        "dumbbell walking lunges"
+      ],
+      "instructions": [
+        "Stand tall holding a dumbbell at each side.",
+        "Step forward and lower until your back knee nearly touches the floor.",
+        "Drive through the front foot and bring the back leg straight through into the next step.",
+        "Keep alternating legs as you walk forward; count each leg as one rep."
+      ]
+    },
+    {
+      "id": "kalib-sumo-squat-dumbbell",
+      "name": "Sumo Squat (Dumbbell)",
+      "category": "strength",
+      "equipment": "dumbbell",
+      "primary": "glutes",
+      "secondary": ["quads", "adductors"],
+      "difficulty": "beginner",
+      "shorthand": ["sumo squat", "sumo squats", "plie squat", "dumbbell sumo squat"],
+      "instructions": [
+        "Stand with your feet wide and toes turned out, holding one dumbbell by its end between your legs.",
+        "Sit your hips down between your heels, pushing your knees out over your toes.",
+        "Go as low as you can with a flat back and the dumbbell hanging straight down.",
+        "Stand back up by squeezing your glutes and inner thighs."
+      ]
+    },
+    {
+      "id": "kalib-nordic-curl",
+      "name": "Nordic Hamstring Curl",
+      "category": "strength",
+      "equipment": "body weight",
+      "primary": "hamstrings",
+      "secondary": ["glutes", "calves"],
+      "difficulty": "advanced",
+      "shorthand": ["nordic curl", "nordics", "nordic hamstring curl", "nordic curls", "nordic"],
+      "instructions": [
+        "Kneel on a pad with your ankles anchored under a bar, a partner's hands or a fixed object.",
+        "Keep a straight line from knees to head and cross your arms or hold them ready to catch yourself.",
+        "Lean forward as slowly as you can, resisting with your hamstrings.",
+        "Catch yourself with your hands when you can no longer hold it, then push back up and pull with your hamstrings to return."
+      ]
+    },
+    {
+      "id": "kalib-toes-to-bar",
+      "name": "Toes to Bar",
+      "category": "strength",
+      "equipment": "body weight",
+      "primary": "abs",
+      "secondary": ["obliques", "lats", "forearms"],
+      "difficulty": "advanced",
+      "shorthand": ["toes to bar", "t2b", "ttb", "toes-to-bar"],
+      "instructions": [
+        "Hang from a pull-up bar with straight arms and your legs together.",
+        "Brace your abs and press the bar down slightly with straight arms.",
+        "Lift your legs, keeping them as straight as you can, until your toes touch the bar.",
+        "Lower your legs under control, without swinging into the next rep."
+      ]
+    },
+    {
+      "id": "kalib-pallof-press-cable",
+      "name": "Pallof Press (Cable)",
+      "category": "strength",
+      "equipment": "cable",
+      "primary": "obliques",
+      "secondary": ["abs", "glutes"],
+      "difficulty": "beginner",
+      "shorthand": [
+        "pallof press",
+        "pallof",
+        "cable pallof press",
+        "pallof presses",
+        "anti rotation press"
+      ],
+      "instructions": [
+        "Set a handle at chest height and stand side-on to the machine, holding the handle against your chest with both hands.",
+        "Step away until the cable is tight and set your feet hip-width apart, knees soft.",
+        "Press the handle straight out in front of your chest without letting your body twist toward the machine.",
+        "Hold for a breath, bring it back to your chest, and switch sides after the set."
+      ]
+    },
+    {
+      "id": "kalib-box-jump",
+      "name": "Box Jump",
+      "category": "plyometrics",
+      "equipment": "body weight",
+      "primary": "quads",
+      "secondary": ["glutes", "calves", "hamstrings"],
+      "difficulty": "intermediate",
+      "shorthand": ["box jump", "box jumps"],
+      "instructions": [
+        "Stand facing a sturdy box about a short step away, feet hip-width apart.",
+        "Swing your arms back as you dip into a quarter squat.",
+        "Jump up and land softly on the box with both feet, knees bent and in line with your toes.",
+        "Stand tall on the box, then step down rather than jumping off."
+      ]
+    },
+    {
+      "id": "kalib-wall-sit",
+      "name": "Wall Sit",
+      "category": "strength",
+      "equipment": "body weight",
+      "primary": "quads",
+      "secondary": ["glutes"],
+      "difficulty": "beginner",
+      "shorthand": ["wall sit", "wall sits", "wall squat"],
+      "instructions": [
+        "Stand with your back against a wall and your feet about two foot-lengths in front of it.",
+        "Slide down until your thighs are parallel to the floor and your knees are over your ankles.",
+        "Keep your back flat against the wall and your weight in your heels.",
+        "Hold for time, then slide back up."
+      ]
+    },
+    {
+      "id": "kalib-dead-hang",
+      "name": "Dead Hang",
+      "category": "strength",
+      "equipment": "body weight",
+      "primary": "forearms",
+      "secondary": ["lats", "shoulders"],
+      "difficulty": "beginner",
+      "shorthand": ["dead hang", "dead hangs", "bar hang", "hang"],
+      "instructions": [
+        "Grip a pull-up bar overhand, hands shoulder-width apart.",
+        "Lift your feet so you hang with straight arms and relaxed legs.",
+        "Keep a light brace and breathe steadily.",
+        "Hold for time, then step down."
+      ]
+    },
+    {
+      "id": "kalib-pike-push-up",
+      "name": "Pike Push-Up",
+      "category": "strength",
+      "equipment": "body weight",
+      "primary": "shoulders",
+      "secondary": ["triceps", "chest"],
+      "difficulty": "intermediate",
+      "shorthand": ["pike push up", "pike pushup", "pike push ups", "pike pushups"],
+      "instructions": [
+        "Start in a push-up position, then walk your feet in and lift your hips so your body forms an upside-down V.",
+        "Place your hands a little wider than your shoulders, head between your arms.",
+        "Bend your elbows to lower the top of your head toward the floor in front of your hands.",
+        "Press back up until your arms are straight."
+      ]
+    },
+    {
+      "id": "kalib-band-pull-apart",
+      "name": "Band Pull-Apart",
+      "category": "strength",
+      "equipment": "band",
+      "primary": "shoulders",
+      "secondary": ["upper back", "traps"],
+      "difficulty": "beginner",
+      "shorthand": ["band pull apart", "pull apart", "pull aparts", "band pull aparts"],
+      "load_type": "bodyweight_reps",
+      "instructions": [
+        "Hold a light band in front of your chest with straight arms, hands shoulder-width apart.",
+        "Pull the band apart by moving your hands out to the sides, keeping your arms nearly straight.",
+        "Stop when the band touches your chest and your shoulder blades are squeezed together.",
+        "Let your hands come back together slowly."
+      ]
+    },
+    {
+      "id": "kalib-hollow-hold",
+      "name": "Hollow Body Hold",
+      "category": "strength",
+      "equipment": "body weight",
+      "primary": "abs",
+      "secondary": ["obliques"],
+      "difficulty": "intermediate",
+      "shorthand": ["hollow hold", "hollow body hold", "hollow body", "hollow"],
+      "instructions": [
+        "Lie on your back with your arms overhead and legs straight.",
+        "Press your lower back into the floor and lift your shoulders and legs a few centimetres off it.",
+        "Keep your arms by your ears and your legs together; bend your knees to make it easier.",
+        "Hold for time without letting your lower back lift."
+      ]
+    },
+    {
+      "id": "kalib-copenhagen-plank",
+      "name": "Copenhagen Plank",
+      "category": "strength",
+      "equipment": "body weight",
+      "primary": "adductors",
+      "secondary": ["obliques", "abs"],
+      "difficulty": "intermediate",
+      "shorthand": ["copenhagen plank", "copenhagen", "copenhagen hold", "copenhagen adduction"],
+      "instructions": [
+        "Lie on your side next to a bench and rest the inside of your top leg's knee or ankle on it.",
+        "Prop yourself on your forearm, elbow under your shoulder.",
+        "Lift your hips so your body is straight, holding yourself up with the top leg pressing into the bench.",
+        "Hold for time, then switch sides."
+      ]
+    },
+    {
+      "id": "kalib-rowing-machine",
+      "name": "Rowing Machine",
+      "category": "cardio",
+      "equipment": "rowing machine",
+      "primary": "cardio",
+      "secondary": ["upper back", "lats", "quads", "glutes", "hamstrings"],
+      "difficulty": "beginner",
+      "shorthand": [
+        "rower",
+        "rowing machine",
+        "erg",
+        "row erg",
+        "concept2",
+        "indoor rowing",
+        "rowing",
+        "indoor rower"
+      ],
+      "instructions": [
+        "Strap your feet in and sit tall with your arms straight, holding the handle.",
+        "Push with your legs first, then swing your body back slightly, then pull the handle to your lower ribs.",
+        "Reverse the order to return: arms out, lean forward from the hips, then bend your knees.",
+        "Keep a steady rhythm; the drive is quick and the return is slower."
+      ]
+    },
+    {
+      "id": "kalib-assault-bike",
+      "name": "Assault Bike",
+      "category": "cardio",
+      "equipment": "stationary bike",
+      "primary": "cardio",
+      "secondary": ["quads", "glutes", "shoulders"],
+      "difficulty": "beginner",
+      "shorthand": ["assault bike", "air bike", "echo bike", "fan bike", "airdyne"],
+      "instructions": [
+        "Set the seat so your leg is nearly straight at the bottom of each pedal stroke.",
+        "Hold the moving handles and pedal, pushing and pulling the handles as your legs drive.",
+        "Keep your back tall and breathe steadily.",
+        "Raise or lower the effort by pedalling harder; the fan resists more the faster you go."
+      ]
+    },
+    {
+      "id": "kalib-sled-push",
+      "name": "Sled Push",
+      "category": "strength",
+      "equipment": "sled machine",
+      "primary": "quads",
+      "secondary": ["glutes", "calves", "hamstrings"],
+      "difficulty": "intermediate",
+      "shorthand": ["sled push", "prowler", "prowler push", "sled pushes"],
+      "instructions": [
+        "Load the sled and grip the upright handles with your arms extended or bent.",
+        "Lean into the sled with a flat back, your body at about a 45-degree angle.",
+        "Drive it forward with short, powerful steps, pushing through the balls of your feet.",
+        "Count each length as one rep."
+      ]
+    },
+    {
+      "id": "kalib-cycling-outdoor",
+      "name": "Cycling (Outdoor)",
+      "category": "cardio",
+      "equipment": "bicycle",
+      "primary": "cardio",
+      "secondary": ["quads", "glutes", "calves"],
+      "difficulty": "beginner",
+      "shorthand": ["outdoor cycling", "bike ride", "road bike", "cycling outdoor", "ride"],
+      "load_type": "distance_time",
+      "instructions": [
+        "Set the saddle so your leg is nearly straight at the bottom of the pedal stroke.",
+        "Ride at a pace you can hold, shifting gears to keep your cadence steady on hills.",
+        "Log the distance and the time."
+      ]
+    },
+    {
+      "id": "kalib-swimming",
+      "name": "Swimming",
+      "category": "cardio",
+      "equipment": "body weight",
+      "primary": "cardio",
+      "secondary": ["lats", "shoulders", "upper back"],
+      "difficulty": "beginner",
+      "shorthand": ["swim", "swimming", "laps", "pool"],
+      "load_type": "distance_time",
+      "instructions": [
+        "Swim at a pace you can hold, with any stroke.",
+        "Log the distance and the time."
+      ]
+    }
+  ]
+}

@@ -45,6 +45,9 @@ const VISITS: Record<string, Visit> = {
   '/train/exercise/:id': { url: `/train/exercise/${ID.exercise}` },
   '/train/routine/:id': { url: `/train/routine/${ID.routine}` },
   '/train/build': { url: '/train/build?days=4&kit=dumbbells' },
+  '/train/balance': { url: '/train/balance' },
+  '/train/routines/:id': { url: `/train/routines/${ID.routine}` },
+  '/train/schedule': { url: '/train/schedule' },
   '/train/summary/:id': { url: `/train/summary/${ID.done}` },
   '/train/achievements': { url: '/train/achievements' },
   // Signed out here, as the sweep always is; the signed-in circle is walked against a stand-in
@@ -174,7 +177,13 @@ test('an easier week halves the sets and keeps the weight', async ({ page }) => 
   await expect(card).toContainText('Until');
   await expect(page.getByText('Easier week: fewer sets is the point')).toBeVisible();
 
-  await page.getByRole('button', { name: /^Sweep day 1 exercise/ }).click();
+  // A routine opens to be read first (§20.17); Start is on its page.
+  await page
+    .getByRole('region', { name: 'Routines' })
+    .getByRole('button', { name: /^Sweep day/ })
+    .click();
+  await expect(page).toHaveURL(/\/train\/routines\//);
+  await page.getByRole('button', { name: 'Start workout' }).click();
   await expect(page).toHaveURL(/\/train\/session$/);
   // Three sets in the routine, two this week; last time's 60 kg, at the bottom of the range.
   await expect(page.getByText('Easier week — same weight, fewer reps')).toBeVisible();
@@ -688,18 +697,19 @@ test('the run and the milestones read from the sessions logged', async ({ page }
   await expect(fresh).toContainText('480 kg lifted in all — a concert grand piano');
   await expect(fresh).toContainText('Plus 1 more.');
 
-  const run = page.getByRole('region', { name: 'Weeks running' });
+  // The run is the first of Train's three tiles (§20.17); the full sentence is on Achievements.
+  const run = page.getByRole('region', { name: 'More' }).getByRole('button', { name: /^Run/ });
   await expect(run).toContainText('2 weeks');
-  await expect(run).toContainText(/skips? left in |Skips back on /);
+  await expect(run).toContainText(/skips? left|No skips left/);
 
   // Shown once: "Got it" retires it, and it stays retired across a reload.
   await fresh.getByRole('button', { name: 'Got it' }).click();
   await expect(fresh).toHaveCount(0);
   await open(page, '/train');
-  await expect(page.getByRole('region', { name: 'Weeks running' })).toBeVisible();
+  await expect(run).toBeVisible();
   await expect(page.getByRole('region', { name: 'New achievement' })).toHaveCount(0);
 
-  await page.getByRole('region', { name: 'Weeks running' }).getByRole('button').click();
+  await run.click();
   await expect(page).toHaveURL(/\/train\/achievements$/);
   const lifted = page.getByRole('region', { name: 'Lifted in all' }).first();
   await expect(lifted).toContainText('2,820 kg');
@@ -758,7 +768,9 @@ test('opening the list counts as seeing what is new on it', async ({ page }) => 
   await open(page, '/train/achievements');
   await expect(page.getByRole('region', { name: 'Workouts' })).toContainText('First session');
   await open(page, '/train');
-  await expect(page.getByRole('region', { name: 'Weeks running' })).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'More' }).getByRole('button', { name: /^Run/ }),
+  ).toBeVisible();
   await expect(page.getByRole('region', { name: 'New achievement' })).toHaveCount(0);
 });
 
@@ -895,6 +907,619 @@ test('injury help asks first, stops at a red flag, and swaps with undo', async (
   await expect(page.getByRole('button', { name: 'Send to injury help' })).toBeDisabled();
   await page.context().setOffline(false);
   expect(sent).toHaveLength(1);
+});
+
+// ---- §20.17: the week — training days, the cycle, a routine read before it is started ------
+//
+// The clock is fixed to Monday 19 October 2026 so the user's own example can be checked day by
+// day: four routines, push/pull/legs with the push day alternating, on Monday, Wednesday and
+// Friday.
+
+const PPL_MONDAY = new Date('2026-10-19T10:00:00');
+
+/** The user's four routines, and exercises that say which muscles they work. */
+async function seedPPL(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const req = indexedDB.open('kalib');
+    const db = await new Promise<IDBDatabase>((res, rej) => {
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+    const now = new Date().toISOString();
+    const meta = (id: string) => ({ id, user_id: 'local', created_at: now, updated_at: now });
+    const tx = db.transaction(['exercises', 'routines'], 'readwrite');
+    const ex = (id: string, name: string, primary: string) =>
+      tx.objectStore('exercises').put({
+        ...meta(id),
+        source: 'custom',
+        name,
+        category: 'strength',
+        primary_muscle: primary,
+        secondary_muscles: [],
+        equipment: 'barbell',
+        load_type: 'weight_reps',
+      });
+    ex('ppl-bench', 'PPL bench', 'chest');
+    ex('ppl-fly', 'PPL fly', 'chest');
+    ex('ppl-pushdown', 'PPL pushdown', 'triceps');
+    ex('ppl-ohp', 'PPL press', 'shoulders');
+    ex('ppl-raise', 'PPL raise', 'shoulders');
+    ex('ppl-row', 'PPL row', 'upper back');
+    ex('ppl-pulldown', 'PPL pulldown', 'lats');
+    ex('ppl-curl', 'PPL curl', 'biceps');
+    ex('ppl-squat', 'PPL squat', 'quads');
+    ex('ppl-rdl', 'PPL deadlift', 'hamstrings');
+    const item = (exercise_id: string) => ({
+      exercise_id,
+      name: exercise_id,
+      load_type: 'weight_reps',
+      sets: 3,
+      rep_low: 8,
+      rep_high: 12,
+    });
+    const routine = (id: string, name: string, order: number, items: string[]) =>
+      tx.objectStore('routines').put({
+        ...meta(id),
+        name,
+        sort_order: order,
+        source: 'own',
+        items: items.map(item),
+      });
+    // After the sweep's own routine, which sits at 0.
+    routine('ppl-ct', 'Chest & Tri', 1, ['ppl-bench', 'ppl-fly', 'ppl-pushdown']);
+    routine('ppl-bb', 'Back & Bi', 2, ['ppl-row', 'ppl-pulldown', 'ppl-curl']);
+    routine('ppl-lg', 'Legs', 3, ['ppl-squat', 'ppl-rdl']);
+    routine('ppl-st', 'Shoulders & Tri', 4, ['ppl-ohp', 'ppl-raise', 'ppl-pushdown']);
+    // The sweep's one-exercise routine would sit in the cycle too; this test is about the four.
+    const sweep = tx.objectStore('routines').get('sweep-routine');
+    sweep.onsuccess = () =>
+      tx.objectStore('routines').put({ ...sweep.result, deleted_at: now, updated_at: now });
+    await new Promise<void>((res, rej) => {
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+    db.close();
+  });
+}
+
+/** The labels of the week strip on Train, Monday first. */
+async function weekStrip(page: Page): Promise<string[]> {
+  return page
+    .getByRole('list', { name: 'Days of this week' })
+    .getByRole('listitem')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
+}
+
+test.describe('the week (§20.17)', () => {
+  test("the user's push/pull/legs week lands on Monday, Wednesday and Friday", async ({ page }) => {
+    await page.clock.setFixedTime(PPL_MONDAY);
+    await page.goto('/');
+    await seed(page);
+    await seedPPL(page);
+    await open(page, '/train');
+
+    // Nothing chosen yet: Train asks, and the run's aim is still Auto.
+    const plan = page.getByRole('region', { name: 'Your week' });
+    await expect(plan).toContainText('Choose your training days');
+    await plan.getByRole('button').click();
+    await expect(page).toHaveURL(/\/train\/schedule$/);
+
+    // Monday, Wednesday, Friday.
+    const days = page.getByRole('group', { name: 'Training days' });
+    for (const d of ['Monday', 'Wednesday', 'Friday']) {
+      await days.getByRole('button', { name: d }).click();
+      await expect(days.getByRole('button', { name: d })).toHaveAttribute('aria-pressed', 'true');
+    }
+    await expect(page.getByText('3 days a week: Mon, Wed and Fri.')).toBeVisible();
+
+    // In list order the second push follows the legs at once; the app offers the six-day lap.
+    const suggestion = page.getByRole('region', { name: 'Suggested order' });
+    await expect(suggestion).toContainText('Alternate your push days?');
+    await suggestion.getByRole('button', { name: 'Use this order' }).click();
+    await expect(suggestion).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Order' })).toContainText('6 in the cycle');
+
+    // The next two weeks, exactly as described: C&T, B&B, Legs, S&T, B&B, Legs.
+    const ahead = page.getByRole('region', { name: 'Coming up' });
+    // Each row reads its routine first, then the day.
+    const rows = await ahead.getByRole('button').allTextContents();
+    expect(rows).toHaveLength(6);
+    const titles = rows.map((t) =>
+      ['Chest & Tri', 'Back & Bi', 'Legs', 'Shoulders & Tri'].find((n) => t.startsWith(n)),
+    );
+    expect(titles).toEqual([
+      'Chest & Tri',
+      'Back & Bi',
+      'Legs',
+      'Shoulders & Tri',
+      'Back & Bi',
+      'Legs',
+    ]);
+
+    // Train draws the week from the same plan.
+    await open(page, '/train');
+    expect(await weekStrip(page)).toEqual([
+      'Monday 19: today, Chest & Tri',
+      'Tuesday 20: rest',
+      'Wednesday 21: Back & Bi',
+      'Thursday 22: rest',
+      'Friday 23: Legs',
+      'Saturday 24: rest',
+      'Sunday 25: rest',
+    ]);
+    const today = page.getByRole('region', { name: 'Today' });
+    await expect(today).toContainText('Chest & Tri');
+    await expect(today).toContainText('Chest and Triceps');
+    await expect(page.getByRole('region', { name: 'Your week' })).toContainText('Mon, Wed and Fri');
+    await expect(page.getByText('Training days this week')).toBeVisible();
+
+    // One number: the run's aim is now three, set by the days.
+    await open(page, '/train/achievements');
+    await expect(page.getByText('3: Mon, Wed and Fri')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Change days' })).toBeVisible();
+  });
+
+  test('a missed Monday moves its routine to Wednesday, and Train says so', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-21T10:00:00'));
+    await page.goto('/');
+    await seed(page);
+    await seedPPL(page);
+    await page.evaluate(async () => {
+      const req = indexedDB.open('kalib');
+      const db = await new Promise<IDBDatabase>((res) => (req.onsuccess = () => res(req.result)));
+      const tx = db.transaction('settings', 'readwrite');
+      const now = new Date().toISOString();
+      tx.objectStore('settings').put({
+        key: 'training:plan',
+        user_id: 'local',
+        value: { weekdays: [1, 3, 5], per_week: 3 },
+        updated_at: now,
+      });
+      await new Promise((r) => (tx.oncomplete = r));
+      db.close();
+    });
+    await open(page, '/train');
+    const strip = await weekStrip(page);
+    expect(strip[0]).toBe('Monday 19: training day, nothing logged');
+    expect(strip[2]).toBe('Wednesday 21: today, Chest & Tri');
+    await expect(page.getByRole('region', { name: 'Today' })).toContainText(
+      'Moved from Monday, when it was missed',
+    );
+    await open(page, '/train/schedule');
+    await expect(page.getByText('Missed Monday? Chest & Tri moves to today.')).toBeVisible();
+  });
+
+  test('tapping a routine opens it to read; Start starts it', async ({ page }) => {
+    await page.goto('/');
+    await seed(page);
+    await open(page, '/train');
+    await page
+      .getByRole('region', { name: 'Routines' })
+      .getByRole('button', { name: /^Sweep day/ })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/train/routines/${ID.routine}$`));
+    // Nothing was started by looking.
+    await expect(page.getByRole('button', { name: /^Back to Sweep day/ })).toHaveCount(0);
+
+    await expect(page.getByRole('heading', { name: 'Sweep day' })).toBeVisible();
+    const exercises = page.getByRole('region', { name: 'Exercises' });
+    await expect(exercises).toContainText('Sweep press');
+    await expect(exercises).toContainText('3 × 6–10 · 2 min rest');
+    // Last time and the record, from the seeded sessions.
+    await expect(exercises).toContainText('Last 60 kg × 8, 8, 8');
+    await expect(exercises).toContainText(/Best est\. 1RM \d+ kg/);
+    await expect(page.getByRole('list', { name: 'Muscles worked' })).toContainText('Chest');
+    await expect(page.getByRole('region', { name: 'Size' })).toContainText('exercises');
+
+    // The editor is one tap away and comes back.
+    await page.getByRole('button', { name: 'Edit routine' }).click();
+    await expect(page).toHaveURL(new RegExp(`/train/routine/${ID.routine}$`));
+    await page.goBack();
+
+    await page.getByRole('button', { name: 'Start workout' }).click();
+    await expect(page).toHaveURL(/\/train\/session$/);
+    // While it runs, the page offers to carry on rather than start a second.
+    await open(page, `/train/routines/${ID.routine}`);
+    await expect(page.getByRole('button', { name: 'Carry on' })).toBeVisible();
+  });
+
+  test('a routine swiped left is deleted, and Undo brings it back', async ({ page }) => {
+    await page.goto('/');
+    await seed(page);
+    await open(page, '/train');
+    const routines = page.getByRole('region', { name: 'Routines' });
+    const row = routines.locator('[data-swipe-row]').first();
+    await expect(row).toContainText('Sweep day');
+    // Train is long; a drag off the bottom of the viewport would land on nothing.
+    await row.scrollIntoViewIfNeeded();
+    const box = (await row.boundingBox())!;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(box.x + box.width - 20, y);
+    await page.mouse.down();
+    for (let k = 1; k <= 12; k++) await page.mouse.move(box.x + box.width - 20 - k * 28, y);
+    await page.mouse.up();
+
+    await expect(page.getByText('Sweep day deleted')).toBeVisible();
+    await expect(routines.getByText('No routines yet')).toBeVisible();
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect(routines.getByRole('button', { name: /^Sweep day/ })).toBeVisible();
+  });
+
+  test('a routine page that no longer exists says so and offers a way back', async ({ page }) => {
+    await page.goto('/');
+    await seed(page);
+    await open(page, '/train/routines/not-a-routine');
+    await expect(page.getByText('This routine is gone')).toBeVisible();
+    await page.getByRole('button', { name: 'Go to Train' }).click();
+    await expect(page).toHaveURL(/\/train$/);
+  });
+});
+
+// ---- §20.18 (S2): the routines' balance, the body map, and a fix with undo ----------------
+//
+// The library is served empty here, so every exercise a fix can choose is one this test wrote
+// down: what is suggested cannot change under the test when the 1,400-row library lands
+// halfway through it.
+
+const BALANCE_EXERCISES: [string, string, string, string[], string][] = [
+  ['bal-bench', 'Bench Press (Barbell)', 'chest', ['shoulders', 'triceps'], 'barbell'],
+  ['bal-fly', 'Pec Deck (Machine)', 'chest', [], 'leverage machine'],
+  ['bal-pushdown', 'Triceps Pushdown (Cable)', 'triceps', [], 'cable'],
+  ['bal-pulldown', 'Lat Pulldown (Cable)', 'lats', ['biceps'], 'cable'],
+  ['bal-row', 'Seated Row (Cable)', 'upper back', ['lats', 'biceps'], 'cable'],
+  ['bal-curl', 'Bicep Curl (Barbell)', 'biceps', ['forearms'], 'barbell'],
+  ['bal-squat', 'Squat (Barbell)', 'quads', ['glutes', 'hamstrings'], 'barbell'],
+  ['bal-ext', 'Leg Extension (Machine)', 'quads', [], 'leverage machine'],
+  ['bal-ohp', 'Overhead Press (Barbell)', 'shoulders', ['triceps'], 'barbell'],
+  ['bal-lateral', 'Lateral Raise (Dumbbell)', 'shoulders', [], 'dumbbell'],
+  // What the fixes may choose from.
+  ['bal-calf', 'Standing Calf Raise (Machine)', 'calves', [], 'leverage machine'],
+  ['bal-legcurl', 'Lying Leg Curl (Machine)', 'hamstrings', [], 'leverage machine'],
+  ['bal-revfly', 'Reverse Fly (Dumbbell)', 'shoulders', ['upper back'], 'dumbbell'],
+];
+
+/** The user's own split: chest & tri, back & bi, legs, shoulders & tri. */
+const BALANCE_ROUTINES: [string, string, [string, number][]][] = [
+  [
+    'bal-r-push',
+    'Chest & Tri',
+    [
+      ['bal-bench', 4],
+      ['bal-fly', 3],
+      ['bal-pushdown', 3],
+    ],
+  ],
+  [
+    'bal-r-pull',
+    'Back & Bi',
+    [
+      ['bal-pulldown', 4],
+      ['bal-row', 3],
+      ['bal-curl', 3],
+    ],
+  ],
+  [
+    'bal-r-legs',
+    'Legs',
+    [
+      ['bal-squat', 4],
+      ['bal-ext', 3],
+    ],
+  ],
+  [
+    'bal-r-shoulders',
+    'Shoulders & Tri',
+    [
+      ['bal-ohp', 4],
+      ['bal-lateral', 3],
+      ['bal-pushdown', 3],
+    ],
+  ],
+];
+
+async function seedBalance(page: Page): Promise<void> {
+  await page.evaluate(
+    async ({ exercises, routines }) => {
+      const req = indexedDB.open('kalib');
+      const db = await new Promise<IDBDatabase>((res, rej) => {
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => rej(req.error);
+      });
+      const now = new Date().toISOString();
+      const meta = (id: string) => ({ id, user_id: 'local', created_at: now, updated_at: now });
+      const names = new Map(exercises.map(([id, name]) => [id, name]));
+      const tx = db.transaction(['exercises', 'routines'], 'readwrite');
+      for (const [id, name, primary, secondary, equipment] of exercises) {
+        tx.objectStore('exercises').put({
+          ...meta(id),
+          source: 'custom',
+          name,
+          category: 'strength',
+          difficulty: 'beginner',
+          primary_muscle: primary,
+          secondary_muscles: secondary,
+          equipment,
+          load_type: 'weight_reps',
+        });
+      }
+      routines.forEach(([id, name, items], i) =>
+        tx.objectStore('routines').put({
+          ...meta(id),
+          name,
+          sort_order: i + 1,
+          source: 'own',
+          items: items.map(([exercise_id, sets]) => ({
+            exercise_id,
+            name: names.get(exercise_id),
+            load_type: 'weight_reps',
+            sets,
+            rep_low: 8,
+            rep_high: 12,
+          })),
+        }),
+      );
+      await new Promise<void>((res, rej) => {
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+      });
+      db.close();
+    },
+    { exercises: BALANCE_EXERCISES, routines: BALANCE_ROUTINES },
+  );
+}
+
+async function routineItems(page: Page, id: string): Promise<string[]> {
+  return page.evaluate(async (rid) => {
+    const req = indexedDB.open('kalib');
+    const db = await new Promise<IDBDatabase>((res) => (req.onsuccess = () => res(req.result)));
+    const row = await new Promise<{ items: { exercise_id: string }[] }>((res) => {
+      const g = db.transaction('routines').objectStore('routines').get(rid);
+      g.onsuccess = () => res(g.result);
+    });
+    db.close();
+    return row.items.map((i) => i.exercise_id);
+  }, id);
+}
+
+/** An empty library, so the seed completes and adds nothing. */
+async function emptyLibrary(page: Page): Promise<void> {
+  await page.route('**/data/exercises.json*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        format: 1,
+        generated_at: '',
+        count: 0,
+        source_ref: '',
+        exercises: [],
+      }),
+    }),
+  );
+}
+
+const region = (page: Page, side: 'front' | 'back', slug: string) =>
+  page.locator(`svg[data-side="${side}"] [data-region="${slug}"]`);
+
+test('the body fills what the routines train, and a fix lands in one with undo', async ({
+  page,
+}) => {
+  await emptyLibrary(page);
+  await page.goto('/');
+  await seed(page);
+  await seedBalance(page);
+  await open(page, '/train/balance');
+
+  const map = page.getByRole('region', { name: 'Muscle map' });
+  await expect(map).toBeVisible();
+  // The picture's sentence says what the figure shows.
+  await expect(map.getByRole('img')).toHaveAttribute('aria-label', /Not trained: .*Calves/);
+  await expect(map.getByRole('img')).toHaveAttribute(
+    'aria-label',
+    /Ten or more sets a week: .*Chest/,
+  );
+
+  // Chest is trained three times over; calves not at all.
+  await expect(region(page, 'front', 'chest')).toHaveAttribute('data-level', '3');
+  await expect(region(page, 'back', 'calves')).toHaveAttribute('data-level', '0');
+  await expect(region(page, 'front', 'calves')).toHaveAttribute('data-level', '0');
+  // Pressing fills the front of the shoulder (bench 2 + press 4 + raise 3 = 9 sets); nothing
+  // trains the back of it but the lateral raise, which both views show.
+  await expect(region(page, 'front', 'deltoids')).toHaveAttribute('data-level', '2');
+  await expect(region(page, 'back', 'deltoids')).toHaveAttribute('data-level', '1');
+
+  // The fixes: calves first, on leg day; then the forgotten pairs.
+  const fixes = page.getByRole('region', { name: 'Suggestions' });
+  await expect(fixes).toContainText('Nothing in your routines trains your calves.');
+  await expect(fixes).toContainText('Add Standing Calf Raise (Machine) to Legs');
+  await expect(fixes).toContainText('Calves 0 → 3 sets a week');
+  await expect(fixes).toContainText('Rear delts under half your front-delt work.');
+  await expect(fixes).toContainText('Add Reverse Fly (Dumbbell) to Back & Bi');
+  await expect(fixes).toContainText('Add Lying Leg Curl (Machine) to Legs');
+
+  // The pairs say which side is short.
+  const pairs = page.getByRole('region', { name: 'Pairs' });
+  await expect(pairs.locator('[data-pair="front-rear-delts"]')).toHaveAttribute(
+    'data-verdict',
+    'short',
+  );
+  await expect(pairs).toContainText('Rear delts behind');
+
+  // Apply the calves fix: the routine gains it and the body fills.
+  await page
+    .getByRole('button', { name: 'Apply: Add Standing Calf Raise (Machine) to Legs' })
+    .click();
+  await expect(page.getByText('Added to Legs')).toBeVisible();
+  await expect
+    .poll(() => routineItems(page, 'bal-r-legs'))
+    .toEqual(['bal-squat', 'bal-ext', 'bal-calf']);
+  await expect(region(page, 'back', 'calves')).toHaveAttribute('data-level', '1');
+  await expect(fixes).not.toContainText('Nothing in your routines trains your calves.');
+
+  // Undo puts it back, and the calves go grey again.
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => routineItems(page, 'bal-r-legs')).toEqual(['bal-squat', 'bal-ext']);
+  await expect(region(page, 'back', 'calves')).toHaveAttribute('data-level', '0');
+  await expect(fixes).toContainText('Add Standing Calf Raise (Machine) to Legs');
+
+  // Tapping a muscle in the list marks it on the body.
+  const calvesRow = page
+    .getByRole('region', { name: 'Every muscle' })
+    .getByRole('button', { name: /^Calves/ });
+  await calvesRow.click();
+  await expect(calvesRow).toHaveAttribute('aria-pressed', 'true');
+  await expect(region(page, 'back', 'calves')).toHaveAttribute('stroke', 'var(--ink)');
+  await calvesRow.click();
+  await expect(calvesRow).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('every fix applies, and the balance agrees once they have', async ({ page }) => {
+  await emptyLibrary(page);
+  await page.goto('/');
+  await seed(page);
+  await seedBalance(page);
+  await open(page, '/train/balance');
+
+  const fixes = page.getByRole('region', { name: 'Suggestions' });
+  await expect(fixes.getByRole('button', { name: /^Apply: / }).first()).toBeVisible();
+  // Apply them one by one, re-reading each time: each changes what the rest should be.
+  for (let i = 0; i < 8; i++) {
+    const next = fixes.getByRole('button', { name: /^Apply: / }).first();
+    if ((await next.count()) === 0) break;
+    const label = (await next.getAttribute('aria-label')) ?? '';
+    await next.click();
+    await expect(page.getByText(/^(Added to|Swapped in) /)).toBeVisible();
+    await expect(fixes.getByRole('button', { name: label, exact: true })).toHaveCount(0);
+  }
+  // Calves and the rear of the shoulder are trained now.
+  await expect(region(page, 'back', 'calves')).not.toHaveAttribute('data-level', '0');
+  await expect
+    .poll(async () => Number(await region(page, 'back', 'deltoids').getAttribute('data-level')))
+    .toBeGreaterThan(1);
+});
+
+test('with no routines, the balance says how to get some', async ({ page }) => {
+  await emptyLibrary(page);
+  await page.goto('/');
+  await seed(page);
+  // The seed's one routine, gone.
+  await page.evaluate(async () => {
+    const req = indexedDB.open('kalib');
+    const db = await new Promise<IDBDatabase>((res) => (req.onsuccess = () => res(req.result)));
+    const tx = db.transaction('routines', 'readwrite');
+    tx.objectStore('routines').clear();
+    await new Promise<void>((res) => (tx.oncomplete = () => res()));
+    db.close();
+  });
+  await open(page, '/train/balance');
+  await expect(page.getByText('No routines yet')).toBeVisible();
+  await page.getByRole('button', { name: 'Build a week for me' }).click();
+  await expect(page).toHaveURL(/\/train\/build/);
+});
+
+// ---- §20.19: the exercises a gym actually does --------------------------------------------
+//
+// Against the real shipped library, not a seeded stand-in: the point is that the names people
+// type find the exercise they mean in the catalogue every phone actually loads.
+test.describe('the mainstream catalogue', () => {
+  /**
+   * The library lands after the food seed; the picker is only honest once it has. Polled from
+   * the test side: `waitForFunction` does not wait on an async predicate's answer.
+   */
+  async function libraryLoaded(page: Page): Promise<void> {
+    const version = () =>
+      page.evaluate(async () => {
+        const req = indexedDB.open('kalib');
+        const db = await new Promise<IDBDatabase>((res, rej) => {
+          req.onsuccess = () => res(req.result);
+          req.onerror = () => rej(req.error);
+        });
+        const row = await new Promise<{ value?: number } | undefined>((res) => {
+          const get = db
+            .transaction('settings')
+            .objectStore('settings')
+            .get('seed_version:exercises');
+          get.onsuccess = () => res(get.result as { value?: number } | undefined);
+          get.onerror = () => res(undefined);
+        });
+        db.close();
+        return row?.value;
+      });
+    await expect.poll(version, { timeout: 120_000, intervals: [1_000] }).toBe(2);
+  }
+
+  test('what people type finds the exercise they mean, and it goes into a routine', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await page.goto('/');
+    await seed(page);
+    await libraryLoaded(page);
+    await open(page, '/train/routine/new');
+
+    const wanted: [string, RegExp][] = [
+      ['pec deck', /^Pec Deck \(Machine\)/],
+      // As typed by the person who reported it missing: one b short.
+      ['incline dumbell press', /^Incline Bench Press \(Dumbbell\)/],
+      ['face pull', /^Face Pull \(Cable\)/],
+      ['hip thrust', /^Hip Thrust \(Barbell\)/],
+    ];
+    for (const [query, name] of wanted) {
+      await page.getByRole('button', { name: 'Add an exercise' }).click();
+      const sheet = page.getByRole('dialog', { name: 'Add an exercise' });
+      await sheet.getByRole('searchbox', { name: 'Search exercises' }).fill(query);
+      const first = sheet.getByRole('listitem').first();
+      await expect(first.getByRole('button', { name })).toBeVisible();
+      await first.getByRole('button', { name }).click();
+      await expect(sheet).toBeHidden();
+    }
+    for (const title of [
+      'Pec Deck (Machine)',
+      'Incline Bench Press (Dumbbell)',
+      'Face Pull (Cable)',
+      'Hip Thrust (Barbell)',
+    ]) {
+      await expect(page.getByText(title, { exact: true })).toBeVisible();
+    }
+  });
+
+  test('browsing lists the usual exercises first, with the variants one tap away', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await page.goto('/');
+    await seed(page);
+    await libraryLoaded(page);
+    await open(page, '/train/routine/new');
+    await page.getByRole('button', { name: 'Add an exercise' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Add an exercise' });
+    await sheet.getByRole('button', { name: 'Chest', exact: true }).click();
+    await expect(sheet.getByRole('button', { name: /^Pec Deck \(Machine\)/ })).toBeVisible();
+    // What trains the chest comes before what only touches it.
+    const rows = await sheet.getByRole('listitem').allTextContents();
+    const at = (name: string) => rows.findIndex((r) => r.startsWith(name));
+    expect(at('Pec Deck (Machine)')).toBeGreaterThanOrEqual(0);
+    expect(at('Pec Deck (Machine)')).toBeLessThan(at('Burpee'));
+    // An obscure variant is not in the browse list until asked for.
+    const obscure = sheet.getByRole('button', { name: /^Cable Incline Fly \(on Stability Ball\)/ });
+    await expect(obscure).toHaveCount(0);
+    await sheet.getByRole('button', { name: /^Show [\d,]+ more variants$/ }).click();
+    await expect(obscure).toHaveCount(1);
+    await sheet.getByRole('button', { name: 'Show the usual ones only' }).click();
+    await expect(obscure).toHaveCount(0);
+  });
+
+  test('an exercise Kalib added says it has no demonstration yet', async ({ page }) => {
+    test.setTimeout(180_000);
+    await page.goto('/');
+    await seed(page);
+    await libraryLoaded(page);
+    await open(page, `/train/exercise/${encodeURIComponent('library:kalib-face-pull-cable')}`);
+    await expect(page.getByRole('heading', { name: 'Face Pull (Cable)' })).toBeVisible();
+    await expect(
+      page.getByRole('img', { name: 'Face Pull (Cable): no demonstration yet' }),
+    ).toBeVisible();
+    await expect(page.getByText('No demonstration for this one yet')).toBeVisible();
+  });
 });
 
 test.describe('the sweep itself', () => {

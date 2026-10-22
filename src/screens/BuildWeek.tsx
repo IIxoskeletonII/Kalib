@@ -22,9 +22,12 @@ import {
   fmt,
 } from '@/components/ui';
 import { MAX_DAYS, MIN_DAYS, KITS, buildProgram, summarise, type Kit } from '@/core/program';
+import { describeWeekdays, EMPTY_PLAN, flexiblePlan } from '@/core/schedule';
 import { useBack } from '@/hooks/useBack';
+import { usePlan } from '@/hooks/useSchedule';
 import { useRoutines, useStrengthExercises } from '@/hooks/useWorkouts';
 import { saveProgram, unsaveProgram } from '@/services/program';
+import { setPlan } from '@/services/schedule';
 
 const DAY_OPTIONS = Array.from({ length: MAX_DAYS - MIN_DAYS + 1 }, (_, i) => {
   const n = String(MIN_DAYS + i);
@@ -47,9 +50,16 @@ export default function BuildWeek() {
   const [params, setParams] = useSearchParams();
   const catalogue = useStrengthExercises();
   const routines = useRoutines();
+  const plan = usePlan();
 
+  // Without a choice in the URL, the week starts from the days you train (§20.17).
+  const planned =
+    plan?.per_week != null ? Math.min(MAX_DAYS, Math.max(MIN_DAYS, plan.per_week)) : undefined;
   const asked = Number(params.get('days'));
-  const days = asked >= MIN_DAYS && asked <= MAX_DAYS ? Math.round(asked) : DEFAULT_DAYS;
+  const days =
+    asked >= MIN_DAYS && asked <= MAX_DAYS ? Math.round(asked) : (planned ?? DEFAULT_DAYS);
+  // With nothing chosen, building a week of N days is saying you train N days.
+  const setsWeek = plan != null && plan.weekdays.length === 0 && plan.per_week == null;
   const kitParam = params.get('kit');
   const kit: Kit = kitParam && kitParam in KITS ? (kitParam as Kit) : 'gym';
 
@@ -73,10 +83,14 @@ export default function BuildWeek() {
     if (!program) return;
     try {
       const ids = await saveProgram(program);
+      if (setsWeek) await setPlan(flexiblePlan(saving));
       navigate('/train', { replace: true });
       toast(`${ids.length} routines added`, {
         label: 'Undo',
-        run: () => unsaveProgram(ids),
+        run: async () => {
+          await unsaveProgram(ids);
+          if (setsWeek) await setPlan(EMPTY_PLAN);
+        },
       });
     } catch (err) {
       toast((err as Error).message);
@@ -182,6 +196,17 @@ export default function BuildWeek() {
         {routines && routines.length > 0 && saving > 0 && (
           <p className="mt-2 text-center text-[12px] text-muted">
             {`Added alongside your ${routines.length === 1 ? 'routine' : `${routines.length} routines`}. Nothing is replaced.`}
+          </p>
+        )}
+        {saving > 0 && setsWeek && (
+          <p className="mt-2 text-center text-[12px] text-muted">
+            Also sets your week to {saving} days. Choose which ones on Train.
+          </p>
+        )}
+        {saving > 0 && plan && plan.weekdays.length > 0 && plan.weekdays.length !== saving && (
+          <p className="mt-2 text-center text-[12px] text-muted">
+            You train {describeWeekdays(plan.weekdays)}: {plan.weekdays.length} days, and this is{' '}
+            {saving}. They come round in turn either way.
           </p>
         )}
       </div>

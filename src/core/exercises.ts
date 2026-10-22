@@ -15,6 +15,9 @@ const DISTANCE_MACHINES = new Set([
   'stepmill machine',
   'skierg machine',
   'upper body ergometer',
+  // Kalib's own additions (§20.19): an erg and a road bike both report metres.
+  'rowing machine',
+  'bicycle',
 ]);
 
 /** Movements held rather than repeated, whatever they are loaded with. */

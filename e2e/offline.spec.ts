@@ -9,9 +9,17 @@ import { expect, test, type Page } from '@playwright/test';
  * this assertion has now gone stale twice — once when Ciqual became a fourth food source
  * (§7.1a) and once when training arrived (§20.2).
  */
+//
+// The chain file is counted whether or not it is on disk: it is private and absent from a
+// public clone, and the app marks an absent optional file as seeded so it is not fetched on
+// every launch (src/db/seed.ts). Counting only the files present made a clone without it
+// expect one key too few, and the poll then passed only if it happened to sample the moment
+// between the last food table and the exercise library.
 const SEED_SOURCES =
-  readdirSync('public/data').filter((f) => /^foods-.+\.json$/.test(f)).length +
-  (existsSync('public/data/exercises.json') ? 1 : 0);
+  new Set([
+    ...readdirSync('public/data').filter((f) => /^foods-.+\.json$/.test(f)),
+    'foods-chains.json',
+  ]).size + (existsSync('public/data/exercises.json') ? 1 : 0);
 
 async function pad(page: Page, digits: string) {
   const keys = page.getByRole('group', { name: 'Number pad' });

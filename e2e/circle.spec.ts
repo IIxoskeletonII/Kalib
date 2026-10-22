@@ -101,21 +101,24 @@ test('a circle is started, shared, ranked, tuned and left', async ({ page }) => 
   await expect(board.getByText('You', { exact: true })).toBeVisible();
   await expect(board.getByLabel('Rank 1')).toBeVisible();
 
-  // The aim is the run's: one number for the app, changed where the run is, and what the circle
-  // is sent next. Auto asks for one day until there are two weeks to go on.
+  // The aim is the run's: one number for the app, changed where the training days are chosen
+  // (§20.17), and what the circle is sent next. Auto asks for one day until there are two weeks
+  // to go on.
   const week = page.getByRole('region', { name: 'Your week' });
   const aimRow = week.getByRole('button', { name: /Days a week/ });
   await expect(aimRow).toContainText('Auto, one a week for now');
   await expect(week).toContainText('0 of 1 day so far');
   expect(server.published.at(-1)![0]!.planned).toBe(1);
   await aimRow.click();
-  await expect(page).toHaveURL(/\/train\/achievements$/);
-  const aim = page.getByRole('group', { name: 'Days a week' });
-  await aim.getByRole('radio', { name: '3' }).click();
-  await expect(aim.getByRole('radio', { name: '3' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page).toHaveURL(/\/train\/schedule$/);
+  const days = page.getByRole('group', { name: 'Training days' });
+  for (const day of ['Monday', 'Wednesday', 'Friday']) {
+    await days.getByRole('button', { name: day }).click();
+    await expect(days.getByRole('button', { name: day })).toHaveAttribute('aria-pressed', 'true');
+  }
   await page.goBack();
   await expect(page).toHaveURL(/\/train\/circle$/);
-  await expect(aimRow).toContainText('Your aim, as on your run');
+  await expect(aimRow).toContainText('Your training days');
   await expect(week).toContainText('0 of 3 days so far');
   // Opening the circle publishes, so the board carries the new aim.
   await expect.poll(() => server.published.at(-1)?.[0]?.planned).toBe(3);

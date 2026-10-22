@@ -42,12 +42,12 @@ function catalogue(): ProgramExercise[] {
 
   const out: ProgramExercise[] = [
     compound('squat', 'Barbell Squat', 'quads', ['glutes', 'hamstrings']),
-    compound('deadlift', 'Barbell Deadlift', 'hamstrings', ['glutes', 'lats', 'upper back']),
-    compound('bench', 'Barbell Bench Press', 'chest', ['triceps', 'shoulders']),
+    compound('deadlift', 'Deadlift (Barbell)', 'hamstrings', ['glutes', 'lats', 'upper back']),
+    compound('bench', 'Bench Press (Barbell)', 'chest', ['triceps', 'shoulders']),
     compound('ohp', 'Overhead Press', 'shoulders', ['triceps']),
     compound('row', 'Barbell Row', 'upper back', ['lats', 'biceps']),
     compound('pullup', 'Pull-Up', 'lats', ['biceps', 'upper back'], 'body weight'),
-    compound('lunge', 'Dumbbell Lunge', 'glutes', ['quads', 'hamstrings'], 'dumbbell'),
+    compound('lunge', 'Lunge (Dumbbell)', 'glutes', ['quads', 'hamstrings'], 'dumbbell'),
     compound('dip', 'Dip', 'triceps', ['chest', 'shoulders'], 'body weight'),
   ];
 
@@ -187,7 +187,7 @@ describe('what lands in a session', () => {
     const one = (load_type: ProgramExercise['load_type'], secondary: Muscle[]) => {
       const e: ProgramExercise = {
         id: 'x',
-        name: 'Split Squats',
+        name: 'Split Squat',
         primary_muscle: 'quads',
         secondary_muscles: secondary,
         equipment: 'body weight',
@@ -259,7 +259,7 @@ describe('what it will not pretend to cover', () => {
     const p = buildProgram(catalogue(), { days: 3, equipment: ['dumbbell'] });
     const names = p.days.flatMap((d) => d.items.map((i) => i.name));
     expect(names.length).toBeGreaterThan(0);
-    for (const n of names) expect(n === 'Dumbbell Lunge' || n.startsWith('dumbbell')).toBe(true);
+    for (const n of names) expect(n === 'Lunge (Dumbbell)' || n.startsWith('dumbbell')).toBe(true);
   });
 
   it('names the muscles it could not cover rather than quietly dropping them', () => {
@@ -267,7 +267,7 @@ describe('what it will not pretend to cover', () => {
     const thin: ProgramExercise[] = [
       {
         id: 'bench',
-        name: 'Barbell Bench Press',
+        name: 'Bench Press (Barbell)',
         primary_muscle: 'chest',
         secondary_muscles: ['triceps'],
         equipment: 'barbell',
@@ -360,7 +360,7 @@ describe('what it chooses from', () => {
     const rival: ProgramExercise[] = [
       {
         id: 'staple',
-        name: 'Barbell Bench Press',
+        name: 'Bench Press (Barbell)',
         primary_muscle: 'chest',
         secondary_muscles: ['triceps'],
         equipment: 'barbell',
@@ -420,8 +420,8 @@ describe('training without a gym', () => {
   });
 
   it('ranks a gym staple above a home one, and a home one above anything else', () => {
-    expect(stapleTier({ name: 'Dumbbell Goblet Squat' })).toBe(2);
-    expect(stapleTier({ name: 'Split Squats' })).toBe(1);
+    expect(stapleTier({ name: 'Goblet Squat (Dumbbell)' })).toBe(2);
+    expect(stapleTier({ name: 'Split Squat' })).toBe(1);
     expect(stapleTier({ name: 'Kick Out Sit' })).toBe(0);
   });
 
@@ -438,7 +438,7 @@ describe('training without a gym', () => {
     // The real failure: with body weight alone, the leg work was "One Arm Against Wall".
     const floor = [
       ex('wall', 'One Arm Against Wall', 'quads', 'body weight', ['glutes', 'hamstrings']),
-      ex('split', 'Split Squats', 'quads', 'body weight'),
+      ex('split', 'Split Squat', 'quads', 'body weight'),
     ];
     const ids = buildProgram(floor, { days: 3, equipment: KITS.bodyweight.equipment }).days.flatMap(
       (d) => d.items.map((i) => i.exercise_id),
@@ -449,8 +449,8 @@ describe('training without a gym', () => {
 
   it('never lets a home movement displace a gym one', () => {
     const both = [
-      ex('goblet', 'Dumbbell Goblet Squat', 'quads', 'dumbbell'),
-      ex('bw', 'Quads (bodyweight Squat)', 'quads', 'body weight', ['glutes', 'hamstrings']),
+      ex('goblet', 'Goblet Squat (Dumbbell)', 'quads', 'dumbbell'),
+      ex('bw', 'Bodyweight Squat', 'quads', 'body weight', ['glutes', 'hamstrings']),
     ];
     const ids = buildProgram(both, { days: 3, equipment: KITS.dumbbells.equipment }).days.flatMap(
       (d) => d.items.map((i) => i.exercise_id),

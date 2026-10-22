@@ -322,10 +322,11 @@ function Board({
 
 /**
  * What the aim row says about where this week's number came from. The aim is the streak's
- * (§20.15) — one number for the run and the circle — so it is changed where the run is.
+ * (§20.15), set by your training days (§20.17) — one number for the run, the circle and the
+ * schedule — so it is changed where the days are chosen.
  */
 function aimSource(source: 'set' | 'inferred' | 'default' | undefined): string {
-  if (source === 'set') return 'Your aim, as on your run';
+  if (source === 'set') return 'Your training days';
   if (source === 'inferred') return 'Auto, from your last four weeks';
   return 'Auto, one a week for now';
 }
@@ -359,7 +360,7 @@ function YourWeek() {
           title="Days a week"
           subtitle={aimSource(thisWeek?.aim_source)}
           value={thisWeek?.aim ?? '–'}
-          onClick={() => navigate('/train/achievements')}
+          onClick={() => navigate('/train/schedule')}
           chevron
         />
 

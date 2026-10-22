@@ -390,8 +390,16 @@ export interface Exercise extends SyncMeta {
   equipment: string;
   load_type: LoadType;
   instructions?: string[];
-  /** Basename of the looping demo under /exercises; absent for the user's own exercises. */
+  /**
+   * Basename of the looping demo under /exercises; absent for the user's own exercises and for
+   * the mainstream movements Kalib added itself, which have none yet (§20.19).
+   */
   media?: string;
+  /**
+   * One of the few hundred exercises a gym actually works from (§20.19): shown first when
+   * browsing, and ranked above the library's obscure variants when searching.
+   */
+  popular?: boolean;
 }
 
 /** Warm-ups and drop sets are logged but excluded from working volume and from PRs. */

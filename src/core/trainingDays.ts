@@ -124,9 +124,10 @@ export function redistribute(o: RedistributeInput): DayBudget[] {
 /**
  * The weekdays someone usually trains, from what they actually did: 0 is Sunday.
  *
- * Inferred rather than configured, because a plan someone typed in once goes stale and a plan
- * derived from their behaviour cannot. A weekday counts when it was trained on at least half
- * the weeks observed, so an occasional extra session does not turn into a standing commitment.
+ * The fallback for someone who has not chosen their days (§20.17): chosen days win, because
+ * they are a statement of intent, but without them the pattern is read from behaviour rather
+ * than assumed. A weekday counts when it was trained on at least half the weeks observed, so an
+ * occasional extra session does not turn into a standing commitment.
  *
  * Returns empty until there is enough to go on, and an empty pattern means no redistribution —
  * the budget stays flat, which is the right behaviour for someone who has just started.

@@ -1315,10 +1315,12 @@ Three things the source does not do, done in `core/`:
   or seconds. A plank is held, a pull-up takes a belt, an assisted machine counts reps because
   the stack takes weight *off* you.
 - **Names get the shorthand a gym types.** It calls the back squat "Barbell Full Squat". Derived
-  aliases strip equipment words; a separate hand-written `shorthand` field in
-  `data/exercise-aliases.json` is what makes a query *decisive*, because the derived ones would
-  have four exercises each claiming to be "squat". Measured on a 60-term probe: **98% find a
-  result, 100% put the right one first.**
+  aliases strip equipment words; a separate hand-written `shorthand` field (now in
+  `data/exercises-curated.json`, §20.19) is what makes a query *decisive*, because the derived
+  ones would have four exercises each claiming to be "squat". Measured on a 60-term probe:
+  **98% find a result, 100% put the right one first.**
+- **The mainstream few hundred are renamed, and a few added** (§20.19): "Lever Seated Fly" is
+  "Pec Deck (Machine)", and the face pull, which the library never had, now exists.
 
 **The clips are re-rendered in Kalib's palette.** The source draws them on near-white with the
 worked muscle in red, which on a dark screen is the loudest thing on it and carries no
@@ -1978,6 +1980,220 @@ failures are one function.
 *Not built, on purpose:* exercise prescription for rehabilitation, pain scores tracked over
 time, and anything that would make the app the place an injury is managed rather than worked
 around.
+
+### 20.17 The week: training days, the cycle, and a routine read before it is started (added 22 Oct 2026)
+
+Four things the owner found missing once routines existed: nowhere to say which days you train,
+nothing that knew what each of those days was, a routine that started the moment it was
+touched, and no swipe to delete one. And Train itself read as a list of lists.
+
+**Two choices, everything else derived.** You choose **the days** (Monday, Wednesday, Friday —
+or "three a week, any days", or Auto) and **the cycle** (your routines in the order they come
+round). Both are synced settings, kept apart (`training:plan`, `training:cycle`) so a change of
+days on one phone and a change of cycle on another both survive last-write-wins sync. From them
+the app derives the routine on every upcoming day, where a missed day's routine goes, and —
+because the days are the one number of the app's training — the streak's weekly aim (§20.15),
+through it the circle's planned days (§21), and the weekdays the energy bridge leans toward
+(§20.7). Choosing Monday, Wednesday and Friday sets the aim to three *from this week*; the aims
+history keeps weeks already over as they were. With no fixed days the bridge goes back to
+inferring weekdays from behaviour; Auto hands the aim back to §20.15's reading of your weeks.
+Someone who set an aim before days existed has it read as a count, so nothing they chose is lost.
+
+**The cycle is laid onto the days; the days do not own routines** (`core/schedule.ts`). Monday
+is not "chest day". Monday is the next training day and gets whatever is next in the cycle, so
+a missed Monday moves Chest & Tri to Wednesday rather than skipping it — §20.10's rotation rule,
+which is the right one for training — and the calendar ahead simply follows. The schedule says
+so when it happens: "Missed Monday? Chest & Tri moves to today."
+
+**A routine may come round more than once.** The owner's own week is the test: four routines
+(Chest & Tri, Back & Bi, Legs, Shoulders & Tri) meant as push, pull, legs with the push day
+alternating, on Monday, Wednesday and Friday. In list order that runs push-pull-legs-push, the
+second push straight after legs and pull once for every two pushes. What is meant is the
+six-slot lap Chest & Tri, Back & Bi, Legs, Shoulders & Tri, Back & Bi, Legs, which lands as Mon
+C&T, Wed B&B, Fri Legs, Mon S&T, Wed B&B, Fri Legs. So a cycle is a list of routine ids that may
+repeat, and the rotation's position is read from the run of sessions before the last one (Back
+& Bi after Shoulders & Tri is slot five, not slot two) — `cyclePosition` in `core/rotation.ts`,
+a strict generalisation of §20.10 that gives the same answer whenever nothing repeats.
+
+**The app offers that lap rather than making you build it.** Each routine is classed by where
+its sets go (primary muscles, a 60% majority for push, pull or legs; upper and full body
+otherwise). When one kind has more variants than the others and they line up into whole laps,
+the schedule offers the alternating cycle ("Alternate your push days?") with one button. It
+never applies it unasked, and offers nothing when routines cannot be classed or the variants
+would not line up — a guess there is worse than the list.
+
+**The cycle follows the list until edited, and edits follow the list's changes.** Never edited,
+it is the routines in list order, each once. Edited, it keeps your slots minus any routine since
+deleted (everywhere it appeared) plus any routine created since, at the end. A routine you took
+out on purpose stays out: the stored cycle remembers which routines existed when it was last
+edited, which is what tells "left out" from "new". The editor is one row per slot and a sheet
+per row (MASTER: one control per row) — move earlier, move later, add again, take out — each
+with Undo, and "List order" puts it back.
+
+**A routine is read before it is started** (`/train/routines/:id`). Tapping one opens its page:
+the size on the background (exercises, sets, an estimate to the nearest five minutes — work
+40 s a set, the routine's rests, a superset resting once per round, a minute's changeover per
+exercise), the muscles it works by sets, and each exercise with its target and rest, what to aim
+for next time (§20.8, worded "Aim", because the page is read days before the routine comes
+round), last time's sets as a lifter says them ("80 kg × 8, 8, 8") and its best. Start is at the
+bottom where a thumb is; while a workout runs it says Carry on, or names the other workout that
+is still running. Edit is a pencil in the corner. The Today card's Start still starts directly,
+because pressing Start is the decision.
+
+**Swipe left to delete a routine**, as everywhere else in the app, with Undo. The routine's
+slots in the cycle come back with it.
+
+**Train, laid out.** Figures on the background as before, now "1 of 3 training days" with fixed
+days, and under them the seven days drawn as circles — done filled, training days ahead tinted
+in training's blue, today ringed. A missed day is drawn as a plain training day and nothing
+more: its routine has moved on, and a red mark would be the reckoning §20.15 refuses. Then one
+card that answers what to do today — the routine, its muscles, its size, the first four
+exercises' pictures, Start and View — reading Today, Done today or Rest day from the schedule
+(Up next and Next time from the rotation without fixed days, unchanged from §20.10). Then the
+days coming up, the plan in one row (or "Choose your training days"), three small doors — the
+run, the body map, the circle — and the routines as rows worth reading: a picture, what they
+work, how long they take, when they last ran, and a tag for the day they are next on.
+
+*Not built, on purpose:* routines pinned to weekdays ("Monday is always chest"), which breaks
+the moment a day is missed; and an automatic reshuffle of the cycle when routines change, beyond
+dropping deleted ones and appending new ones — the app suggests, the person decides.
+
+### 20.18 Balance: what the routines train, and the fix (added 22 Oct 2026)
+
+§20.8's coverage reads the week you trained. This reads the week you **plan**: the routines
+themselves, before a set is logged. Someone who has just written four routines wants to know
+now that none of them trains a hamstring, not after a month of finding out. Screen:
+`/train/balance`, reached from Train.
+
+**Counted as coverage counts** (`core/balance.ts`). Planned working sets per muscle: once for the
+muscle an exercise aims at, half for each that assists (`SECONDARY_WEIGHT`), the same 10–20
+band (`MIN_SETS`/`MAX_SETS`), held only against the muscles Build-a-week programs on purpose
+(`PROGRAMMED`). Forearms, traps, lower back, adductors, abductors, obliques and neck are shown
+under *Also counted* and never chased. Each routine counts as often as it comes round
+(`Frequency`, a map of routine id to times a week); until the week has days attached, that is
+once each. Unknown exercises are reported, not dropped. A muscle in range but trained on one
+day only says so ("All on one day"), since frequency is the part the evidence is clearest on
+(§20.9).
+
+**The shoulder's three heads.** The library files every shoulder movement as one muscle, which
+hides the commonest imbalance there is: a week of pressing and no rear-delt work. The head is
+read from the name (`deltHead`: reverse fly, face pull, rear lateral raise → rear; lateral raise,
+upright row → side; press, front raise, push-up, dip → front). An unnamed movement goes by what
+leads it: a chest or triceps lift is front-delt work, a back lift rear-delt work, anything else
+is spread over all three rather than guessed.
+
+**Pairs** (`PAIRS`), each with a loose threshold, because no trial has set an ideal ratio of
+weekly sets between opposing muscles: push vs pull (pull ≥ 80 % of push, after Cools et al.,
+*Br J Sports Med* 2014, on scapular balance), quads vs hamstrings (hamstrings ≥ half, after the
+0.5–0.8 H:Q strength ratios in Coombs & Garbutt, *J Sports Sci Med* 2002), front vs rear delts
+(rear ≥ half), chest vs upper back (≥ 70 %), biceps vs triceps (each ≥ half). They flag a week
+that has plainly forgotten a side, not one that is a little lopsided.
+
+**The fix — the part no tracker does.** Gaps are ranked: never trained, then a forgotten side of
+a pair, then under the band, furthest first (`deficits`). Each gets one concrete edit to one
+routine (`suggestFixes`, at most five):
+
+- *Where:* the routine whose existing work is closest to the muscle (a leg curl goes on leg
+  day; a rear-delt fly on back day, whatever the library files it under), else the shortest.
+- *What:* a strength movement aimed at the muscle (or head), never one already in that routine
+  or already suggested, from the kit the routines show you have (a barbell, cable or machine
+  means a gym; otherwise only what is in use, plus the floor). Named staples first (§20.9's
+  `STAPLES`, plus rear-delt staples), then one using equipment already in that routine, then
+  the simplest. Advanced, boxing and non-strength movements are never offered.
+- *Add or swap:* added, prescribed exactly as Build-a-week would (`prescriptionFor`), with sets
+  sized to the gap and the routine's frequency (2–3). Swapped instead when the routine is full
+  (`MAX_EXERCISES_PER_DAY` exercises or `MAX_ROUTINE_SETS` = 24 sets) or when an exercise in it
+  is pure surplus — its muscle stays inside the band without it and is over the band with it.
+  A swap keeps the slot's sets, rest, superset and note, and never takes a muscle out of the
+  band; its assisting muscles may not fall out either.
+- Each fix is planned against the routines as the earlier fixes leave them, so the "after"
+  figures are what applying them in order really gives, and two fixes never fight over one
+  routine's last slot.
+
+Every fix shows why ("Rear delts under half your front-delt work."), what goes where, and the
+before and after in sets a week — for a pair, of the short side ("Pulling 16 → 18"); for a
+swap, also what the outgoing muscle keeps. *Apply* writes it to the routine with Undo
+(`services/balance.ts`), and refuses if the routine has moved on since.
+
+**The body map** (`components/bodyMap/`). Front and back, filled by planned sets in four steps —
+none, 1–4, 5–9, 10+ — of `accent` mixed into the untrained grey, so "some" and "none" are two
+different things rather than two dimnesses. Over the band is drawn as full, not louder. The
+front view's shoulders show front and side heads, the back view's rear and side, so a pressing
+week fills one and not the other. Abductors have no surface on the figure and are listed only.
+The map is a picture, not a control (`role="img"` with a sentence naming what is trained, what
+has some work, and what has none); tapping a muscle in the list outlines it on the body.
+`BalanceCard` is the compact version for Train; `RoutineMuscles` draws one routine alone.
+
+*Anatomy source:* the paths are from **react-native-body-highlighter** v3.2.0 (male figure),
+MIT, © 2022 ELABBASSI Hicham — copied with its licence into `components/bodyMap/anatomy.ts`,
+not added as a dependency (it targets React Native). One change: its back view draws the lats
+and the shoulder-blade muscles as one "upper-back" part; they are split, the lat being the
+longest shape on each side, because Kalib counts them as two muscles. wger's muscle images were
+rejected for CC BY-SA, which would not sit inside this MIT repository.
+
+*Not built, on purpose:* sets increased on an exercise already there (a fix is always a
+movement, so it can be seen and undone as one), and any balance between the left and right
+sides, which planned sets cannot see.
+### 20.19 The exercises a gym actually does (added 21 Oct 2026)
+
+**The complaint:** "pec deck" and "incline dumbbell press" seemed to be missing. Neither was.
+The pec deck was in the library as "Lever Seated Fly", findable only by someone who already
+knew to type that. The incline dumbbell press was there as "Dumbbell Incline Bench Press", and
+the search for it was typed "incline dumbell press": one letter short, so the word matched
+nothing, and a search that requires every word to land returned nothing at all. Both failures
+were ours. A few movements really were missing — the face pull, the barbell hip thrust, the
+pendulum squat, a rowing machine.
+
+**The catalogue.** `data/exercises-curated.json` names the exercises people actually do —
+276 of them — the way a gym names them, and `core/exerciseCatalogue.ts` lays it over the
+library when the seed is built:
+
+- **244 library rows curated, 211 of them renamed in place** (the rest, "Push-Up", "Plank",
+  were already called what a gym calls them). The id never changes, so every routine and every
+  logged session that points at one keeps working. The textbook name stays searchable: it is kept as an
+  alias, and typed in full it still names the exercise outright. A rename may correct the
+  library's muscles where they are wrong for counting volume — it files the back squat, the leg
+  press and the hack squat under glutes; they are quads-first, glutes second.
+- **32 added**, under ids of their own (`library:kalib-face-pull-cable`), with instructions
+  written for Kalib. They have no demonstration yet and say so — "No demonstration for this one
+  yet" — rather than showing an empty square. Media is a separate decision (the user finds the
+  current animations below the bar, and a better source is being evaluated).
+- **All 276 are `popular`.** Browsing the picker lists them (and anything you have used or made
+  yourself) and nothing else until "Show N more variants". Search ranks them above an obscure
+  variant that matches as well, by a fixed boost smaller than typing a name in full, so "fly"
+  is the chest fly and not "Cable Incline Fly (on Stability Ball)", which is still found when
+  asked for by name.
+
+**Naming convention: movement first, implement in parentheses** — "Bench Press (Barbell)",
+"Incline Bench Press (Dumbbell)", "Lat Pulldown (Cable)", "Pec Deck (Machine)". Movements of
+the body alone take no parentheses: "Pull-Up", "Push-Up", "Plank". It is the convention Hevy and
+Strong use, so a program read in either reads the same here, and it sorts a list by movement
+rather than by equipment, which is how a lifter scans one. The library's other ~1,150 rows keep
+their textbook names; they are variants, found by search.
+
+**Shorthand has one owner.** Over 1,000 phrases ("rdl", "ohp", "pec deck", "skullcrusher",
+"incline db press") each name exactly one exercise. The build fails on a phrase claimed twice,
+on a phrase that is another exercise's whole name, on two exercises with one name, and on a
+rename pointing at a row that is not there — all listed at once. A unit test runs every phrase
+through the real search and requires its exercise first.
+
+**Typos are corrected against the catalogue's own words**, not scored fuzzily per row. A word of
+five letters or more that is not a word of the catalogue becomes the commonest word one letter
+away (wrong, missing, extra or two swapped), so "incline dumbell press" *is* "incline dumbbell
+press", decisive full-phrase match included. An earlier word that only starts a real word was
+cut short ("barbel row" → "barbell row"); the last word is left as a prefix, because it may
+still be being typed. Short words are never touched: "row" one letter off is "raw".
+
+**Upgrading a phone.** The exercise seed goes to version 2. The library is replaced by id, the
+user's own exercises are untouched, and routine rows that still carry an exercise's former name
+are renamed to match — recognised by the former name being among the exercise's aliases, so it
+needs no record of what the names were and is safe to re-run if the first launch was cut short.
+A row someone named themselves keeps its name. **Logged sessions keep the names they were logged
+under**: they are a record of what was done. Build-a-week's staples (§20.9) are named by display
+name, and a test checks each one exists in the shipped library.
+
+*Not done:* demonstrations for the 32 additions; the library's muscle filing beyond the clear
+errors above; a "Popular" badge in search results.
 
 ---
 
